@@ -262,12 +262,12 @@ NSE, BSE
 
 ## 10.1 Key Architectural Decisions
 
-This section tracks the defining decisions behind the v3.x design. Decisions 1–8 were captured in v3.0. Decisions 9 and 10 are from v3.1. Decisions 11 and 12 are new in v3.2.
+This section tracks the defining decisions behind the current design. Decisions 1–8 were captured in the original draft. Decisions 9 and 10 are from the earlier design iteration. Decisions 11 and 12 are new.
 
 ### Decision 9 — TimescaleDB for all time-series (replaces MongoDB + Elasticsearch + Charts Data Collector)
 
 - **Single DB for ticks + candles at all intervals.** Raw ticks, 1-minute candles, and all higher-interval candles live in one database, one schema, one backup domain.
-- **Continuous aggregates eliminate a manual rollup service.** The v3 Charts Data Collector — which aggregated 1m into 5m/15m/1h in application code — is gone. TimescaleDB auto-refreshes every interval from `candles_1m`.
+- **Continuous aggregates eliminate a manual rollup service.** The earlier Charts Data Collector — which aggregated 1m into 5m/15m/1h in application code — is gone. TimescaleDB auto-refreshes every interval from `candles_1m`.
 - **PostgreSQL-based — team already knows SQL.** No new query language, no bespoke operational playbook, standard Postgres tooling for backup/PITR/monitoring.
 - **Used by Robinhood, Coinbase for similar workloads.** Proven at tick-rate scale in retail brokerage and crypto.
 - **Separate instance from Instrument Master PG (workload isolation).** Time-series ingest and large scans do not compete with instrument-master OLTP traffic. Independent sizing, upgrade, and backup policies.

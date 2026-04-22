@@ -1,10 +1,10 @@
 ---
 title: "Operations, Deployment & Migration — Overview"
-description: "Cut-over plan from legacy services to v3.2 (5 deployment groups) with migration strategy and stack inventory"
+description: "Cut-over plan from legacy services (5 deployment groups) with migration strategy and stack inventory"
 ---
 
 <Warning>
-**Storage content on this page predates v3.1.** The Technology Stack and Deployment Architecture sections below still reference **TimescaleDB** and the **Charts Data Collector**. These were removed in v3.1 when MDE consolidated onto **ClickHouse ReplacingMergeTree + materialized-view rollups**.
+**Storage content on this page predates the ClickHouse consolidation.** The Technology Stack and Deployment Architecture sections below still reference **TimescaleDB** and the **Charts Data Collector**. These were removed when MDE consolidated onto **ClickHouse ReplacingMergeTree + materialized-view rollups**.
 
 **For the authoritative current state, see:**
 - [Candles v2](/components/candles-v2) — the shipped storage layout (Redis running + ClickHouse closed + 4 MV rollups)
@@ -15,21 +15,21 @@ The sections below are retained for context on the **migration path** and **depl
 </Warning>
 
 <Info>
-**Version 3.2 — April 2026.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide).
+**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide).
 </Info>
 
 ### Cut-over at a glance
 
 ```mermaid
 flowchart LR
-  subgraph Legacy["Legacy path (pre-v2)"]
+  subgraph Legacy["Legacy path"]
     cw1[charts-writer]
     chw1[charts-historical-writer]
     ts[(TimescaleDB)]
     cdc[Charts Data Collector]
   end
 
-  subgraph V2["v2 / v3.2 path (current)"]
+  subgraph V2["Current path"]
     cw2[candle-writer<br/>dual-sink]
     ra[(Redis API<br/>running candles)]
     ch[(ClickHouse<br/>ReplacingMergeTree + 4 MV)]
@@ -55,8 +55,8 @@ flowchart LR
 | Language | Java 21 | Virtual threads, ZGC |
 | Framework | Spring Boot 3.2+ | Undertow |
 | Instrument master DB | PostgreSQL (dedicated instance) | Instrument master, companies, audit |
-| **Time-series DB** | **TimescaleDB (separate PostgreSQL instance)** | **Unified store for raw ticks (7-day retention) + 1m base candles (10-year, compressed ~10x) + continuous aggregates for 5m/15m/1h/1d/1w/1M. Replaces v3's QuestDB + MongoDB + Elasticsearch combination and eliminates the Charts Data Collector service. Proven at tick rate by Robinhood, Coinbase.** |
-| ~~QuestDB~~ | ~~Removed in v3.1~~ | Replaced by TimescaleDB |
+| **Time-series DB** | **TimescaleDB (separate PostgreSQL instance)** | **Unified store for raw ticks (7-day retention) + 1m base candles (10-year, compressed ~10x) + continuous aggregates for 5m/15m/1h/1d/1w/1M. Replaces the earlier QuestDB + MongoDB + Elasticsearch combination and eliminates the Charts Data Collector service. Proven at tick rate by Robinhood, Coinbase.** |
+| ~~QuestDB~~ | ~~Removed during ClickHouse consolidation~~ | Replaced by TimescaleDB |
 | ~~MongoDB (historical candles)~~ | Legacy — read-only 30-day safety net during migration, then decommissioned | Replaced by TimescaleDB |
 | ~~Elasticsearch (historical)~~ | Legacy — read-only 30-day safety net during migration, then decommissioned | Replaced by TimescaleDB |
 | Cache | Redis 7+ (ElastiCache) — 2 clusters | Cluster 1 (Feed): snapshots. Cluster 2 (API): FNO data, movers, current-day charts candles |
@@ -124,7 +124,7 @@ Temporal Workers (reliability over latency):
     Expiry Day Cleanup
     + Any custom workflow (generic platform)
 
-Incident Manager (NEW in v3.2 — platform-wide deployment group):
+Incident Manager (platform-wide deployment group):
     Signal Collector pods (3+ pods, scale on signal volume)
         - Prometheus scrape subscribers
         - Log stream consumers (Loki / Elasticsearch)
@@ -152,7 +152,7 @@ Resilience Sidecars / Libraries (in every service, not a separate deployment gro
 
 ## 13. Migration Strategy
 
-Strangler fig pattern — **Phase 0 + 4 phases**, roughly 8 weeks total. Phase 0 is new in v3.1 and must complete before the rest of the migration can rely on TimescaleDB.
+Strangler fig pattern — **Phase 0 + 4 phases**, roughly 8 weeks total. Phase 0 is the pre-v2 foundation and must complete before the rest of the migration can rely on TimescaleDB.
 
 ### Phase 0 — Historical data migration via Temporal (prerequisite)
 
@@ -382,7 +382,7 @@ An engineer building this system must implement all of the following:
 - ☐ Propagate settlement prices to Portfolio/Ledger Engine via Kafka
 - ☐ Completion target: &lt; 30 seconds
 
-### Resilience (new in v3.2)
+### Resilience
 
 - ☐ Every downstream call wrapped with a Resilience4j circuit breaker (50% failure threshold over 20 requests, exponential cooldown 10s/30s/60s)
 - ☐ Every user-facing API has a declared 4-layer fallback chain (live → cached → stale → empty); failover between layers is automatic
@@ -390,7 +390,7 @@ An engineer building this system must implement all of the following:
 - ☐ Request hedging enabled for latency-critical reads (live price, option chain, snapshot-on-connect) — parallel reads to two Redis replicas, first response wins
 - ☐ Per-API fallback metrics emitted (`fallback.invocations`) — Layer 4 invocation rate > 0.1% over 5 min triggers P1 alert
 
-### AI-Powered Incident Manager (new in v3.2)
+### AI-Powered Incident Manager
 
 - ☐ Signal Collectors subscribed to Prometheus, Loki/Elasticsearch logs, Kafka consumer lag, Redis/PG slow query log, synthetic probes
 - ☐ Anomaly detection uses statistical baselines (z-score > 3 sustained 60s; EWMA; Prophet for seasonality), not single-threshold alerting
@@ -399,7 +399,7 @@ An engineer building this system must implement all of the following:
 - ☐ Auto-remediation gated by an explicit allowlist (rollout undo, pod restart, scale up, feature-flag toggle, refresh continuous aggregate). Destructive actions NEVER auto-execute.
 - ☐ Auto-remediation rate-limited: same service may not be auto-remediated more than 3 times in 30 minutes (anti-flap)
 
-### Zero-Error UX (new in v3.2)
+### Zero-Error UX
 
 - ☐ All HTTP 5xx errors converted to 200 OK with `{ "data": null, "stale": true, "source": "FALLBACK_L4", "lastUpdatedMs": ..., "message": "Updating" }` before returning to client
 - ☐ Frontend treats `null` data as a loading state — never as an error; renders skeleton or last-known-good

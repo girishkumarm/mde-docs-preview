@@ -109,7 +109,7 @@ Detail: **[Service Catalog](/architecture/service-catalog)** (source-of-truth), 
 | --- | --- | --- |
 | Running candle state | Redis (hash per symbol/tf) | Sub-ms reads; rebuildable from closed bars + ticks on cold start |
 | Closed bars (1m…1M) | ClickHouse ReplacingMergeTree + 4 MVs | Column-store scan speed; MV rollups remove the old Charts Data Collector |
-| Time-series long-term | **TimescaleDB removed** — consolidated onto ClickHouse | Single TSDB; fewer moving parts (v3.0 unification) |
+| Time-series long-term | **TimescaleDB removed** — consolidated onto ClickHouse | Single TSDB; fewer moving parts (storage unification) |
 | Master data | PostgreSQL 16 | Scrip master, user alerts, incident registry |
 | Scrip master distribution | S3 (versioned) | Downstream services pull nightly snapshots |
 | Cache / leaderboards | Redis API Cluster | Movers zsets, LTP LKG, session state |
@@ -135,8 +135,8 @@ The rationale for Redis + Kafka (and not one-or-the-other) is in **[Kafka vs Red
 
 ## Reliability & resilience
 
-- **Zero-Error UX (v3.2)**: Users never see errors. Layered fallback, stale-while-revalidate, circuit breakers (Resilience4j), silent feature flags (Unleash), request hedging.
-- **AI-Powered Incident Manager (v3.2)**: Proactive detection + LLM-driven RCA from Day 1. Catches anomalies before users feel them.
+- **Zero-Error UX**: Users never see errors. Layered fallback, stale-while-revalidate, circuit breakers (Resilience4j), silent feature flags (Unleash), request hedging.
+- **AI-Powered Incident Manager**: Proactive detection + LLM-driven RCA from Day 1. Catches anomalies before users feel them.
 - **Self-healing**: Feed Handler auto-reconnects, candle writer auto-rebuilds running state from Kafka + ClickHouse on cold start.
 - **Temporal-first migrations**: Historical backfill and scrip master refresh run as Temporal workflows — resumable, idempotent, observable.
 
@@ -145,18 +145,18 @@ Full details: **[Components Part 2 §6.20–6.21](/components/part2-fno-movers-a
 ## What's new
 
 <Tabs>
-  <Tab title="v3.2 (current)">
+  <Tab title="(current)">
     - **AI-Powered Incident Manager** — proactive anomaly detection + LLM RCA (Claude Sonnet 4.5)
     - **Zero-Error UX** — graceful degradation, stale-while-revalidate, Resilience4j + Unleash
     - Decisions 11 & 12 added to [Architecture Diagrams](/architecture/diagrams)
   </Tab>
-  <Tab title="v3.0 / v3.1">
+  <Tab title="Earlier design iterations">
     - **TimescaleDB removed** — unified time-series on ClickHouse
     - **Candles v2** shipped: dual-sink writer, Redis running + ClickHouse closed, charts-api `source=` switch, UDF-compat `/v1/price-charts`
     - Charts Data Collector service eliminated — ClickHouse MVs replace manual rollups
   </Tab>
   <Tab title="Legacy paths (deprecated)">
-    - v1 candle storage on TimescaleDB — removed. See [Migration Overview](/migration/overview).
+    - Candle storage on TimescaleDB — removed. See [Migration Overview](/migration/overview).
     - Redis-only architecture (pre-Kafka) — superseded; see [Kafka vs Redis](/decisions/kafka-vs-redis).
   </Tab>
 </Tabs>
@@ -174,6 +174,6 @@ Full details: **[Components Part 2 §6.20–6.21](/components/part2-fno-movers-a
     Provisioning, runbooks, prod readiness
   </Card>
   <Card title="Migration" icon="truck-ramp-box" href="/migration/overview">
-    Cut-over plan from legacy to v3.2
+    Cut-over plan from legacy
   </Card>
 </CardGroup>

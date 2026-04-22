@@ -1,10 +1,10 @@
 ---
 title: "Architecture Diagrams"
-description: "Complete diagram index for Market Data Engine v3.2 — system, pipeline, platform, and decisions"
+description: "Complete diagram index for Market Data Engine — system, pipeline, platform, and decisions"
 ---
 
 <Info>
-All diagrams are available as **SVG** (rendered below) and **Excalidraw source** (editable in [excalidraw.com](https://excalidraw.com)). v3.2 (current) adds Decisions 11 and 12 plus a cross-cutting resilience view. Decisions 9–10 were subsumed into the platform-wide resilience story (see the Resilience Overview at the bottom of this page).
+All diagrams are available as **SVG** (rendered below) and **Excalidraw source** (editable in [excalidraw.com](https://excalidraw.com)). (current) adds Decisions 11 and 12 plus a cross-cutting resilience view. Decisions 9–10 were subsumed into the platform-wide resilience story (see the Resilience Overview at the bottom of this page).
 </Info>
 
 ## Index
@@ -13,7 +13,7 @@ All diagrams are available as **SVG** (rendered below) and **Excalidraw source**
 
 | # | Diagram | What it shows |
 | --- | --- | --- |
-| 1 | [High-Level Architecture (v3)](#high-level-architecture) | Full system: merged feed, dual Redis clusters, Kafka broadcast, data flows |
+| 1 | [High-Level Architecture](#high-level-architecture) | Full system: merged feed, dual Redis clusters, Kafka broadcast, data flows |
 | 2 | [Feed Handler Pipeline](#feed-handler-pipeline) | Packet processing: UDP → Virtual Thread Receiver → Header Parse → Router → 6 Processors → LocalCache + Kafka + Batch HSET |
 | 5 | [Temporal Platform](#temporal-platform) | Temporal Server → Dashboard → Worker Pool → Task Queues → Workflows + extensibility |
 | 6 | [Service Decommission Mapping](#service-decommission) | 12 legacy services → 5 new deployment groups |
@@ -28,14 +28,14 @@ All diagrams are available as **SVG** (rendered below) and **Excalidraw source**
 | D4 | [Kafka `acks=all` + Idempotent Producer](#d4-kafka-acks) | Strongest delivery guarantees for ticks | Accepted |
 | D5 | [Expiry Day Cleanup Workflow](#d5-expiry-cleanup) | Temporal workflow for expired F&O cleanup | Accepted |
 | D6 | [Scrip Master in PostgreSQL Only](#d6-scrip-master) | Instrument master in PG + ConcurrentHashMap, not Redis | Accepted |
-| D7 | [TimescaleDB for All Time-Series](#d7-timescaledb) | *(v3.0 — superseded in v3.1: consolidated onto ClickHouse)* | **Superseded** |
+| D7 | [TimescaleDB for All Time-Series](#d7-timescaledb) | *(the original draft — superseded during ClickHouse consolidation: consolidated onto ClickHouse)* | **Superseded** |
 | D8 | [Historical Data Migration via Temporal](#d8-historical-migration) | How to backfill v1 → v2 storage safely | Accepted |
-| D11 | [AI-Powered Incident Manager (from Day 1)](#d11-incident-manager) | Proactive anomaly detection + LLM RCA (Claude Sonnet 4.5) | Accepted (v3.2) |
-| D12 | [Zero-Error UX (Graceful Degradation)](#d12-graceful-degradation) | Layered fallback so users never see errors | Accepted (v3.2) |
+| D11 | [AI-Powered Incident Manager (from Day 1)](#d11-incident-manager) | Proactive anomaly detection + LLM RCA (Claude Sonnet 4.5) | Accepted |
+| D12 | [Zero-Error UX (Graceful Degradation)](#d12-graceful-degradation) | Layered fallback so users never see errors | Accepted |
 | — | [Resilience Overview](#resilience-overview) | How D11 + D12 compose | Reference |
 
 <Note>
-**Missing numbers:** Diagrams 3 and 4 (system) and Decisions 9 and 10 were consolidated or renumbered during the v3.1 → v3.2 refresh. The gaps are intentional — do not add stale content here.
+**Missing numbers:** Diagrams 3 and 4 (system) and Decisions 9 and 10 were consolidated or renumbered during the the current design refresh. The gaps are intentional — do not add stale content here.
 </Note>
 
 ## How to view or edit
@@ -54,13 +54,13 @@ All diagrams are available as **SVG** (rendered below) and **Excalidraw source**
 
 ---
 
-## System Diagrams (v3.2 — current)
+## System Diagrams
 
 ### High-Level Architecture
 
 Full system: merged feed, dual Redis clusters, Kafka-based broadcast, and end-to-end data flows.
 
-![High-Level Architecture v3](/images/693502030/mde-1-high-level-architecture-v3.svg)
+![High-Level Architecture](/images/693502030/mde-1-high-level-architecture-v3.svg)
 
 *Source:* [mde-1-high-level-architecture-v3.excalidraw](/images/693502030/mde-1-high-level-architecture-v3.excalidraw)
 
@@ -143,7 +143,7 @@ Instrument master in PostgreSQL + in-memory `ConcurrentHashMap` instead of Redis
 ### D7 — TimescaleDB for All Time-Series <a id="d7-timescaledb"></a>
 
 <Warning>
-**Superseded in v3.1.** TimescaleDB was consolidated onto **ClickHouse ReplacingMergeTree + 4 materialized-view rollups**. The diagram is kept for historical context; it does not reflect the current storage layout. See [Candles v2](/components/candles-v2) and [Migration Overview](/migration/overview) for the current design.
+**Superseded during ClickHouse consolidation.** TimescaleDB was consolidated onto **ClickHouse ReplacingMergeTree + 4 materialized-view rollups**. The diagram is kept for historical context; it does not reflect the current storage layout. See [Candles v2](/components/candles-v2) and [Migration Overview](/migration/overview) for the current design.
 </Warning>
 
 ![D7: TimescaleDB (superseded)](/images/693502030/mde-decision-7-timescaledb.svg)

@@ -3,7 +3,7 @@ title: "Market Data Engine — Components Part 2 (FNO, Market Movers, Alerts, Op
 ---
 
 <Info>
-**Version 3.2 — April 2026.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
 </Info>
 
 ## 6. Component Deep Dives — Part 2 (FNO → Expiry → Resilience → Incident Manager)
@@ -255,7 +255,7 @@ Step 6: Propagate settlement prices to Portfolio/Ledger Engine via Kafka
 ### 6.20 Resilience & Zero-Error User Experience
 
 <Info>
-**New in v3.2.** This section codifies the platform-wide promise that **users should NEVER see an error**. If a backend component fails, the system degrades silently. The user always sees data — possibly slightly stale, possibly partial — never an error popup, never a red modal, never a "Something went wrong" screen.
+**New.** This section codifies the platform-wide promise that **users should NEVER see an error**. If a backend component fails, the system degrades silently. The user always sees data — possibly slightly stale, possibly partial — never an error popup, never a red modal, never a "Something went wrong" screen.
 </Info>
 
 **Design Principle:** "Users should NEVER see an error. If a backend component fails, the system degrades silently."
@@ -427,7 +427,7 @@ This is the operational rule that makes the design real:
 ### 6.21 AI-Powered Incident Manager
 
 <Info>
-**New in v3.2.** **Platform-wide capability — not just Market Data Engine internal tooling.** Detects incidents BEFORE users notice. Uses an LLM to root-cause and suggest fixes. Auto-remediates known patterns. Integrates with Slack, Jira, PagerDuty, and Kubernetes.
+**New.** **Platform-wide capability — not just Market Data Engine internal tooling.** Detects incidents BEFORE users notice. Uses an LLM to root-cause and suggest fixes. Auto-remediates known patterns. Integrates with Slack, Jira, PagerDuty, and Kubernetes.
 </Info>
 
 **Purpose:** Today, most incidents are first reported by users — embarrassing and slow. With Incident Manager, the platform detects anomalies in seconds, gathers context-rich evidence, asks an LLM to root-cause it, and either auto-remediates (if the fix is reversible and high-confidence) or pages a human with a fully-prepared analysis. Mean time to recovery (MTTR) drops from hours to minutes.

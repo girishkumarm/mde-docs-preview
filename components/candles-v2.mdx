@@ -696,7 +696,7 @@ Same Redis password, ClickHouse creds, S3 IRSA roles. TimescaleDB role removed.
 
 ## 12. Open questions
 
-1. **Tick-count column?** Keep for v1, drop if memory spikes.
+1. **Tick-count column?** Keep for launch, drop if memory spikes.
 2. **5s/15s/30s ZSET indexes?** No — always "current bucket only".
 3. `source=any`? Over-engineered; skip.
 4. **recon-service changes?** Repoint bhavcopy recon from TSDB to ClickHouse `candles_1m` — one SQL change.

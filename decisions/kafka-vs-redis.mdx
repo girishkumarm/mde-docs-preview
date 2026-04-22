@@ -154,14 +154,14 @@ All 12 alternatives were evaluated. Shortest honest answer:
 | Alternative | Why it isn't MDE's choice |
 | --- | --- |
 | **Pulsar** | Half Kafka's throughput on identical hardware (305 MB/s vs 605 MB/s per OpenMessaging benchmark). Adds ZooKeeper/Oxia ops burden. Only one named market-data prod user (Belvedere). |
-| **Redpanda** | Kafka-compatible, faster tail latency. **Zero Indian fintech production references.** Paytm Money would be the reference customer — unacceptable risk at v1. Strong v2 candidate. |
+| **Redpanda** | Kafka-compatible, faster tail latency. **Zero Indian fintech production references.** Paytm Money would be the reference customer — unacceptable risk for launch. Strong future candidate. |
 | **NATS JetStream** | Great throughput but market-data production references are absent. Smaller ecosystem for Spring/Java shops. |
 | **RabbitMQ** | Throughput ceiling ~1 M msg/s; ordering only via single-queue-single-consumer. Better at task queues than broadcast fanout. |
 | **Kinesis** | Only 1 MB/s/shard; max 1000 shards/region; cross-shard ordering complexity. AWS lock-in. |
 | **MQTT (EMQX/VerneMQ/HiveMQ)** | IoT-oriented; no first-class consumer-group replay; broker choices tied to non-financial industries. |
 | **ZeroMQ / Chronicle Queue / Aeron** | No broker → every producer must know every consumer. Breaks at dynamic pod counts. HFT-internal IPC, not fanout to 100k WebSocket clients. |
 | **gRPC streaming / SSE direct** | Still needs a bus behind it. Same problem, different wire format. |
-| **Amazon MSK** | Not an alternative to Kafka — it *is* Kafka (managed). Valid deployment option for MDE v1 once we commit to Kafka. |
+| **Amazon MSK** | Not an alternative to Kafka — it *is* Kafka (managed). Valid managed deployment option once we commit to Kafka. |
 
 ---
 

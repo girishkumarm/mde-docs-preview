@@ -3,7 +3,7 @@ title: "Market Data Engine — Components Part 1 (Feed Handler to Charts)"
 ---
 
 <Info>
-**Version 3.2 — April 2026.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
 </Info>
 
 ## 6. Component Deep Dives — Part 1 (Instrument Master → Charts)
@@ -578,7 +578,7 @@ Each element in `data` array: `[start_time, open, high, low, close, volume, oi, 
 ### 6.9 Multi-Interval Candle Aggregation (TimescaleDB Continuous Aggregates)
 
 <Info>
-**Changed in v3.1 — service eliminated.** The v3 design had a separate "Charts Data Collector" service that manually aggregated 1-minute candles into 5m/15m/1h. **This service is gone.**
+**Removed — service eliminated.** An earlier design had a separate "Charts Data Collector" service that manually aggregated 1-minute candles into 5m/15m/1h. **This service is gone.**
 </Info>
 
 **TimescaleDB continuous aggregates automatically maintain 5m/15m/1h/1d/1w/1M candles from the base `candles_1m` table. No separate service needed.**
@@ -592,7 +592,7 @@ How it works:
 
 Operational impact:
 
-- **One less service to deploy, monitor, and recover.** The manual 1m → 5m → 15m → 1h fan-out in v3 is replaced by declarative SQL.
+- **One less service to deploy, monitor, and recover.** The manual 1m → 5m → 15m → 1h fan-out from the earlier draft is replaced by declarative SQL.
 - **No chance of rollups diverging from base data.** Continuous aggregates are always consistent with `candles_1m` after refresh.
 - **Corporate action / backfill fixes propagate automatically** — rewrite `candles_1m`, refresh the aggregates, every interval is corrected.
 
@@ -614,7 +614,7 @@ See §6.10 for the full SQL definitions.
 
 **Why TimescaleDB:**
 
-| v3 (replaced) | v3.1 (TimescaleDB) | Benefit |
+| Earlier (replaced) | an earlier iteration (TimescaleDB) | Benefit |
 | --- | --- | --- |
 | TSDB / QuestDB for raw ticks | TimescaleDB `ticks` hypertable (7-day retention) | Single DB |
 | Redis for current-day candles | Redis (unchanged) | Hot path unchanged |

@@ -3,22 +3,22 @@ title: "Market Data Engine — Technical Design Document"
 ---
 
 <Info>
-**Version 3.2 — April 2026.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
 </Info>
 
 # Market Data Engine — Technical Design Document
 
 <Info>
-**Status:** DRAFT | **Version:** 3.2 | **Date:** April 2026
+**Status:** DRAFT | **Version:** pre-production draft | **Date:** April 2026
 
-**What changed from v3.1:**
+**Highlights:**
 
 - **Added AI-Powered Incident Manager** (proactive detection + LLM debugging) — platform-wide capability that detects incidents before users notice and uses an LLM to root-cause + suggest fixes (§6.21).
 - **Added Zero-Error UX** — users should NEVER see an error. Layered fallback strategy, stale-while-revalidate, circuit breakers, silent feature flags, request hedging (§6.20).
 - **Added Decision 11** (AI-Powered Incident Manager from Day 1) and **Decision 12** (Zero-Error User Experience via Graceful Degradation) in §10.1.
 - Tech stack, deployment, monitoring, and business-rules sections updated accordingly.
 
-**What changed from v3.0:** Unified time-series storage on **TimescaleDB** (replacing QuestDB + MongoDB + Elasticsearch). Charts Data Collector service eliminated — continuous aggregates take over manual rollups. Historical data migration framed as a Temporal workflow.
+**Earlier evolution:** Unified time-series storage on **TimescaleDB** (replacing QuestDB + MongoDB + Elasticsearch). Charts Data Collector service eliminated — continuous aggregates take over manual rollups. Historical data migration framed as a Temporal workflow.
 </Info>
 
 ---
@@ -58,7 +58,7 @@ The Market Data Engine is the **single, authoritative source of all market data*
 3. **Composable** — Independently deployable. Trade Engine, Portfolio Engine, Ledger Engine depend on it, not the other way around.
 4. **Observable** — Every tick, correction, feed switch, reconnection is logged, metriced, and traceable.
 5. **API-compatible** — All read APIs match the current contract since the UI is not being replaced.
-6. **Zero-Error UX (new in v3.2)** — Users must never see an error popup. The system degrades silently through layered fallbacks; the AI Incident Manager handles internal noise.
+6. **Zero-Error UX** — Users must never see an error popup. The system degrades silently through layered fallbacks; the AI Incident Manager handles internal noise.
 
 ---
 
@@ -203,7 +203,7 @@ The Market Data Engine is the **single, authoritative source of all market data*
     │  + Any custom job via Temporal Dashboard            │
     └─────────────────────────────────────────────────────┘
 
-    AI-POWERED INCIDENT MANAGER (platform-wide, new in v3.2):
+    AI-POWERED INCIDENT MANAGER (platform-wide,):
     ┌─────────────────────────────────────────────────────┐
     │  Signal collectors → Anomaly detection → LLM        │
     │  debugger → Auto-remediation + Notification         │
