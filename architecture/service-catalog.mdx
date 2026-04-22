@@ -1,71 +1,76 @@
 ---
 title: "Service Catalog"
-description: "Ground-truth inventory of every service in the market-data-engine repo — ports, dependencies, purpose, status"
+description: "Ground-truth inventory of every service in market-data-engine — ports, classes, Kafka role, storage, endpoints. Verified against code."
 ---
 
 <Info>
-**Source of truth**: the `market-data-engine` monorepo on `main`. Updated after a full code-audit of `services/`, `shared/`, `docker-compose.yml`, and `settings.gradle`. This page is the authoritative answer for *"what services exist and how do I run them?"*
+Every row below was re-verified against `/Users/girishkumar/Documents/risk/market-data-engine` on `main`: Spring application classes, `application.yml` ports, `@KafkaListener` / `KafkaTemplate` usage, `@RestController` annotations, and datasource config. Where the docs and the code ever drift, trust this page.
 </Info>
 
 ## At a glance
 
-- **14 Spring Boot services** in the monorepo (13 runtime + 1 dev mock)
+- **14 Spring Boot services** — 13 runtime + 1 dev-only mock
 - **2 shared modules**: `shared/common` (enums, value types, security stubs), `shared/proto` (Protobuf contracts for Kafka + WebSocket)
 - **Runtime stack**: Java 21 + Spring Boot 3.2.11 + Kafka 3.8.0 + ClickHouse JDBC 0.6.5 + Lettuce 6.4.0 + Temporal 1.26.2
-- **Build**: Gradle multi-module, Spotless + Palantir Java Format enforced, Foojay auto-JDK
-- **All services** expose OpenAPI 3.0 via springdoc-openapi at `/v3/api-docs` + `/swagger-ui.html`
-- **All services** expose Prometheus metrics at `/actuator/prometheus`, health at `/actuator/health`
+- **Dual-write (bake-off) period**: `charts-writer` + `charts-historical-writer` (legacy v1 candle pipeline) still run alongside `candle-writer` (v2). Neither is deleted from `settings.gradle` yet — see the rollback runbook for details.
 
 ## Service matrix
 
-| Service | App port | Mgmt port | Purpose | Storage | Kafka role |
-| --- | --- | --- | --- | --- | --- |
-| [instrument-master](#instrument-master) | 8081 | 9081 | Scrip sync from CMOTS; search; corporate actions webhook | PostgreSQL, Redis Feed, S3 | producer |
-| [feed-handler](#feed-handler) | 8082 | 9082 | NSE/BSE multicast ingestion (6 UDP streams) | (stateless) | producer |
-| [publisher](#publisher) | 8083 | 9083 | Kafka tick consumer → Redis Feed snapshots (52-wk OHLC, LTP, volume) | Redis Feed | consumer |
-| [market-movers-writer](#market-movers-writer) | 8084 | 9084 | Top gainers/losers/vol leaders aggregator | Redis API | consumer |
-| [fno-data-writer](#fno-data-writer) | 8085 | 9085 | Option chain + Greeks (Black-Scholes) from ticks | Redis API | consumer |
-| [candle-writer](#candle-writer) ⭐ | 8086 | 9086 | **Dual-sink**: Redis running (5s/15s/30s) + ClickHouse closed (1m+) | Redis Feed, ClickHouse | consumer + producer |
-| [charts-writer](#charts-writer) | 8086 | 9086 | **Deprecated** — superseded by candle-writer | Redis Feed, ClickHouse | consumer |
-| [broadcast-service](#broadcast-service) | 8087 | 9087 | WebSocket fan-out (`/ws/feed`) per-pod consumer group | Redis Feed | consumer |
-| [recon-service](#recon-service) | 8089 | 9089 | OHLCV reconciliation Temporal workflow | PostgreSQL, ClickHouse | producer |
-| [charts-historical-writer](#charts-historical-writer) | 8090 | 9090 | Batched ClickHouse insert of `mde-candles-1m` | ClickHouse | consumer |
-| [premarket-scheduler](#premarket-scheduler) | 8086 | 9086 | Temporal workflows — pre-market setup, warm-up ticks | PostgreSQL, Redis Feed | producer |
-| [incident-manager](#incident-manager) | 8092 | 9092 | AlertManager webhook → Jira/Slack incidents | PostgreSQL | consumer |
-| [jira-mock](#jira-mock) *(dev-only)* | 8095 | 9095 | Local Atlassian API emulator for E2E testing | — | — |
-| [charts-api](#charts-api) | 8086 | 9086 | Query API: running candles, closed candles, UDF-compat | Redis Feed, Redis API, ClickHouse | — |
+| Service | App class | Port | Mgmt | Kafka | Storage | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| [instrument-master](#instrument-master) | `InstrumentMasterApplication` | 8081 | 9081 | consumer + producer | PostgreSQL, Redis Feed, S3, **TimescaleDB (legacy read-only)** | active |
+| [feed-handler](#feed-handler) | `FeedHandlerApplication` | 8082 | 9082 | producer + 1 consumer | (stateless, local cache only) | active |
+| [publisher](#publisher) | `PublisherApplication` | 8083 | 9083 | consumer + consumer | Redis Feed | active |
+| [market-movers-writer](#market-movers-writer) | `MarketMoversWriterApplication` | 8084 | 9084 | consumer | Redis Feed (read), Redis API (write) | active |
+| [fno-data-writer](#fno-data-writer) | `FnoDataWriterApplication` | 8085 | 9085 | consumer | Redis Feed (read), Redis API (write) | active |
+| [charts-writer](#charts-writer) | `ChartsWriterApplication` | 8086 | 9086 | consumer + producer | **TimescaleDB** | **legacy v1** — kept on `main` for rollback |
+| [candle-writer](#candle-writer) ⭐ | `CandleWriterApplication` | 8086 | 9086 | consumer only (no Kafka produce) | Redis Feed, ClickHouse | active v2 |
+| [broadcast-service](#broadcast-service) | `BroadcastServiceApplication` | 8087 | 9087 | consumer (per-pod group) | Redis Feed (read) | active |
+| [recon-service](#recon-service) | `ReconServiceApplication` | 8089 | 9089 | producer | PostgreSQL, ClickHouse, **TimescaleDB (legacy source-of-truth)** | active |
+| [charts-historical-writer](#charts-historical-writer) | `ChartsHistoricalWriterApplication` | 8090 | 9090 | consumer | ClickHouse | **legacy v1** — kept for rollback |
+| [premarket-scheduler](#premarket-scheduler) | `PremarketSchedulerApplication` | 8086 | 9086 | — | Redis Feed | active |
+| [incident-manager](#incident-manager) | `IncidentManagerApplication` | 8092 | 9092 | producer | PostgreSQL | active |
+| [jira-mock](#jira-mock) *(dev)* | `JiraMockApplication` | 8095 | 9095 | — | file-based JSONL | dev-only |
+| [charts-api](#charts-api) | `ChartsApiApplication` | 8086 | 9086 | — | ClickHouse, Redis Feed (read), Redis API (read) | active |
 
 <Note>
-**Why do multiple services share port 8086?** They are mutually exclusive per deployment group — a given pod runs exactly one of (`charts-api`, `candle-writer`, `charts-writer`, `premarket-scheduler`). The shared port just keeps `application.yml` snippets uniform.
+**Port 8086 is shared** by `charts-api`, `candle-writer`, `charts-writer`, `premarket-scheduler` — they are mutually exclusive per deployment. The shared port keeps `application.yml` snippets uniform.
 </Note>
 
----
+## TimescaleDB reality check
+
+Despite the v2 narrative, **three services still depend on TimescaleDB** in the current code:
+
+| Service | Usage | When can it go? |
+| --- | --- | --- |
+| `charts-writer` (legacy v1) | Primary candle store — writes 1m hypertable | When v2 bake-off passes and the writer is scaled to 0 |
+| `charts-historical-writer` | (does NOT use TimescaleDB — writes to ClickHouse) | Legacy consumer kept for rollback only |
+| `recon-service` | Reads legacy 1m for reconciliation against ClickHouse | When the legacy data window is no longer in the recon lookback |
+| `instrument-master` | Read-only proxy at `jdbc:postgresql://localhost:5433/timeseries` | After chart-read migration + proxy consumers re-pointed |
+
+**Until those three are cleared, TimescaleDB is a live dependency.**
 
 ## Runtime stack (exact versions)
 
 Pinned in `gradle.properties`:
 
-| Library | Version | Notes |
+| Library | Version | Source |
 | --- | --- | --- |
-| Java | **21** | `javaVersion=21` — Virtual threads + ZGC |
+| Java | **21** | `javaVersion=21` |
 | Spring Boot | **3.2.11** | `springBootVersion=3.2.11` |
 | Kafka clients | **3.8.0** | `kafkaClientsVersion=3.8.0` |
 | ClickHouse JDBC | **0.6.5** | `clickhouseVersion=0.6.5` |
-| Lettuce | **6.4.0** | Redis Java client |
+| Lettuce | **6.4.0** | Redis client |
 | Temporal SDK | **1.26.2** | `temporalVersion=1.26.2` |
-| Jackson | (Spring-managed) | |
-| Resilience4j | (managed) | circuit breakers per Decision 12 |
-| Micrometer | (managed) | Prometheus registry wired |
-| Lombok | (managed) | |
 
-Enforced formatters/linters: **Spotless 6.25.0 + Palantir Java Format 2.50.0** via `./gradlew spotlessApply` / `spotlessCheck`.
+Formatters/linters: **Spotless 6.25.0 + Palantir Java Format 2.50.0** via `./gradlew spotlessApply` / `spotlessCheck`.
 
 ## Shared modules
 
 | Module | Contents |
 | --- | --- |
-| `shared/common` | `Exchange`, `ExchangeSegment`, `PacketType`, `MarketStatus` enums; `InstrumentToken` value type; `PermitAllSecurityConfig` / `SecurityConfig` stubs |
-| `shared/proto` | Protobuf schemas for `Tick`, `Candle`, `FeedMessage` — used by Kafka producers/consumers and the WebSocket broadcast wire format |
+| `shared/common` | `Exchange`, `ExchangeSegment`, `PacketType`, `MarketStatus` enums; `InstrumentToken`; `PermitAllSecurityConfig` / `SecurityConfig` |
+| `shared/proto` | Protobuf contracts for `Tick`, `Candle`, `FeedMessage` |
 | `shared/build` | Reserved for custom Gradle plugins (currently empty) |
 
 ---
@@ -74,159 +79,197 @@ Enforced formatters/linters: **Spotless 6.25.0 + Palantir Java Format 2.50.0** v
 
 ### instrument-master {#instrument-master}
 
-**Purpose**: Scrip/instrument master CRUD + search + corporate-action sync.
-**Port**: 8081 (mgmt 9081). **Class**: `InstrumentMasterApplication`.
+**App class**: `InstrumentMasterApplication` · **Port**: 8081 (mgmt 9081)
+**Purpose**: Scrip master CRUD, search, company info, corporate-action event publishing.
+**Kafka**: producer on `mde-instrument-master-events`, `mde-corporate-actions` (via `CorporateActionsEventPublisher`); consumer on `mde-instrument-master-events` (self-loop / invalidation).
+**Storage**: PostgreSQL (canonical), Redis Feed (hot lookups), S3 (scrip snapshots), **TimescaleDB** (read-only proxy for legacy chart reads).
 
 | Endpoint | Method | Notes |
 | --- | --- | --- |
-| `/v1/instruments` | GET | List/filter (symbol, exchange, segment, scripType); paginated |
+| `/v1/instruments` | GET | List / filter (symbol, exchange, segment, scripType) |
 | `/v1/instruments/{instrumentToken}` | GET | Single instrument |
 | `/v1/companies` | GET/POST | Company info |
 | `/v1/search` | GET | Full-text search |
-| `/internal/ca-sync` | GET/POST | **Unauthenticated** corporate-action webhook — called by publisher |
+| `/internal/ca-sync` | GET/POST | **Unauthenticated** CA webhook |
 | `/internal/admin/*` | | **Unauthenticated** operator admin |
-
-**Stores**: PostgreSQL (canonical), Redis Feed (hot lookups), S3 (scrip master snapshots).
 
 ### feed-handler {#feed-handler}
 
-**Purpose**: Receives NSE + BSE multicast UDP, decodes, cross-source de-dups, publishes to Kafka.
-**Port**: 8082. **Class**: `FeedHandlerApplication`.
+**App class**: `FeedHandlerApplication` · **Port**: 8082 (mgmt 9082)
+**Purpose**: NSE + BSE multicast ingestion (6 UDP streams → decode → cross-source dedup → Kafka).
+**Kafka produces** (from `application.yml`):
 
-- Consumes 6 UDP streams: `{NSE,BSE} × {CASH, FNO_0, FNO_1}` → 2 × 3 = 6 streams (docker-compose env).
-- Produces ticks on `pml-marketfeed-{nse|bse}-{equity|derivative|index}-ticks` (see [Kafka topics](/data-apis/kafka-topics)).
-- Also consumes `pml-marketfeed-{nse|bse}-derivative-ticks` internally for cross-source dedup.
-- Admin endpoints under `/internal/admin/*`.
+```
+nse-equity:     pml-marketfeed-nse-equity-ticks
+bse-equity:     pml-marketfeed-bse-equity-ticks
+nse-derivative: pml-marketfeed-nse-derivative-ticks
+bse-derivative: pml-marketfeed-bse-derivative-ticks
+nse-index:      pml-marketfeed-nse-index-ticks
+bse-index:      pml-marketfeed-bse-index-ticks
+```
+
+**Kafka consumes**: `mde-instrument-master-events` via `InstrumentInvalidationListener` (refresh local cache on scrip changes).
+**Endpoints**: `/internal/admin/*` (feed enable/disable, stats).
 
 ### publisher {#publisher}
 
-**Purpose**: Consume ticks → write hot snapshots to Redis Feed (`FEED_PP_{segment}:{pmlId}`, `CANDLE:{interval}:{token}`, movers zsets) + Lua atomic 52-week H/L + OHLC compare-and-set.
-**Port**: 8083. **Class**: `PublisherApplication`.
+**App class**: `PublisherApplication` · **Port**: 8083 (mgmt 9083)
+**Purpose**: Tick consumer → writes hot snapshots to Redis Feed + Lua atomic 52-week H/L + OHLC compare-and-set.
+**Kafka consumes**:
+- `pml-marketfeed-.*-ticks` pattern (all 6 tick topics)
+- `mde-corporate-actions` (for cascading CA effects into Redis snapshots)
+
+Redis keys written: `FEED_PP_{segment}:{pmlId}`, `MGR_*_OHLC:{pmlId}`, `MGR_*_52_WK_HL:{pmlId}`, `TRD_DAY`.
 
 ### market-movers-writer {#market-movers-writer}
 
-**Purpose**: Rank top N by price change / volume / value across segments.
-**Port**: 8084. **Class**: `MarketMoversWriterApplication`. **REST**: `GET /v1/movers`.
+**App class**: `MarketMoversWriterApplication` · **Port**: 8084 (mgmt 9084)
+**Purpose**: Rank top N by price change / volume / value.
+**Kafka consumes**: `pml-marketfeed-NSE_CASH-ticks` (as configured in its `application.yml`; note this name form differs from feed-handler's outputs — reconciled via env-var override in deployed environments).
+**REST**: `GET /v1/movers`.
 
 ### fno-data-writer {#fno-data-writer}
 
-**Purpose**: Option-chain aggregation, Black-Scholes Greeks, PCR, Max Pain, ATM Straddle, CPR.
-**Port**: 8085. **Class**: `FnoDataWriterApplication`.
+**App class**: `FnoDataWriterApplication` · **Port**: 8085 (mgmt 9085)
+**Purpose**: Option chain aggregation, Black-Scholes Greeks, PCR, Max Pain, ATM Straddle, CPR.
+**Kafka consumes**: `pml-marketfeed-nse-derivative-ticks` (single topic, `DerivativeTickListener`).
 
 | Endpoint | Method | Notes |
 | --- | --- | --- |
 | `/v1/fno-chain` | GET/POST | Option chain aggregated data |
-| `/v1/oi-buildup` | GET | Open-interest buildup analytics |
+| `/v1/oi-buildup` | GET | OI buildup analytics |
 | `/v1/expiry-calendar` | GET | Expiry dates by underlying |
-
-### candle-writer ⭐ {#candle-writer}
-
-**Purpose**: The current (v2) dual-sink candle builder. Replaces `charts-writer` + `charts-historical-writer`.
-**Port**: 8086. **Class**: `CandleWriterApplication`.
-
-- Writes running candles (5s / 15s / 30s / 1m) to Redis Feed (`CANDLE:RUN:{interval}:{token}`, 120s TTL).
-- Writes closed bars (1m+) to ClickHouse `candles_1m` via batched INSERT; publishes to `mde-candles-1m` Kafka topic for downstream consumers.
-- Superseded commits: `22b566c` (merge), `35560c0` (schema), `bb3f8ff` (API switch), `a9863de` (Redis auto-config fix).
 
 ### charts-writer {#charts-writer}
 
 <Warning>
-**Deprecated** — superseded by `candle-writer`. Still in `settings.gradle` for backwards-compat but new deployments should not include it. Tracked for removal after v2 bake-off passes.
+**Legacy v1 — to be removed after bake-off.** This service is still on `main` for rollback. New deployments should NOT include it. It is the writer that produces `mde-candles-1m`.
 </Warning>
+
+**App class**: `ChartsWriterApplication` · **Port**: 8086 (mgmt 9086)
+**Purpose**: v1 candle pipeline — consumes ticks, aggregates, **writes TimescaleDB**, **publishes `mde-candles-1m`**.
+**Kafka**: consumer `pml-marketfeed-.*-ticks` pattern, producer `mde-candles-1m`.
+**Storage**: TimescaleDB (primary v1 candle store).
+
+### candle-writer ⭐ {#candle-writer}
+
+**App class**: `CandleWriterApplication` · **Port**: 8086 (mgmt 9086)
+**Purpose**: Current (v2) dual-sink candle builder. Replaces `charts-writer` + `charts-historical-writer`.
+
+**Internal pipeline** (verified against `services/candle-writer/src/main/java/.../`):
+
+1. **`TickListener`** — `@KafkaListener(topicPattern = "pml-marketfeed-.*-ticks", groupId = "mde-candle-writer")`. Parses Protobuf `Tick`, drops non-TRADE packets, acks offset after in-memory apply.
+2. **`CandleAggregator`** — `ConcurrentHashMap<BucketKey, BucketState>` keyed by `(token, intervalCode, bucketEpochSec)`. Each tick calls `BucketState.applyTick(ltp, qty, tsMicros)`. On bucket-epoch rollover for `(token, 1m)` the bucket is removed + handed to `onBucketRollover(...)`.
+3. **Fan-out on rollover**:
+   - `RedisCandleSink` → `CANDLE:1m:{token}` hash (Redis Feed)
+   - `ClickHouseCandleSink.accumulate(row)` → in-memory batch
+   - `cascadeRollup` → updates running 5m/15m/1h buckets **in Redis only**; higher intervals in ClickHouse are built by materialized views (not direct writes)
+4. **`ClickHouseCandleSink.flush()`** fires on whichever comes first:
+   - `buffer.size() >= mde.candle-writer.clickhouse-batch-size` (default **5000**)
+   - `@Scheduled(fixedRateString = "${mde.candle-writer.clickhouse-flush-ms:60000}")` every **60 s**
+5. Batch INSERT into `mde.candles_1m` (ReplacingMergeTree, `updated_at` as version → idempotent replays).
+
+**candle-writer does NOT publish to Kafka.** It is pure consumer → Redis + ClickHouse. `mde-candles-1m` belongs to the v1 path (charts-writer → charts-historical-writer).
+
+**Shipped commits**: `22b566c` (merge), `35560c0` (CH schema), `bb3f8ff` (API `source=` switch), `a9863de` (Redis auto-config fix).
 
 ### broadcast-service {#broadcast-service}
 
-**Purpose**: WebSocket fan-out of live ticks to authenticated sessions. Per-pod Kafka consumer group (unique group id per instance) — see [Kafka vs Redis ADR](/decisions/kafka-vs-redis).
-**Port**: 8087. **Class**: `BroadcastServiceApplication`.
-
-| Endpoint | Method | Notes |
-| --- | --- | --- |
-| `/ws/feed` | WebSocket | Live tick stream (Protobuf wire format) |
-| `/v3/api-docs`, `/swagger-ui.html` | GET | OpenAPI (REST-only — WS not documented there) |
+**App class**: `BroadcastServiceApplication` · **Port**: 8087 (mgmt 9087)
+**Purpose**: WebSocket fan-out (`/ws/feed`) to authenticated sessions.
+**Kafka consumes**: `pml-marketfeed-.*-ticks` pattern with **unique group-id per pod** (every pod receives every tick; see [Kafka vs Redis](/decisions/kafka-vs-redis)).
+**Endpoints**: `WebSocket /ws/feed` + OpenAPI at `/v3/api-docs`.
 
 ### recon-service {#recon-service}
 
-**Purpose**: End-of-day OHLCV reconciliation against CMOTS + exchange reference; Temporal workflow. Publishes `mde-recon-reports`.
-**Port**: 8089. **Class**: `ReconServiceApplication`. **REST**: `GET /v1/recon`.
+**App class**: `ReconServiceApplication` · **Port**: 8089 (mgmt 9089)
+**Purpose**: End-of-day OHLCV reconciliation Temporal workflow.
+**Kafka producer**: `mde-recon-reports`.
+**Storage**: PostgreSQL (run history), ClickHouse (new source), **TimescaleDB (legacy source of 1m candles, still read for now)**.
+**Endpoint**: `GET /v1/recon`.
 
 ### charts-historical-writer {#charts-historical-writer}
 
-**Purpose**: Batched ClickHouse insert of `mde-candles-1m` — Kafka-only service, no REST.
-**Port**: 8090. **Class**: `ChartsHistoricalWriterApplication`.
+<Warning>
+**Legacy v1 — kept for rollback.** `candle-writer` writes ClickHouse directly now.
+</Warning>
 
-<Note>
-After candle-writer went live (commit `22b566c`), this service is often rolled into the candle-writer deployment. Kept separate in code for backfill/batch scenarios.
-</Note>
+**App class**: `ChartsHistoricalWriterApplication` · **Port**: 8090 (mgmt 9090)
+**Purpose**: Consumed `mde-candles-1m` (from charts-writer) and batch-inserted into ClickHouse `candles_1m`. Kafka-only service, no REST.
+**Kafka consumes**: `mde-candles-1m`.
 
 ### premarket-scheduler {#premarket-scheduler}
 
-**Purpose**: Temporal workflow coordinator — triggers pre-market jobs (scrip refresh, warm-up ticks, cache prime).
-**Port**: 8086. **Class**: `PremarketSchedulerApplication`.
+**App class**: `PremarketSchedulerApplication` · **Port**: 8086 (mgmt 9086)
+**Purpose**: Temporal-driven pre-market jobs — scrip refresh, warm-up ticks, cache prime, `TRD_DAY` flag.
+**Storage**: Redis Feed.
+**Kafka**: none.
 
 ### incident-manager {#incident-manager}
 
-**Purpose**: AlertManager webhook receiver → creates Jira tickets + Slack notifications + persists incident timeline.
-**Port**: 8092. **Class**: `IncidentManagerApplication`.
+**App class**: `IncidentManagerApplication` · **Port**: 8092 (mgmt 9092)
+**Purpose**: AlertManager webhook → Jira + Slack + incident timeline persistence.
+**Kafka producer**: `mde-feed-anomalies` (`IncidentManagerProperties.anomaliesTopic`).
+**Storage**: PostgreSQL (incident registry).
 
 | Endpoint | Method | Notes |
 | --- | --- | --- |
-| `/v1/incidents` | GET | List/filter/sort (paginated) |
-| `/v1/incidents/{id}` | GET | Single incident |
+| `/v1/incidents` | GET | List / filter / sort |
+| `/v1/incidents/{id}` | GET | Single |
 | `/v1/incidents/{id}/acknowledge` | POST | On-call ack |
 | `/internal/alert-webhook` | POST | **Unauthenticated** AlertManager receiver |
 
-Ties into Decision 11 — AI-Powered Incident Manager from Day 1.
+Ties into Decision 11 (AI-Powered Incident Manager from Day 1).
 
 ### jira-mock {#jira-mock}
 
-**Purpose**: Local Atlassian API emulator for developing incident-manager without hitting real Jira.
-**Port**: 8095. **Class**: `JiraMockApplication`. **Dev only** — never deployed.
+**App class**: `JiraMockApplication` · **Port**: 8095 (mgmt 9095)
+**Purpose**: Local Atlassian API emulator for developing incident-manager without hitting real Jira. **Dev only**.
 
 ### charts-api {#charts-api}
 
+**App class**: `ChartsApiApplication` · **Port**: 8086 (mgmt 9086)
 **Purpose**: Public read API for charts.
-**Port**: 8086. **Class**: `ChartsApiApplication`.
 
 | Endpoint | Method | Notes |
 | --- | --- | --- |
-| `GET /v1/candles/{instrumentToken}` | GET | OHLCV range. Query: `from`, `to`, `interval`, `source={redis\|clickhouse\|auto}`. `source=auto` (default) picks Redis for current day, ClickHouse for older. |
+| `GET /v1/candles/{instrumentToken}` | GET | OHLCV range. Query: `from`, `to`, `interval`, `source={redis\|clickhouse\|auto}`. `auto` = Redis for current day, ClickHouse otherwise. |
 | `GET /v1/running-candles/{token}` | GET | In-progress candle (Redis only). Query: `interval` (default 5s). |
-| `POST /v1/price-charts` | POST | TradingView UDF-compatible — keeps the PML UI working with zero config change (commit `bb3f8ff`). |
-| `GET /v1/index` | GET | Index quotes (NIFTY 50, SENSEX, etc.) |
-| `GET /v3/api-docs`, `/swagger-ui.html` | GET | OpenAPI |
+| `POST /v1/price-charts` | POST | TradingView UDF-compatible — keeps PML UI working with zero config change (commit `bb3f8ff`). |
+| `GET /v1/index` | GET | Index quotes |
+| `/v3/api-docs`, `/swagger-ui.html` | GET | OpenAPI |
 
-**Caches**: Caffeine L1 per pod + Redis API cache-aside (`candle:1m:{token}`, 60s intraday / 30d historical).
-
-**Redis auto-config**: disabled (commit `a9863de`) because two qualified `RedisConnectionFactory` beans (Feed + API) collide with Spring Boot defaults.
+**Caches**: Caffeine L1 per pod + Redis API cache-aside (`candle:1m:{token}`).
+**Redis auto-config disabled** (commit `a9863de`) — two qualified `RedisConnectionFactory` beans (Feed + API) collide with Spring Boot defaults.
 
 ---
 
 ## Deployment groups
 
-The 13 runtime services roll up into **5 deployment groups** (architecture Decision 6 — Service Decommission):
+13 runtime services roll up into **5 deployment groups** (Decision 6 — Service Decommission):
 
 <CardGroup cols={2}>
-  <Card title="Ingest group">
+  <Card title="Ingest">
     `feed-handler` + `publisher` (latency-critical, co-located)
   </Card>
-  <Card title="Writer group">
-    `candle-writer` (+ `charts-historical-writer` for backfill), `fno-data-writer`, `market-movers-writer`
+  <Card title="Writer">
+    `candle-writer` (v2) + `charts-historical-writer` (bake-off) + `fno-data-writer` + `market-movers-writer`
   </Card>
-  <Card title="API group">
-    `charts-api`, `instrument-master`, `market-movers-api`, `fno-api` (scale on req/s)
+  <Card title="API">
+    `charts-api`, `instrument-master`, `market-movers-api`, `fno-api`
   </Card>
-  <Card title="Broadcast group">
+  <Card title="Broadcast">
     `broadcast-service` (WebSocket-heavy, sticky-session LB)
   </Card>
-  <Card title="Platform group">
-    `premarket-scheduler` (Temporal), `recon-service` (Temporal), `incident-manager`
+  <Card title="Platform">
+    `premarket-scheduler`, `recon-service`, `incident-manager`
   </Card>
 </CardGroup>
 
 ## See also
 
-- **[Kafka topics](/data-apis/kafka-topics)** — full topic catalog with producer/consumer mapping
-- **[Redis keys](/data-apis/redis-keys)** — key patterns, cluster assignment, TTLs
-- **[Architecture Diagrams](/architecture/diagrams)** — decision diagrams + system flows
-- **[Candles v2](/components/candles-v2)** — the current shipped candle pipeline
+- **[Kafka topics](/data-apis/kafka-topics)** — producer/consumer mapping (verified)
+- **[Redis keys](/data-apis/redis-keys)** — key patterns + TTLs (verified)
+- **[Architecture Diagrams](/architecture/diagrams)** — decision + system diagrams
+- **[Candles v2](/components/candles-v2)** — shipped pipeline details
 - **[DevOps Guide](/operations/devops-guide)** — provisioning + monthly AWS cost

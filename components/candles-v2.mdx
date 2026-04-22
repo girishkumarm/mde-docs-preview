@@ -5,9 +5,18 @@ title: "Market Data Engine — Candles v2: Running Candles + Dual-Sink Writer + 
 # MDE Candles v2 — Architecture + DevOps Requirements
 
 **Status**: Shipped to `main` — staging rollout + bake-off in progress (2026-04-20)
-**Supersedes**: `charts-writer` + `charts-historical-writer` + TimescaleDB as candle store
+**Supersedes (goal)**: `charts-writer` + `charts-historical-writer` + TimescaleDB as candle store
 **Author**: Girish Kumar
 **Owner**: MDE team
+
+<Warning>
+**Reality check** — the legacy pipeline is still on `main` during bake-off:
+- `charts-writer` (v1) still produces `mde-candles-1m` and writes TimescaleDB
+- `charts-historical-writer` (v1) still consumes `mde-candles-1m` and writes ClickHouse
+- `candle-writer` (v2) writes Redis Feed + ClickHouse directly — **no Kafka produce**
+
+Additionally TimescaleDB is still referenced by `recon-service` (reads legacy 1m for reconciliation) and `instrument-master` (read-only chart proxy). v2 is shipped; decommission of v1 + TimescaleDB is bake-off-gated. See [Service Catalog](/architecture/service-catalog#charts-writer) for the full dual-run picture.
+</Warning>
 
 ---
 

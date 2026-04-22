@@ -81,27 +81,32 @@ See **[Architecture Diagrams](/architecture/diagrams)** for the full set (12 dec
 
 ## Core components
 
-Verified against the `market-data-engine` monorepo (`main`). See **[Service Catalog](/architecture/service-catalog)** for ports, Spring application classes, and per-service endpoints.
+Verified against the `market-data-engine` monorepo (`main`). See **[Service Catalog](/architecture/service-catalog)** for Spring application classes, per-service endpoints, and storage details.
 
 | Layer | Service | Purpose |
 | --- | --- | --- |
-| Ingest | **feed-handler** *(8082)* | Consumes NSE/BSE multicast (6 UDP streams), decodes, cross-source dedup, publishes ticks to Kafka |
-| Ingest | **publisher** *(8083)* | Kafka tick consumer → Redis Feed snapshots; Lua atomic 52-wk H/L + OHLC compare-and-set |
-| Platform | **Kafka 3.8.0** | 6 tick topics + `mde-candles-1m` + 4 control/audit topics (see [Kafka topics](/data-apis/kafka-topics)) |
-| Platform | **Redis 7.4 (Feed + API)** | Two clusters — Feed (6380) for hot writes, API (6381) for read caching (see [Redis keys](/data-apis/redis-keys)) |
-| Write | **candle-writer** *(8086)* ⭐ | **Dual-sink**: Redis running (5s/15s/30s) + ClickHouse closed (1m+). Supersedes charts-writer + charts-historical-writer |
-| Write | **charts-historical-writer** *(8090)* | Batched ClickHouse ingestion of `mde-candles-1m` (kept for backfill scenarios) |
-| Write | **fno-data-writer** *(8085)* | Option chain + Greeks (Black-Scholes) + PCR + Max Pain + CPR |
-| Write | **market-movers-writer** *(8084)* | Gainers/losers/volume/value leaders — Redis zsets |
-| Read | **charts-api** *(8086)* | `GET /v1/candles/{token}`, `GET /v1/running-candles/{token}`, `POST /v1/price-charts` (UDF-compat), `GET /v1/index` |
-| Read | **instrument-master** *(8081)* | Scrip master, companies, search, `/internal/ca-sync` webhook |
-| Read | **broadcast-service** *(8087)* | WebSocket `/ws/feed` — per-pod Kafka consumer group |
+| Ingest | **feed-handler** *(8082)* | NSE/BSE multicast (6 UDP streams) → decode → cross-source dedup → Kafka |
+| Ingest | **publisher** *(8083)* | Tick consumer → Redis Feed snapshots + Lua atomic 52-wk H/L + OHLC |
+| Platform | **Kafka 3.8.0** | 6 tick topics + 5 control/audit topics ([Kafka topics](/data-apis/kafka-topics)) |
+| Platform | **Redis 7.4** (Feed + API) | Feed cluster 6380, API cluster 6381 ([Redis keys](/data-apis/redis-keys)) |
+| Write v2 | **candle-writer** *(8086)* ⭐ | **Dual-sink**: Redis running (5s/15s/30s/1m) + direct ClickHouse INSERT of closed 1m. **No Kafka produce.** Cascades higher intervals to Redis only; ClickHouse MVs roll up. |
+| Write v1 | **charts-writer** *(8086)* | **Legacy** — writes TimescaleDB, produces `mde-candles-1m`. Kept on `main` for rollback. |
+| Write v1 | **charts-historical-writer** *(8090)* | **Legacy** — consumes `mde-candles-1m`, batch-INSERT to ClickHouse. Kept for rollback. |
+| Write | **fno-data-writer** *(8085)* | Option chain + Greeks + PCR + Max Pain + CPR |
+| Write | **market-movers-writer** *(8084)* | Gainers/losers — Redis zsets |
+| Read | **charts-api** *(8086)* | `GET /v1/candles/{token}`, `/v1/running-candles/{token}`, `POST /v1/price-charts` (UDF), `GET /v1/index` |
+| Read | **instrument-master** *(8081)* | Scrip master, companies, search, CA webhook; produces `mde-instrument-master-events`, `mde-corporate-actions` |
+| Read | **broadcast-service** *(8087)* | WebSocket `/ws/feed` — unique Kafka group-id per pod |
 | Platform | **Temporal 1.26.2** | Workflows: scrip refresh, pre-market setup, reconciliation, CA propagation |
-| Platform | **premarket-scheduler** *(8086)* | Temporal worker coordinating pre-market jobs |
-| Platform | **recon-service** *(8089)* | End-of-day OHLCV reconciliation workflow → `mde-recon-reports` |
-| Platform | **incident-manager** *(8092)* | AlertManager webhook → Jira + Slack + timeline persistence (Decision 11) |
+| Platform | **premarket-scheduler** *(8086)* | Temporal worker + `TRD_DAY` flag gate |
+| Platform | **recon-service** *(8089)* | OHLCV reconciliation workflow → `mde-recon-reports`. Still reads TimescaleDB for legacy source comparison. |
+| Platform | **incident-manager** *(8092)* | AlertManager webhook → Jira + Slack + timeline; produces `mde-feed-anomalies` |
 
-Detail: **[Service Catalog](/architecture/service-catalog)** (source-of-truth), **[Components Part 1](/components/part1-feed-to-charts)**, **[Components Part 2](/components/part2-fno-movers-alerts)**. Candles v2 (the current production path) is at **[Candles v2](/components/candles-v2)**.
+<Warning>
+**TimescaleDB is still live in 3 services**: `charts-writer` (primary candle store, legacy v1), `recon-service` (reads legacy 1m for reconciliation), `instrument-master` (read-only chart proxy). v2 cut-over completes after the bake-off + retention-window pass.
+</Warning>
+
+Detail: **[Service Catalog](/architecture/service-catalog)** (source-of-truth), **[Components Part 1](/components/part1-feed-to-charts)**, **[Components Part 2](/components/part2-fno-movers-alerts)**. Candles v2 is at **[Candles v2](/components/candles-v2)**.
 
 ## Storage decisions at a glance
 

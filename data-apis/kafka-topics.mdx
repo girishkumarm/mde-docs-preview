@@ -1,38 +1,47 @@
 ---
 title: "Kafka topics"
-description: "Complete catalog of Kafka topics in market-data-engine — producers, consumers, schemas, partitions"
+description: "Every topic in market-data-engine — producers, consumers, schemas, consumer-group rules. Verified against code."
 ---
 
 <Info>
-Sourced directly from the `market-data-engine` repo (`docker-compose.yml` `kafka-init` + `application.yml` + `@KafkaListener` annotations + `KafkaTemplate.send()` call sites). All topic names are environment-configurable via `mde.kafka.topics.*` properties; the values below are the defaults.
+Sourced directly from `/Users/girishkumar/Documents/risk/market-data-engine`: `@KafkaListener` annotations, `KafkaTemplate.send()` call sites, and `application.yml` defaults. All topic names are environment-configurable via `mde.kafka.*` and `mde.<service>.*-topic` properties; values below are the defaults shipped on `main`.
 </Info>
 
 ## Tick topics (from exchange feeds)
 
-Produced by **feed-handler**, partitioned by `instrumentToken` hash so all ticks for a symbol land on the same partition (strict per-symbol ordering).
+**Producer**: `feed-handler` (`services/feed-handler/src/main/resources/application.yml`). Ticks are partitioned by `instrumentToken` hash so all ticks for a symbol land on the same partition (strict per-symbol ordering).
 
-| Topic | Partitions | Producer | Consumer(s) | Schema |
-| --- | --- | --- | --- | --- |
-| `pml-marketfeed-nse-equity-ticks` | 6 | feed-handler | broadcast-service, candle-writer, market-movers-writer | `Tick` protobuf |
-| `pml-marketfeed-bse-equity-ticks` | 6 | feed-handler | broadcast-service, candle-writer | `Tick` protobuf |
-| `pml-marketfeed-nse-derivative-ticks` | 9 | feed-handler | feed-handler (dedup), fno-data-writer | `Tick` protobuf |
-| `pml-marketfeed-bse-derivative-ticks` | 9 | feed-handler | feed-handler (dedup) | `Tick` protobuf |
-| `pml-marketfeed-nse-index-ticks` | 3 | feed-handler | fno-data-writer | `Tick` protobuf |
-| `pml-marketfeed-bse-index-ticks` | 3 | feed-handler | — | `Tick` protobuf |
+| Topic | Producer | Consumers | Notes |
+| --- | --- | --- | --- |
+| `pml-marketfeed-nse-equity-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | NSE cash |
+| `pml-marketfeed-bse-equity-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | BSE cash |
+| `pml-marketfeed-nse-derivative-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer, fno-data-writer | NSE F&O |
+| `pml-marketfeed-bse-derivative-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | BSE F&O |
+| `pml-marketfeed-nse-index-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | NSE indices |
+| `pml-marketfeed-bse-index-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | BSE indices |
 
-## Derived topics
+Most consumers use pattern subscription `pml-marketfeed-.*-ticks` (publisher, broadcast-service, charts-writer, candle-writer). `fno-data-writer` subscribes to a single topic (`pml-marketfeed-nse-derivative-ticks`). `market-movers-writer` defaults to `pml-marketfeed-NSE_CASH-ticks` — this is overridden via env var in deployed environments to match feed-handler's output name.
 
-| Topic | Partitions | Producer | Consumer(s) | Schema | Purpose |
-| --- | --- | --- | --- | --- | --- |
-| `mde-candles-1m` | 6 | candle-writer | charts-historical-writer, charts-api (via Redis cache-warm) | `Candle` protobuf | 1-minute closed candles — durable history sink |
-| `mde-instrument-master-events` | 1 | instrument-master | feed-handler | JSON (add / update / retire) | Instrument lifecycle → invalidate feed-handler local cache |
-| `mde-corporate-actions` | 1 | publisher | instrument-master, fno-data-writer | JSON (split, bonus, dividend, rights) | Downstream CA propagation |
-| `mde-feed-anomalies` | 1 | feed-handler | recon-service *(optional)* | JSON | Feed-health anomaly signals |
-| `mde-recon-reports` | 1 | recon-service | — (downstream / audit sink) | JSON | End-of-day reconciliation summaries |
+## Control + derived topics
+
+| Topic | Producer | Consumers | Purpose |
+| --- | --- | --- | --- |
+| `mde-candles-1m` | **charts-writer** *(legacy v1)* | **charts-historical-writer** *(legacy v1)* | Closed 1m candles emitted by the v1 pipeline. **candle-writer (v2) writes ClickHouse directly and does NOT publish here.** Kept live for rollback. |
+| `mde-instrument-master-events` | instrument-master | feed-handler (`InstrumentInvalidationListener`) | Scrip add / update / retire → invalidate feed-handler local cache |
+| `mde-corporate-actions` | **instrument-master** (`CorporateActionsEventPublisher`) | publisher | Split, bonus, dividend, rights |
+| `mde-feed-anomalies` | **incident-manager** (`IncidentManagerProperties.anomaliesTopic`) | — (dashboards / paging sink) | Incident state transitions |
+| `mde-recon-reports` | recon-service | — (audit sink) | End-of-day reconciliation summaries |
+
+<Warning>
+Two claims from earlier revisions of this page were wrong and have been corrected against the code:
+1. `candle-writer` does NOT produce `mde-candles-1m` — that topic is the v1 pipeline (charts-writer → charts-historical-writer).
+2. `mde-corporate-actions` is produced by **instrument-master**, not publisher. Publisher consumes it.
+3. `mde-feed-anomalies` is produced by **incident-manager**, not feed-handler.
+</Warning>
 
 ## Delivery guarantees
 
-Per architecture Decision 4 (**`acks=all` + Idempotent Producer**):
+Per architecture Decision 4 (`acks=all` + Idempotent Producer):
 
 ```yaml
 spring.kafka.producer:
@@ -43,33 +52,36 @@ spring.kafka.producer:
   compression.type: lz4
 ```
 
-Consumers use `enable.auto.commit: false` and manual offset commit after successful processing, so at-least-once is guaranteed end-to-end.
+Consumers use `enable.auto.commit: false` and manual offset commit after successful processing. At-least-once guaranteed end-to-end.
 
 ## Consumer groups
 
-One consumer group per **service**, with instance id in the group name:
+One group per service, with pod identity when required:
 
-- `broadcast-service-${HOSTNAME}` — **unique per pod** (Decision 1 — every broadcast pod receives every tick)
-- `candle-writer-default` — shared across candle-writer pods
-- `fno-data-writer-default`
-- `market-movers-writer-default`
-- `charts-historical-writer-default`
-- `recon-service-default`
+| Service | Group id | Scope |
+| --- | --- | --- |
+| broadcast-service | `broadcast-service-${HOSTNAME}` | **Unique per pod** — every pod gets every tick (Decision 1) |
+| candle-writer | `mde-candle-writer` | Shared across candle-writer pods |
+| charts-writer *(legacy)* | `mde-charts-writer` | Shared |
+| charts-historical-writer *(legacy)* | `mde-charts-historical-writer` | Shared |
+| publisher | `mde-publisher` | Shared |
+| fno-data-writer | `mde-fno-data-writer` | Shared |
+| market-movers-writer | `mde-market-movers-writer` | Shared |
+| recon-service | `mde-recon-service` | Shared |
+| feed-handler | `mde-feed-handler-${HOSTNAME}` | Per-pod for invalidation listener |
 
 Unique-per-pod group IDs for broadcast-service are essential — a shared group would starve pods and break WebSocket fan-out. See **[Kafka vs Redis](/decisions/kafka-vs-redis)** for the full reasoning.
 
 ## Local development
 
-`docker-compose.yml` provisions Kafka 3.8.0 (Confluent 7.5.0 image) on port `9094`. The `kafka-init` sidecar creates all topics above at startup with these defaults. To recreate:
+`docker-compose.yml` provisions Kafka 3.8.0 (Confluent 7.5.0 image) on port `9094`. The `kafka-init` sidecar creates all topics above at startup. Reset:
 
 ```bash
-make down
-make wipe
-make fresh
+make down && make wipe && make up
 ```
 
 ## Observability
 
-- Prometheus scrapes each service's `/actuator/prometheus` endpoint; Micrometer binds Kafka client metrics automatically.
-- Grafana dashboards under `infra/grafana/` chart consumer lag, produce rate, and error rate per topic.
-- AlertManager rules in `infra/alertmanager/` trigger P1 when broadcast-service lag > 500 ms or any consumer stalls for > 30 s.
+- Each service's `/actuator/prometheus` binds Kafka client metrics (producer send rate, consumer lag, ISR changes).
+- Grafana dashboards under `infra/grafana/` chart per-topic consumer lag.
+- AlertManager (`infra/alertmanager/`) pages on broadcast-service lag > 500 ms or any consumer stalled > 30 s.
