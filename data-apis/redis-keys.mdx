@@ -1,0 +1,80 @@
+---
+title: "Redis keys"
+description: "Key patterns, cluster assignment, and TTLs across the Feed and API Redis clusters"
+---
+
+<Info>
+There are **two Redis clusters** (Decision 2). Feed = Cluster 1 on port 6380 — hot-path writes from the tick pipeline. API = Cluster 2 on port 6381 — read-heavy caching for REST APIs. Both are Redis 7.4 in local compose; ElastiCache in staging/prod.
+</Info>
+
+## Key inventory
+
+| Key pattern | Cluster | Type | Written by | Read by | TTL |
+| --- | --- | --- | --- | --- | --- |
+| `FEED_PP_{segment}:{pmlId}` | Feed (6380) | STRING (bytes) | publisher | broadcast-service, fno-data-writer | — (overwritten on every tick) |
+| `CANDLE:{interval}:{token}` | Feed (6380) | HASH | candle-writer, charts-writer *(legacy)* | charts-api (`source=redis`), broadcast-service | — |
+| `CANDLE:RUN:{interval}:{token}` | Feed (6380) | HASH | candle-writer | charts-api `/v1/running-candles` | 120 s |
+| `candle:1m:{token}` | API (6381) | STRING (JSON) | charts-api *(cache-aside)* | charts-api query path | 60 s intraday, 30 d historical |
+| `fno:chain:{underlying}:{expiry}:{strike}:{CE\|PE}` | API (6381) | HASH | fno-data-writer | fno-data-writer `/v1/fno-chain` | — |
+| `movers:{segment}:{window}` | API (6381) | ZSET | market-movers-writer | market-movers-writer `/v1/movers` | — |
+
+## Atomic operations (Lua)
+
+The publisher uses Lua scripts for compare-and-set semantics on two hot-path updates:
+
+- **52-week H/L**: `SCRIPT.EVAL` with `token`, `price`, current hi/lo — atomic check + replace
+- **OHLC compare-and-set**: same pattern to keep O/H/L/C internally consistent under concurrent ticks
+
+Both scripts live in `services/publisher/src/main/resources/lua/`. Running them server-side guarantees atomicity within a single Redis round trip.
+
+## Cluster topology
+
+<CardGroup cols={2}>
+  <Card title="Feed (Cluster 1)">
+    Heavy **writes** (every tick → hashes). Read only by broadcast-service and the few hot-path consumers. Sized for write throughput; replica only for HA.
+  </Card>
+  <Card title="API (Cluster 2)">
+    Heavy **reads** from charts-api, fno-api, market-movers-api. Cached JSON, zsets for leaderboards. Sized for read QPS; can be read-from-replica.
+  </Card>
+</CardGroup>
+
+## Connection pools
+
+- **Lettuce 6.4.0** for all services (reactive + blocking modes).
+- `spring.data.redis.lettuce.pool.max-active: 16` per pod.
+- Command timeout: 2 s (Resilience4j wraps every call with a circuit breaker — see Decision 12).
+
+## Why two clusters?
+
+Short answer: one bad query from an API consumer shouldn't slow down tick ingestion. The two clusters isolate:
+
+- **Write amplification** on the Feed cluster — every tick fans out to multiple hash updates.
+- **Query bursts** on the API cluster — e.g., a user loading a big option chain or 30-day chart.
+
+See **[Architecture Decision 2](/architecture/diagrams#d2-redis-split)** for the full rationale.
+
+## Running locally
+
+```bash
+# spin up both clusters
+make up
+
+# connect to Feed cluster
+redis-cli -h localhost -p 6380
+
+# connect to API cluster
+redis-cli -h localhost -p 6381
+
+# reset everything
+make wipe && make up
+```
+
+`docker-compose.yml` defines both clusters with `redis:7.4-alpine` and mounts volumes to survive restarts until `make wipe` is invoked.
+
+## Observability
+
+- Prometheus + `redis_exporter` scrapes both clusters; Grafana dashboard `infra/grafana/redis.json` shows memory, eviction rate, command latency.
+- Per Decision 12 (Zero-Error UX), any Redis timeout falls back to:
+  1. Stale cache value if present
+  2. Synchronous ClickHouse read (charts-api only)
+  3. Empty response with `X-Fallback-Layer` header for observability

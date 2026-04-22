@@ -28,7 +28,7 @@ The Price Engine migration replaces **25 legacy PML services** spread across 118
 | Languages | Java 8-17, mixed | Java 21 (unified) |
 | Data stores | ES + MySQL + Redis (7 DBs) + S3 | PostgreSQL + TimescaleDB + ClickHouse + Redis (2 clusters) + ES + S3 |
 | Feed source | CMOTS API + NSE multicast | NSE Direct UDP (colocation) |
-| Tick latency | 50-200ms (via CMOTS relay) | <2ms P50, <10ms P99 (direct feed) |
+| Tick latency | 50-200ms (via CMOTS relay) | &lt;2ms P50, &lt;10ms P99 (direct feed) |
 | Candle storage | ES indices (limited history) | ClickHouse 10yr + TimescaleDB 90d intraday |
 | Deployment | 25 separate CI/CD pipelines | 5 deployment groups, 1 pipeline |
 
@@ -648,7 +648,7 @@ Week 10-13:  Phase 5b -- New features (depth, alerts, peers)
 | Migrate 52-week high/low from Redis DB 8 | Data Eng | 1 |
 | Migrate MySQL bodatadb → PostgreSQL (instrument master, fundamentals) | Data Eng | 3 |
 
-**Exit criteria:** <0.01% price discrepancy between MDE and PML over 5 trading days.
+**Exit criteria:** &lt;0.01% price discrepancy between MDE and PML over 5 trading days.
 
 ### Phase 2: Internal Consumers (Weeks 3-4)
 
@@ -680,7 +680,7 @@ Week 10-13:  Phase 5b -- New features (depth, alerts, peers)
 | Rollout: 50% of users → monitor for 2 days | Ops | 2 |
 | Rollout: 100% of users | Ops | 1 |
 
-**Exit criteria:** 100% of users on MDE WebSocket, error rate <0.01%, latency P99 <50ms.
+**Exit criteria:** 100% of users on MDE WebSocket, error rate &lt;0.01%, latency P99 &lt;50ms.
 
 ### Phase 4: Decommission (Week 7)
 
@@ -748,10 +748,10 @@ Each phase has an independent rollback plan:
 | Phase | Rollback Trigger | Rollback Action | RTO |
 | --- | --- | --- | --- |
 | Phase 1 (Shadow) | >0.1% price discrepancy | Stop MDE shadow, investigate | 0 min (PML unaffected) |
-| Phase 2 (Internal) | API errors >1% or latency >200ms | Feature flag → switch back to old APIs | <5 min |
-| Phase 3 (Live Prices) | WebSocket errors >0.1% or price issues | Feature flag → route to old WebSocket | <5 min |
-| Phase 4 (Decommission) | Any critical issue within 3 days | Scale old services back to previous replica count | <15 min |
-| Phase 5 (New Features) | Feature bugs | Disable feature flag | <1 min |
+| Phase 2 (Internal) | API errors >1% or latency >200ms | Feature flag → switch back to old APIs | &lt;5 min |
+| Phase 3 (Live Prices) | WebSocket errors >0.1% or price issues | Feature flag → route to old WebSocket | &lt;5 min |
+| Phase 4 (Decommission) | Any critical issue within 3 days | Scale old services back to previous replica count | &lt;15 min |
+| Phase 5 (New Features) | Feature bugs | Disable feature flag | &lt;1 min |
 
 **Key principle:** Old services are kept at 0 replicas (not deleted) for 4 weeks after Phase 4. Docker images remain in ECR for 90 days. ES index snapshots on S3 for 90 days.
 

@@ -408,7 +408,7 @@ Default is `auto`. Primary purpose of explicit override:
 3. Materialize into response model
 ```
 
-p50 target: < 5 ms for a 4-hour 1m range (240 candles).
+p50 target: &lt; 5 ms for a 4-hour 1m range (240 candles).
 
 **ClickHouse path**:
 
@@ -420,7 +420,7 @@ WHERE instrument_token = ?
 ORDER BY bucket_start
 ```
 
-p50 target: < 25 ms for same range.
+p50 target: &lt; 25 ms for same range.
 
 ### 6.4 Connection pools
 
@@ -458,7 +458,7 @@ Two qualified `RedisConnectionFactory` beans (feed cluster + API cluster) caused
 
 - 90k × 1 row/min/instrument × 8 hours trading day = ~43 M rows/day in `candles_1m`
 - Partitioned by month = one ~1.3 B row partition per month
-- Query: 1m range over 4 hours for one instrument = 240 rows scanned; p50 < 10 ms.
+- Query: 1m range over 4 hours for one instrument = 240 rows scanned; p50 &lt; 10 ms.
 
 ### 8.3 Redis memory
 
@@ -471,7 +471,7 @@ Per candle-writer pod:
 - Kafka inbound: ~2 MB/s (ticks)
 - Redis outbound: ~3 MB/s (pipelined HSETs)
 - ClickHouse outbound: ~500 KB/s (batched INSERTs)
-- Total: < 10 Mbps per pod.
+- Total: &lt; 10 Mbps per pod.
 
 ---
 

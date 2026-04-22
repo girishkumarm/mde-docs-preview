@@ -1,0 +1,15 @@
+{
+  "name": "mde-docs",
+  "version": "1.0.0",
+  "description": "Mintlify docs site for the **Paytm Money — Market Data Engine** (v3.2). Source-of-truth Confluence parent: [Market Data Engine — Technical Design Document](https://paytmmoney.atlassian.net/wiki/spaces/PM/pages/683246061).",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "mintlify": "^4.2.525"
+  }
+}

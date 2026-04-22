@@ -96,8 +96,8 @@ This page (#7) is the deliverable that closes the seventh blocker.
 | --- | --- |
 | p99 read latency — Redis path (per interval) | ≤ 50 ms |
 | p99 read latency — ClickHouse path (per interval) | ≤ 300 ms |
-| 5xx rate on `/v1/candles` (canary pod) | < 0.1 % |
-| ClickHouse connection-pool utilisation | < 70 % of `CLICKHOUSE_POOL_MAX` |
+| 5xx rate on `/v1/candles` (canary pod) | &lt; 0.1 % |
+| ClickHouse connection-pool utilisation | &lt; 70 % of `CLICKHOUSE_POOL_MAX` |
 | `ClickHouseQueryFailed` alerts firing | 0 |
 | Data parity (sampled): canary-pod response equals Redis-only baseline for requests inside the Redis window | 100 % match |
 
@@ -130,7 +130,7 @@ Three tiers, ordered by speed and blast-radius. Always start at Tier 1; escalate
 kubectl set env deployment/charts-api MDE_CHARTS_API_DEFAULT_SOURCE=redis -n mde
 kubectl rollout restart deployment/charts-api -n mde
 ```
-- Rolling restart takes the standard pod-disruption-budget time (< 60 s for a single-pod canary; a few minutes for a full fleet).
+- Rolling restart takes the standard pod-disruption-budget time (&lt; 60 s for a single-pod canary; a few minutes for a full fleet).
 - Outcome: all read traffic returns to Redis-only; ClickHouse reads stop. `candle-writer` continues to write to both sinks (safe — ReplacingMergeTree is idempotent).
 
 ### Tier 2 — Minutes (roll back the API image)
@@ -184,7 +184,7 @@ Leave unticked until the named approver signs in person during the cutover call.
 
 - [ ] **DevOps** — confirms Tier 1/2/3 rollback procedures are runnable from current RBAC.
 - [ ] **SRE** — confirms alert routing + paging rotation + dashboard URLs.
-- [ ] **Product** — confirms user-visible SLO for `/v1/candles` (p99 ≤ 300 ms, 5xx < 0.1 %) is acceptable during the ramp.
+- [ ] **Product** — confirms user-visible SLO for `/v1/candles` (p99 ≤ 300 ms, 5xx &lt; 0.1 %) is acceptable during the ramp.
 
 ---
 

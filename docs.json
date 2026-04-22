@@ -17,7 +17,8 @@
             "group": "Introduction",
             "pages": [
               "introduction",
-              "architecture/overview"
+              "architecture/overview",
+              "architecture/service-catalog"
             ]
           },
           {
@@ -39,7 +40,9 @@
           {
             "group": "Data & APIs",
             "pages": [
-              "data-apis/data-models-and-apis"
+              "data-apis/data-models-and-apis",
+              "data-apis/kafka-topics",
+              "data-apis/redis-keys"
             ]
           },
           {

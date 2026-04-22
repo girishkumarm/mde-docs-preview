@@ -1,10 +1,32 @@
 ---
-title: "Market Data Engine — Data Models, APIs & Scheduled Jobs"
+title: "Data Models, APIs & Scheduled Jobs"
+description: "Design-level view of data models and scheduled jobs. For actual HTTP endpoints, Kafka topics, and Redis keys, see the catalog pages."
 ---
 
 <Info>
-**Version 3.2 — April 2026.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+**For source-of-truth endpoint/topic/key inventories, see:**
+- [Service Catalog](/architecture/service-catalog) — every service, port, and the endpoints it exposes
+- [Kafka topics](/data-apis/kafka-topics) — verified against `@KafkaListener` and `KafkaTemplate.send()` in the repo
+- [Redis keys](/data-apis/redis-keys) — verified against Lettuce / Spring Data Redis usage in the repo
+
+The page below is the **design-level** view for scheduled jobs and data models. Where it conflicts with the catalog pages above, trust the catalog pages (they're code-verified).
 </Info>
+
+## Verified API snapshot (April 2026)
+
+Quick reference — see [Service Catalog](/architecture/service-catalog) for the full list with purpose + storage per service.
+
+| Service | Verified endpoints |
+| --- | --- |
+| charts-api | `GET /v1/candles/{instrumentToken}`, `GET /v1/running-candles/{token}`, `POST /v1/price-charts` (UDF-compat), `GET /v1/index` |
+| instrument-master | `GET /v1/instruments`, `GET /v1/instruments/{instrumentToken}`, `GET /v1/companies`, `GET /v1/search`, `POST /internal/ca-sync` |
+| broadcast-service | `WebSocket /ws/feed` |
+| fno-data-writer | `GET /v1/fno-chain`, `GET /v1/oi-buildup`, `GET /v1/expiry-calendar` |
+| market-movers-writer | `GET /v1/movers` |
+| recon-service | `GET /v1/recon` |
+| incident-manager | `GET /v1/incidents`, `GET /v1/incidents/{id}`, `POST /v1/incidents/{id}/acknowledge`, `POST /internal/alert-webhook` |
+
+Every service also exposes `/actuator/health`, `/actuator/prometheus`, `/v3/api-docs`, `/swagger-ui.html`.
 
 ## 7. Scheduled Jobs (Pre-Market Data Loading)
 

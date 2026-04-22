@@ -268,7 +268,7 @@ For every user-facing data path, the response is produced by walking down a 4-la
 
 | Layer | Source | Freshness | When Used |
 | --- | --- | --- | --- |
-| **Layer 1 (primary)** | Live data from Kafka / Redis Cluster 1 (Feed) | Real-time (<100ms old) | Normal operation |
+| **Layer 1 (primary)** | Live data from Kafka / Redis Cluster 1 (Feed) | Real-time (&lt;100ms old) | Normal operation |
 | **Layer 2 (cached)** | Last-known-good snapshot from Redis Cluster 2 (API) | Seconds-old | Layer 1 timeout, partial outage |
 | **Layer 3 (stale)** | Most recent snapshot from TimescaleDB | Minutes/hours-old, marked "Last updated: Xs ago" | Layer 2 unavailable, cluster outage |
 | **Layer 4 (final)** | Empty state with skeleton/loading UI | None | Total backend outage — no error popup, just placeholder |

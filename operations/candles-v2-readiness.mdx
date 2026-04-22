@@ -69,10 +69,10 @@ Legend: ✅ Done · 🟡 Partial · ❌ Missing
 | Item | Status | Evidence / Gap |
 | --- | --- | --- |
 | k6 bake-off script (Redis vs ClickHouse) | ✅ Done | scripts/k6/candles-bakeoff.js: 10 NIFTY50 tokens, 5s/1m/5m/15m/1h mix, peak 10k VUs, 24h run, CloudWatch export supported. |
-| Bake-off baseline captured | 🟡 Partial | Script exists; 24h staging run results per Confluence 698482697 §9 acceptance (Redis p99 ≥ 3x lower, mem <75%) not yet filed under this page. |
+| Bake-off baseline captured | 🟡 Partial | Script exists; 24h staging run results per Confluence 698482697 §9 acceptance (Redis p99 ≥ 3x lower, mem &lt;75%) not yet filed under this page. |
 | p99 target — Redis reads ≤ 50ms | 🟡 Partial | Alert rule enforces 50ms warn / 500ms crit; bake-off result confirming Redis meets ≤50ms p99 under peak VUs still pending. |
 | p99 target — ClickHouse reads ≤ 300ms | ❌ Missing | No ClickHouse-side latency alert rule or SLO baseline committed in mde-alerts.yml. Needs recording rule + alert. |
-| Redis cluster memory headroom < 75% | 🟡 Partial | Monitored via k6 bake-off acceptance; no standing alert rule on redis_memory_used_bytes / redis_total_system_memory_bytes. |
+| Redis cluster memory headroom &lt; 75% | 🟡 Partial | Monitored via k6 bake-off acceptance; no standing alert rule on redis_memory_used_bytes / redis_total_system_memory_bytes. |
 
 ## 7. Runbook
 

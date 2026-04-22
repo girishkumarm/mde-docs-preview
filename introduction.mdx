@@ -99,22 +99,22 @@ The Market Data Engine is the **single, authoritative source of all market data*
 
 | Stage | Target | How Achieved |
 | --- | --- | --- |
-| Feed receive | < 0.1 ms | UDP multicast on dedicated NIC |
-| Decode + Denormalize | < 0.5 ms | Single-pass binary decode, Java 21 |
-| Duplicate detection (incl. cross-source dedup) | < 0.05 ms | In-process ConcurrentHashMap check |
-| Redis snapshot write | < 0.5 ms | Redis HSET, Lua scripts for atomics |
-| Kafka publish | < 3 ms | Avro, linger.ms=1, acks=all, idempotent |
-| **Total feed-to-Redis** | **< 1.5 ms** |   |
-| **Total feed-to-user (WebSocket)** | **< 8 ms** | Via Kafka → Broadcast Service |
+| Feed receive | &lt; 0.1 ms | UDP multicast on dedicated NIC |
+| Decode + Denormalize | &lt; 0.5 ms | Single-pass binary decode, Java 21 |
+| Duplicate detection (incl. cross-source dedup) | &lt; 0.05 ms | In-process ConcurrentHashMap check |
+| Redis snapshot write | &lt; 0.5 ms | Redis HSET, Lua scripts for atomics |
+| Kafka publish | &lt; 3 ms | Avro, linger.ms=1, acks=all, idempotent |
+| **Total feed-to-Redis** | **&lt; 1.5 ms** |   |
+| **Total feed-to-user (WebSocket)** | **&lt; 8 ms** | Via Kafka → Broadcast Service |
 
 ### Current Production Baselines
 
 | Use Case | Current Req/s | Current P99 | New Target P99 |
 | --- | --- | --- | --- |
-| Charts API | 450–500 | 50ms | <10ms |
-| Option Chain API | 350–400 | 50ms | <10ms |
-| Option Insights | 10–15 | 50ms | <10ms |
-| Market Movers | 350 | 50ms | <5ms |
+| Charts API | 450–500 | 50ms | &lt;10ms |
+| Option Chain API | 350–400 | 50ms | &lt;10ms |
+| Option Insights | 10–15 | 50ms | &lt;10ms |
+| Market Movers | 350 | 50ms | &lt;5ms |
 | WebSocket conn/pod | 8,500 (hard cap) | — | 100,000+ |
 
 ---

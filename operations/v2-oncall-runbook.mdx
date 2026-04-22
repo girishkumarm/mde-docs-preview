@@ -46,7 +46,7 @@ All services expose `GET /actuator/health/liveness` on the management port and `
 
 1. **Feed handlers (9081–9084)** — (a) Is the upstream exchange multicast/TCP feed reachable? (b) Is Kafka broker up and `mde.ticks.<segment>` topic accepting writes? (c) Did the process OOM? Check `dmesg`/pod events.
 2. **mde-symbol-service (9085)** — (a) Is PostgreSQL `instrument_master` DB reachable? (b) Was the 6am instrument dump refreshed? (c) Is Redis cache responsive (`redis-cli PING`)?
-3. **mde-candle-writer (9086)** — (a) Is it consuming `mde.ticks.*` (check consumer group lag)? (b) Is Redis flush lag < 5s? (c) Is ClickHouse `candles_1m` MV catching up? (image from commit `22b566c`)
+3. **mde-candle-writer (9086)** — (a) Is it consuming `mde.ticks.*` (check consumer group lag)? (b) Is Redis flush lag &lt; 5s? (c) Is ClickHouse `candles_1m` MV catching up? (image from commit `22b566c`)
 4. **mde-charts-api (9087)** — (a) Is `MDE_CHARTS_API_DEFAULT_SOURCE` set correctly (redis/clickhouse)? (b) Are Redis and CH both healthy? (c) Any source-error spike in Prom? (image from commits `bb3f8ff` + `a9863de`)
 5. **mde-charts-historical-writer (9188)** — (a) Is the Temporal schedule `charts-historical-backfill` active? (b) Is the S3 archival bucket writable? (c) ClickHouse batch insert latency normal? (V2_1 migration in `cf966ec`)
 6. **mde-scheduler (9089)** — (a) Is Temporal server reachable at `172.18.0.11:7233`? (b) Are the cron schedules registered (`temporal schedule list`)? (c) Workflow history not truncated?

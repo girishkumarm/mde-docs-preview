@@ -1,0 +1,75 @@
+---
+title: "Kafka topics"
+description: "Complete catalog of Kafka topics in market-data-engine — producers, consumers, schemas, partitions"
+---
+
+<Info>
+Sourced directly from the `market-data-engine` repo (`docker-compose.yml` `kafka-init` + `application.yml` + `@KafkaListener` annotations + `KafkaTemplate.send()` call sites). All topic names are environment-configurable via `mde.kafka.topics.*` properties; the values below are the defaults.
+</Info>
+
+## Tick topics (from exchange feeds)
+
+Produced by **feed-handler**, partitioned by `instrumentToken` hash so all ticks for a symbol land on the same partition (strict per-symbol ordering).
+
+| Topic | Partitions | Producer | Consumer(s) | Schema |
+| --- | --- | --- | --- | --- |
+| `pml-marketfeed-nse-equity-ticks` | 6 | feed-handler | broadcast-service, candle-writer, market-movers-writer | `Tick` protobuf |
+| `pml-marketfeed-bse-equity-ticks` | 6 | feed-handler | broadcast-service, candle-writer | `Tick` protobuf |
+| `pml-marketfeed-nse-derivative-ticks` | 9 | feed-handler | feed-handler (dedup), fno-data-writer | `Tick` protobuf |
+| `pml-marketfeed-bse-derivative-ticks` | 9 | feed-handler | feed-handler (dedup) | `Tick` protobuf |
+| `pml-marketfeed-nse-index-ticks` | 3 | feed-handler | fno-data-writer | `Tick` protobuf |
+| `pml-marketfeed-bse-index-ticks` | 3 | feed-handler | — | `Tick` protobuf |
+
+## Derived topics
+
+| Topic | Partitions | Producer | Consumer(s) | Schema | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `mde-candles-1m` | 6 | candle-writer | charts-historical-writer, charts-api (via Redis cache-warm) | `Candle` protobuf | 1-minute closed candles — durable history sink |
+| `mde-instrument-master-events` | 1 | instrument-master | feed-handler | JSON (add / update / retire) | Instrument lifecycle → invalidate feed-handler local cache |
+| `mde-corporate-actions` | 1 | publisher | instrument-master, fno-data-writer | JSON (split, bonus, dividend, rights) | Downstream CA propagation |
+| `mde-feed-anomalies` | 1 | feed-handler | recon-service *(optional)* | JSON | Feed-health anomaly signals |
+| `mde-recon-reports` | 1 | recon-service | — (downstream / audit sink) | JSON | End-of-day reconciliation summaries |
+
+## Delivery guarantees
+
+Per architecture Decision 4 (**`acks=all` + Idempotent Producer**):
+
+```yaml
+spring.kafka.producer:
+  acks: all
+  enable.idempotence: true
+  retries: Integer.MAX_VALUE
+  max.in.flight.requests.per.connection: 5
+  compression.type: lz4
+```
+
+Consumers use `enable.auto.commit: false` and manual offset commit after successful processing, so at-least-once is guaranteed end-to-end.
+
+## Consumer groups
+
+One consumer group per **service**, with instance id in the group name:
+
+- `broadcast-service-${HOSTNAME}` — **unique per pod** (Decision 1 — every broadcast pod receives every tick)
+- `candle-writer-default` — shared across candle-writer pods
+- `fno-data-writer-default`
+- `market-movers-writer-default`
+- `charts-historical-writer-default`
+- `recon-service-default`
+
+Unique-per-pod group IDs for broadcast-service are essential — a shared group would starve pods and break WebSocket fan-out. See **[Kafka vs Redis](/decisions/kafka-vs-redis)** for the full reasoning.
+
+## Local development
+
+`docker-compose.yml` provisions Kafka 3.8.0 (Confluent 7.5.0 image) on port `9094`. The `kafka-init` sidecar creates all topics above at startup with these defaults. To recreate:
+
+```bash
+make down
+make wipe
+make fresh
+```
+
+## Observability
+
+- Prometheus scrapes each service's `/actuator/prometheus` endpoint; Micrometer binds Kafka client metrics automatically.
+- Grafana dashboards under `infra/grafana/` chart consumer lag, produce rate, and error rate per topic.
+- AlertManager rules in `infra/alertmanager/` trigger P1 when broadcast-service lag > 500 ms or any consumer stalls for > 30 s.

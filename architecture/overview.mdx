@@ -81,24 +81,27 @@ See **[Architecture Diagrams](/architecture/diagrams)** for the full set (12 dec
 
 ## Core components
 
+Verified against the `market-data-engine` monorepo (`main`). See **[Service Catalog](/architecture/service-catalog)** for ports, Spring application classes, and per-service endpoints.
+
 | Layer | Service | Purpose |
 | --- | --- | --- |
-| Ingest | **feed-handler** | Consumes NSE/BSE/CMOTS/Push, normalizes ticks, fans out to Kafka + Redis Feed |
-| Platform | **Kafka** | Durable event bus for ticks, corporate actions, alerts |
-| Platform | **Redis Feed Cluster** | Hot-path pub/sub for live ticks consumed by APIs |
-| Write | **candle-writer** | Dual-sink: Redis running candles + ClickHouse closed candles |
-| Write | **charts-historical-writer** | Backfills & corrects historical bars (Temporal workflow) |
-| Write | **ticker-writer** | Persists last-known-good LTP into Redis API |
-| Read | **charts-api** | Serves `GET /v1/candles`, `GET /v1/running-candles`, `POST /v1/price-charts` (UDF-compat) |
-| Read | **broadcast-service** | WebSocket fan-out to UI |
-| Read | **instrument-master** | Scrip master, segments, company info, CA events |
-| Read | **market-movers-api** | Gainers, losers, 52-week hitters — Redis zsets |
-| Read | **FNO-api** | Option chain, Greeks, PCR, Max Pain, ATM Straddle, CPR |
-| Read | **alerts-engine** | Price/volume alerts — user- and system-level |
-| Platform | **Temporal** | Orchestrates migration, scrip master refresh, corporate actions, reconciliation |
-| Platform | **AI Incident Manager** | Proactive anomaly detection + LLM RCA (Claude Sonnet 4.5) |
+| Ingest | **feed-handler** *(8082)* | Consumes NSE/BSE multicast (6 UDP streams), decodes, cross-source dedup, publishes ticks to Kafka |
+| Ingest | **publisher** *(8083)* | Kafka tick consumer → Redis Feed snapshots; Lua atomic 52-wk H/L + OHLC compare-and-set |
+| Platform | **Kafka 3.8.0** | 6 tick topics + `mde-candles-1m` + 4 control/audit topics (see [Kafka topics](/data-apis/kafka-topics)) |
+| Platform | **Redis 7.4 (Feed + API)** | Two clusters — Feed (6380) for hot writes, API (6381) for read caching (see [Redis keys](/data-apis/redis-keys)) |
+| Write | **candle-writer** *(8086)* ⭐ | **Dual-sink**: Redis running (5s/15s/30s) + ClickHouse closed (1m+). Supersedes charts-writer + charts-historical-writer |
+| Write | **charts-historical-writer** *(8090)* | Batched ClickHouse ingestion of `mde-candles-1m` (kept for backfill scenarios) |
+| Write | **fno-data-writer** *(8085)* | Option chain + Greeks (Black-Scholes) + PCR + Max Pain + CPR |
+| Write | **market-movers-writer** *(8084)* | Gainers/losers/volume/value leaders — Redis zsets |
+| Read | **charts-api** *(8086)* | `GET /v1/candles/{token}`, `GET /v1/running-candles/{token}`, `POST /v1/price-charts` (UDF-compat), `GET /v1/index` |
+| Read | **instrument-master** *(8081)* | Scrip master, companies, search, `/internal/ca-sync` webhook |
+| Read | **broadcast-service** *(8087)* | WebSocket `/ws/feed` — per-pod Kafka consumer group |
+| Platform | **Temporal 1.26.2** | Workflows: scrip refresh, pre-market setup, reconciliation, CA propagation |
+| Platform | **premarket-scheduler** *(8086)* | Temporal worker coordinating pre-market jobs |
+| Platform | **recon-service** *(8089)* | End-of-day OHLCV reconciliation workflow → `mde-recon-reports` |
+| Platform | **incident-manager** *(8092)* | AlertManager webhook → Jira + Slack + timeline persistence (Decision 11) |
 
-Detail: **[Components Part 1](/components/part1-feed-to-charts)** and **[Components Part 2](/components/part2-fno-movers-alerts)**. Candles v2 (the current production path) is documented separately at **[Candles v2](/components/candles-v2)**.
+Detail: **[Service Catalog](/architecture/service-catalog)** (source-of-truth), **[Components Part 1](/components/part1-feed-to-charts)**, **[Components Part 2](/components/part2-fno-movers-alerts)**. Candles v2 (the current production path) is at **[Candles v2](/components/candles-v2)**.
 
 ## Storage decisions at a glance
 
