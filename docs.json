@@ -24,17 +24,14 @@
           {
             "group": "Architecture",
             "pages": [
-              "architecture/diagrams",
-              "decisions/kafka-vs-redis"
+              "architecture/diagrams"
             ]
           },
           {
             "group": "Components",
             "pages": [
               "components/part1-feed-to-charts",
-              "components/part2-fno-movers-alerts",
-              "components/candles-v2",
-              "components/candles-v2-diagrams"
+              "components/part2-fno-movers-alerts"
             ]
           },
           {
@@ -48,18 +45,13 @@
           {
             "group": "Operations",
             "pages": [
-              "operations/devops-guide",
-              "operations/v2-production-readiness",
-              "operations/v2-oncall-runbook",
-              "operations/candles-v2-readiness",
-              "operations/candles-v2-canary-rollback"
+              "operations/devops-guide"
             ]
           },
           {
             "group": "Migration",
             "pages": [
-              "migration/overview",
-              "migration/price-engine"
+              "migration/overview"
             ]
           }
         ]
