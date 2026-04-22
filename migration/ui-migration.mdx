@@ -1,0 +1,1120 @@
+---
+title: "UI Migration Guide"
+description: "Comprehensive frontend migration guide for transitioning from legacy PML APIs to the Market Data Engine. Covers every REST endpoint, WebSocket protocol change, data format, and configuration update the UI team needs to handle."
+---
+
+<Warning>
+**This document is the single source of truth for all UI/frontend changes required during the MDE migration.** Every API endpoint, WebSocket message format, and data structure change is documented here. If something is not listed, it is backward-compatible and requires no changes.
+</Warning>
+
+# UI Migration Guide -- PML to MDE
+
+## 1. Executive Summary
+
+The Market Data Engine (MDE) replaces 25+ legacy PML services with 10 consolidated services. The backend architecture has been completely rewritten, but the **design goal is to minimize UI changes**. This section categorizes every UI-visible change by effort level.
+
+### What Changes for the UI
+
+| Category | Count | Description |
+| --- | --- | --- |
+| **Zero-change (backward-compatible)** | 3 | TradingView UDF chart endpoint (`POST /v1/price-charts`), actuator health endpoints, most HTTP response codes |
+| **Config-only (environment variable / URL change)** | 6 | API base URLs, WebSocket URL, service hostnames, CORS origin list |
+| **Code change required** | 8 | WebSocket protocol (Protobuf), instrument token format, subscription message format, new FNO analytics endpoints, alert CRUD endpoints, market depth, market status events, charts source param |
+
+### Effort Estimate
+
+| Area | Estimated Days | Priority |
+| --- | --- | --- |
+| WebSocket client rewrite (Protobuf + new endpoint) | 5 | P0 |
+| Token format migration (numeric scripId to string instrumentToken) | 3 | P0 |
+| API URL migration (all constants/hooks) | 3 | P0 |
+| Chart component update (TradingView data adapter) | 2 | P0 |
+| Protobuf decoder integration (`protobufjs` npm package) | 1 | P0 |
+| Option chain page update (new response format with Greeks) | 2 | P1 |
+| Market movers widget update (new params + response) | 1 | P1 |
+| Alert management UI (new feature) | 3 | P2 |
+| **Total** | **20 days** | |
+
+<Note>
+The estimates above assume 2 frontend developers working in parallel. The P0 items block all market data display and must be completed before any user traffic is routed to MDE.
+</Note>
+
+---
+
+## 2. REST API Migration Map
+
+This is the complete mapping of every UI-facing endpoint from legacy PML to MDE. Every endpoint the frontend currently calls is listed.
+
+### 2.1 Instrument Search and Lookup
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| `GET /api/scrip-master/search?q={query}` | `GET /v1/instruments/search?q={query}` | GET | Base path changed. Response includes additional fields: `sector`, `industry`, `indices[]`. Token format changed from numeric `scripId` to string `instrumentToken`. | Yes |
+| `GET /api/scrip-master/{scripId}` | `GET /v1/instruments/{instrumentToken}` | GET | Path param changed from numeric to string token (e.g., `256265` to `NSE:RELIANCE:EQ`). Response schema enriched with `lotSize`, `tickSize`, `expiryDate`, `strikePrice`, `optionType`. | Yes |
+| `GET /api/open-data/{scripId}` | `GET /v1/instruments/{instrumentToken}` | GET | Badge/snapshot data merged into instrument endpoint. Fields `52WeekHigh`, `52WeekLow`, `upperCircuit`, `lowerCircuit` included in response. No separate badge endpoint needed. | Yes |
+| `GET /api/badge/{scripId}` | `GET /v1/instruments/{instrumentToken}` | GET | Badge data (52W high/low, circuit limits) merged into instrument detail response. | Yes |
+
+<AccordionGroup>
+<Accordion title="Instrument Search -- Request/Response Examples">
+
+**Legacy PML Request:**
+```
+GET /api/scrip-master/search?q=RELIANCE
+```
+
+**Legacy PML Response:**
+```json
+{
+  "data": [
+    {
+      "SM_SCRIP_CODE": 256265,
+      "SM_SYMBOL": "RELIANCE",
+      "SM_EXCHANGE": "NSE",
+      "SM_SEGMENT": "EQ"
+    }
+  ]
+}
+```
+
+**New MDE Request:**
+```
+GET /v1/instruments/search?q=RELIANCE
+```
+
+**New MDE Response:**
+```json
+{
+  "data": [
+    {
+      "instrumentToken": "NSE:RELIANCE:EQ",
+      "exchange": "NSE",
+      "segment": "EQUITY",
+      "scripType": "ES",
+      "securityId": 2885,
+      "symbol": "RELIANCE",
+      "isin": "INE002A01018",
+      "lotSize": 1,
+      "tickSize": 0.05,
+      "sector": "Energy",
+      "industry": "Oil & Gas Refining",
+      "indices": ["NIFTY50", "NIFTY100", "NIFTY200"],
+      "status": "ACTIVE"
+    }
+  ]
+}
+```
+
+</Accordion>
+</AccordionGroup>
+
+### 2.2 Live Price / Quote APIs
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| `GET /api/open-data/{scripId}` | Redis C1 snapshot via WebSocket (no REST equivalent) | -- | Live prices are delivered exclusively via WebSocket in MDE. Use the broadcast-service WebSocket connection to get real-time LTP, OHLC, volume. On initial connection, the server sends a full snapshot for subscribed instruments. | Yes |
+
+<Note>
+MDE does not expose a REST endpoint for live tick data. All real-time price data flows through the WebSocket connection. If the UI needs a one-time price fetch (e.g., for server-side rendering), use the `FEED_PP` Redis key via an internal API gateway, or subscribe via WebSocket and read the initial snapshot.
+</Note>
+
+### 2.3 Charts / Candle APIs
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| `GET /api/chart/sym/{symbol}/intra/{interval}` | `GET /v1/candles/{instrumentToken}?interval={i}&from={f}&to={t}` | GET | Path structure changed. Interval is now a query param. Token format changed. Intraday and EOD unified into single endpoint. | Yes |
+| `GET /api/chart/sym/{symbol}/eod/{interval}` | `GET /v1/candles/{instrumentToken}?interval={i}&from={f}&to={t}` | GET | Same endpoint as intraday -- interval param determines data source automatically (Redis for today, ClickHouse for historical). | Yes |
+| (TradingView widget) | `POST /v1/price-charts` | POST | **Backward-compatible.** This endpoint is specifically designed for TradingView UDF widget compatibility. If your charts use TradingView, this is a drop-in replacement -- only the base URL changes. | No (config-only) |
+
+<Info>
+**If your charts use TradingView/UDF:** The `POST /v1/price-charts` endpoint on charts-service (port 8083) is designed to be a drop-in replacement for the legacy `data-price-charts-api`. You only need to update the base URL in your TradingView data feed configuration. The request/response format is identical.
+</Info>
+
+### 2.4 Market Movers APIs
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| `GET /api/market-movers/{index}` | `GET /v1/movers?category={cat}&exchange={ex}&index={idx}&limit={n}` | GET | Path changed. Index is now a query param. New `category` param required (was implicit). New categories available: `VOLUME_SPIKE`, `BREAKOUT_HIGH`, `BREAKOUT_LOW`, `UPPER_CIRCUIT`, `LOWER_CIRCUIT`. | Yes |
+| -- | `GET /v1/movers/{category}` | GET | New endpoint for single-category pagination. | New |
+
+<Accordion title="Market Movers -- Request/Response Examples">
+
+**Legacy PML Request:**
+```
+GET /api/market-movers/NIFTY_50
+```
+
+**New MDE Request:**
+```
+GET /v1/movers?category=TOP_GAINERS&index=NIFTY_50&limit=20
+```
+
+**New MDE Response:**
+```json
+{
+  "category": "TOP_GAINERS",
+  "index": "NIFTY_50",
+  "data": [
+    {
+      "instrumentToken": "NSE:RELIANCE:EQ",
+      "symbol": "RELIANCE",
+      "ltp": 2550.00,
+      "change": 75.50,
+      "changePercent": 3.05,
+      "volume": 12500000,
+      "previousClose": 2474.50
+    }
+  ],
+  "updatedAt": "2026-04-22T10:30:00+05:30"
+}
+```
+
+**Available categories:** `TOP_GAINERS`, `TOP_LOSERS`, `MOST_ACTIVE`, `VOLUME_SPIKE`, `BREAKOUT_HIGH`, `BREAKOUT_LOW`, `UPPER_CIRCUIT`, `LOWER_CIRCUIT`
+
+**Available index buckets:** `NIFTY_50`, `NIFTY_NEXT_50`, `NIFTY_100`, `NIFTY_200`, `NIFTY_500`, `NIFTY_MIDCAP_50`, `BANKNIFTY`, `ALL`
+
+</Accordion>
+
+### 2.5 Market Depth API
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| (not available in PML) | `GET /v1/depth/{instrumentToken}` | GET | **New endpoint.** Market depth (top 5 bid/ask levels) was not exposed in PML. Now available via REST and optionally via WebSocket. | New |
+
+<Accordion title="Market Depth -- Response Example">
+
+```json
+{
+  "instrumentToken": "NSE:RELIANCE:EQ",
+  "timestamp": "2026-04-22T10:30:00.123+05:30",
+  "bid": [
+    { "price": 2549.50, "quantity": 500, "orders": 12 },
+    { "price": 2549.00, "quantity": 1200, "orders": 25 },
+    { "price": 2548.50, "quantity": 800, "orders": 18 },
+    { "price": 2548.00, "quantity": 2000, "orders": 40 },
+    { "price": 2547.50, "quantity": 1500, "orders": 30 }
+  ],
+  "ask": [
+    { "price": 2550.00, "quantity": 600, "orders": 15 },
+    { "price": 2550.50, "quantity": 900, "orders": 20 },
+    { "price": 2551.00, "quantity": 1100, "orders": 22 },
+    { "price": 2551.50, "quantity": 1800, "orders": 35 },
+    { "price": 2552.00, "quantity": 2200, "orders": 45 }
+  ],
+  "totalBuyQuantity": 125000,
+  "totalSellQuantity": 98000
+}
+```
+
+</Accordion>
+
+### 2.6 FNO Option Chain APIs
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| `GET /api/fno/option-chain/{symbol}` | `GET /v1/option-chain/{underlying}?expiry={date}` | GET | Path changed. Explicit `expiry` query param required. Response includes Greeks (delta, gamma, theta, vega, rho), IV, and day-over-day changes. | Yes |
+| -- | `GET /v1/expiries/{underlying}` | GET | **New endpoint.** Returns available expiry dates for an underlying. Use this to populate expiry dropdown. | New |
+
+<Accordion title="Option Chain -- Response Example">
+
+```json
+{
+  "underlying": "NIFTY",
+  "spotPrice": 22500.50,
+  "expiry": "2026-04-24",
+  "chain": [
+    {
+      "strikePrice": 22400,
+      "ce": {
+        "instrumentToken": "NSE:NIFTY:CE:2026-04-24:22400",
+        "ltp": 150.50,
+        "volume": 125000,
+        "oi": 5000000,
+        "oiChange": 250000,
+        "oiChangePct": 5.26,
+        "iv": 15.20,
+        "delta": 0.65,
+        "gamma": 0.0025,
+        "theta": -12.50,
+        "vega": 8.30,
+        "rho": 2.10,
+        "pClose": 145.00,
+        "priceChange": 5.50,
+        "priceChangePct": 3.79
+      },
+      "pe": {
+        "instrumentToken": "NSE:NIFTY:PE:2026-04-24:22400",
+        "ltp": 48.50,
+        "volume": 98000,
+        "oi": 3500000,
+        "oiChange": -100000,
+        "oiChangePct": -2.78,
+        "iv": 14.80,
+        "delta": -0.35,
+        "gamma": 0.0025,
+        "theta": -10.20,
+        "vega": 8.10,
+        "rho": -1.80,
+        "pClose": 52.00,
+        "priceChange": -3.50,
+        "priceChangePct": -6.73
+      }
+    }
+  ]
+}
+```
+
+</Accordion>
+
+### 2.7 FNO Analytics APIs (New in MDE)
+
+These endpoints are entirely new -- PML did not provide these analytics.
+
+| New MDE Endpoint | Method | Description |
+| --- | --- | --- |
+| `GET /v1/max-pain/{underlying}?expiry={date}` | GET | Max Pain strike and total pain value |
+| `GET /v1/atm-straddle/{underlying}?expiry={date}` | GET | ATM Straddle premium, IV, breakeven |
+| `GET /v1/pcr/{underlying}?expiry={date}` | GET | Put-Call Ratio (OI-based and Volume-based) |
+| `GET /v1/oi-buildup` | GET | OI buildup analytics (long/short buildup classification) |
+| `GET /v1/fno-chain` | GET/POST | Full option chain with Greeks |
+
+<Accordion title="Max Pain -- Response Example">
+
+```json
+{
+  "underlying": "NIFTY",
+  "expiry": "2026-04-24",
+  "maxPainStrike": 22500,
+  "totalPain": 1234567890,
+  "updatedAt": "2026-04-22T10:30:00+05:30"
+}
+```
+
+</Accordion>
+
+<Accordion title="ATM Straddle -- Response Example">
+
+```json
+{
+  "underlying": "NIFTY",
+  "expiry": "2026-04-24",
+  "strike": 22500,
+  "cePrice": 150.50,
+  "pePrice": 120.30,
+  "premium": 270.80,
+  "ceIV": 0.1520,
+  "peIV": 0.1480,
+  "avgIV": 0.1500,
+  "updatedAt": "2026-04-22T10:30:00+05:30"
+}
+```
+
+</Accordion>
+
+<Accordion title="PCR -- Response Example">
+
+```json
+{
+  "underlying": "NIFTY",
+  "expiry": "2026-04-24",
+  "pcrOI": 1.23,
+  "pcrVol": 0.95,
+  "totalCallOI": 12500000,
+  "totalPutOI": 15375000,
+  "totalCallVol": 890000,
+  "totalPutVol": 845500,
+  "updatedAt": "2026-04-22T10:30:00+05:30"
+}
+```
+
+</Accordion>
+
+### 2.8 Alert CRUD APIs (New in MDE)
+
+PML did not have a price alert feature. MDE introduces a full alert management system.
+
+| New MDE Endpoint | Method | Description |
+| --- | --- | --- |
+| `POST /v1/alerts` | POST | Create a new alert |
+| `GET /v1/alerts` | GET | List all alerts for the authenticated user |
+| `GET /v1/alerts/{alertId}` | GET | Get a single alert by ID |
+| `PUT /v1/alerts/{alertId}` | PUT | Update an alert |
+| `DELETE /v1/alerts/{alertId}` | DELETE | Cancel/delete an alert |
+| `GET /v1/alerts/triggered` | GET | Get trigger history for a user |
+
+<Accordion title="Alert Create -- Request/Response Example">
+
+**Request:**
+```json
+POST /v1/alerts
+{
+  "instrumentToken": "NSE:RELIANCE:EQ",
+  "conditionType": "PRICE_ABOVE",
+  "threshold": 2600.00,
+  "recurring": false
+}
+```
+
+**Response:**
+```json
+{
+  "id": "alert-uuid-123",
+  "instrumentToken": "NSE:RELIANCE:EQ",
+  "conditionType": "PRICE_ABOVE",
+  "threshold": 2600.00,
+  "status": "ACTIVE",
+  "recurring": false,
+  "createdAt": "2026-04-22T10:30:00+05:30"
+}
+```
+
+**Supported condition types:** `PRICE_ABOVE`, `PRICE_BELOW`, `PERCENT_CHANGE`, `VOLUME_SPIKE`, `CIRCUIT_HIT`, `52W_HIGH`, `52W_LOW`
+
+**Limits:** Max 50 active alerts per user. Max 10 alerts per instrument per user.
+
+</Accordion>
+
+### 2.9 Company Fundamentals APIs
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| `GET /api/company/{isin}` | `GET /v1/companies/{instrumentToken}` | GET | Path param changed from ISIN to instrumentToken. Richer response with sector, industry, market cap classification. | Yes |
+| -- | `GET /v1/companies/{instrumentToken}/shareholding` | GET | **New endpoint.** Shareholding pattern (promoter/FII/DII). | New |
+| -- | `GET /v1/companies/{instrumentToken}/analysts` | GET | **New endpoint.** Analyst recommendations and target prices. | New |
+
+### 2.10 Index Data APIs
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| (embedded in market movers) | `GET /v1/indices/{indexToken}/constituents` | GET | **New dedicated endpoint.** Returns all constituents of an index (e.g., NIFTY 50 members). | New |
+| -- | `GET /v1/index` (charts-service) | GET | Index quote data. Available on charts-service port 8083. | New |
+
+### 2.11 Market Status API
+
+| Legacy PML Endpoint | New MDE Endpoint | Method | Changes | Breaking? |
+| --- | --- | --- | --- | --- |
+| (not available) | WebSocket `MARKET_STATUS` event | -- | Market status (PRE_OPEN, OPEN, POST_CLOSE, CLOSED) is broadcast via WebSocket to all connected clients. No polling needed. | New |
+
+---
+
+## 3. WebSocket Migration
+
+This is the most significant UI change. The WebSocket protocol moves from JSON text frames to Protobuf binary frames with a new endpoint, authentication, and message format.
+
+### 3.1 Connection Details
+
+| Aspect | Legacy PML | New MDE |
+| --- | --- | --- |
+| **Endpoint** | `wss://{host}/ws/tick` | `wss://{host}/ws/v1/feed` |
+| **Service** | pml-core-tick-data-service | broadcast-service (port 8087) |
+| **Authentication** | Cookie-based session | API key in `x-api-key` header during handshake |
+| **Frame format** | JSON text frames | Protobuf binary frames |
+| **Client pattern** | SharedWorker + multiple tabs | Same pattern supported (decode Protobuf in worker) |
+
+### 3.2 Subscription Message Format
+
+<Tabs>
+<Tab title="Legacy PML (JSON)">
+
+```json
+// Subscribe
+{"action": "subscribe", "tokens": [256265, 2885, 11536386]}
+
+// Unsubscribe
+{"action": "unsubscribe", "tokens": [256265]}
+```
+
+Tokens are numeric `scripId` values.
+
+</Tab>
+<Tab title="New MDE (JSON control frame)">
+
+```json
+// Subscribe
+{
+  "type": "SUBSCRIBE",
+  "tokens": ["NSE:RELIANCE:EQ", "NSE:INFY:EQ", "NSE:NIFTY_50:INDEX"]
+}
+
+// Unsubscribe
+{
+  "type": "UNSUBSCRIBE",
+  "tokens": ["NSE:RELIANCE:EQ"]
+}
+
+// Subscribe with market depth
+{
+  "type": "SUBSCRIBE",
+  "tokens": ["NSE:RELIANCE:EQ"],
+  "depth": true
+}
+```
+
+Tokens are string `instrumentToken` values. Control messages are still JSON text frames. Only tick data uses Protobuf binary frames.
+
+</Tab>
+</Tabs>
+
+### 3.3 Tick Message Format
+
+<Tabs>
+<Tab title="Legacy PML (JSON text frame)">
+
+```json
+{
+  "t": 256265,
+  "ltp": 2550.00,
+  "v": 12500000,
+  "o": 2520.00,
+  "h": 2560.00,
+  "l": 2510.00,
+  "c": 2475.00,
+  "chg": 75.00,
+  "chg_pct": 3.03,
+  "ts": 1713770400000
+}
+```
+
+</Tab>
+<Tab title="New MDE (Protobuf binary frame)">
+
+Binary Protobuf-encoded `Tick` message. The frontend must include a Protobuf decoder.
+
+**Proto schema (simplified):**
+```protobuf
+message Tick {
+  string instrument_token = 1;    // "NSE:RELIANCE:EQ"
+  float ltp = 2;                   // Last traded price
+  float open = 3;
+  float high = 4;
+  float low = 5;
+  float close = 6;
+  int64 volume = 7;
+  int64 oi = 8;                    // Open interest (0 for equity)
+  float change = 9;               // Price change
+  float change_percent = 10;      // Percentage change
+  int64 timestamp = 11;           // Epoch milliseconds
+  float previous_close = 12;
+  float upper_circuit = 13;
+  float lower_circuit = 14;
+  float high_52w = 15;
+  float low_52w = 16;
+  DepthData depth = 17;           // Only if subscribed with depth=true
+  bool banned = 18;               // F&O ban flag
+}
+
+message DepthData {
+  repeated Level bid = 1;          // 5 levels
+  repeated Level ask = 2;          // 5 levels
+  int64 total_buy_qty = 3;
+  int64 total_sell_qty = 4;
+}
+
+message Level {
+  float price = 1;
+  int32 quantity = 2;
+  int32 orders = 3;
+}
+```
+
+**Frontend integration:**
+
+```javascript
+// Install: npm install protobufjs
+import protobuf from 'protobufjs';
+
+// Load the .proto file (shipped with MDE)
+const root = await protobuf.load('/proto/tick.proto');
+const Tick = root.lookupType('mde.Tick');
+
+ws.onmessage = (event) => {
+  if (typeof event.data === 'string') {
+    // JSON control message (MARKET_STATUS, errors, etc.)
+    const msg = JSON.parse(event.data);
+    handleControlMessage(msg);
+  } else {
+    // Binary Protobuf tick data
+    const buffer = new Uint8Array(event.data);
+    const tick = Tick.decode(buffer);
+    handleTick(tick);
+  }
+};
+```
+
+</Tab>
+</Tabs>
+
+### 3.4 Market Status Events (New)
+
+MDE broadcasts market status changes to all connected WebSocket clients. This was not available in PML.
+
+```json
+{
+  "type": "MARKET_STATUS",
+  "exchange": "NSE",
+  "status": "OPEN",
+  "session": "NORMAL",
+  "timestamp": "2026-04-22T09:15:00+05:30"
+}
+```
+
+**Status values:** `PRE_OPEN`, `OPEN`, `OPEN_GRACE`, `POST_CLOSE`, `CLOSED`
+
+**Session values:** `PRE_OPEN`, `NORMAL`, `POST_CLOSE`, `CLOSING_AUCTION`
+
+**Frontend usage:** Display market open/close indicators, enable/disable order placement, show "Market Closed" banners.
+
+### 3.5 Heartbeat and Keepalive
+
+| Aspect | Legacy PML | New MDE |
+| --- | --- | --- |
+| **Heartbeat** | None (client must implement reconnect logic) | Server sends WebSocket PING every 30 seconds |
+| **Idle timeout** | Variable | 3 missed PONGs (90 seconds) triggers server-side disconnect |
+| **Reconnection** | Client-side retry with backoff | Same -- client should reconnect on close. Server provides instant snapshot on reconnect. |
+
+<Note>
+MDE broadcast-service sends a WebSocket PING frame every 30 seconds. The browser's WebSocket implementation automatically responds with PONG -- no client code needed for keepalive. If the server does not receive a PONG within 10 seconds, it marks the connection as stale. After 3 consecutive missed PONGs, the connection is force-closed.
+</Note>
+
+### 3.6 Cold-Start Snapshot
+
+When a client connects and subscribes to instruments, MDE immediately sends the current state from Redis C1 before streaming live updates. This means the user sees the current price instantly, even if no new tick has arrived.
+
+**Flow:**
+```
+Client connects → sends SUBSCRIBE → server reads FEED_PP from Redis C1
+→ sends snapshot as Protobuf frame → then streams live Kafka ticks
+```
+
+This is an improvement over PML, where the client had to wait for the next tick to arrive.
+
+### 3.7 Per-Pod Connection Limits
+
+MDE enforces a per-pod connection limit (default: 5,000 connections). If a pod is at capacity, it rejects new connections with HTTP 503 and a `Retry-After: 5` header.
+
+**Frontend impact:** The UI should handle 503 responses during WebSocket handshake by retrying after the `Retry-After` duration. In practice, the Kubernetes HPA scales broadcast-service pods before this limit is reached.
+
+---
+
+## 4. Charts API Deep Dive
+
+The charts pipeline is the area with the most significant internal changes (three services merged into one, TimescaleDB removed, ClickHouse + Redis dual-store). However, the API is designed to be as close to backward-compatible as possible.
+
+### 4.1 Endpoint Mapping
+
+| Legacy PML | New MDE | Notes |
+| --- | --- | --- |
+| `GET /api/chart/sym/{symbol}/intra/{interval}` | `GET /v1/candles/{instrumentToken}?interval={i}&from={f}&to={t}` | Unified endpoint for all intervals |
+| `GET /api/chart/sym/{symbol}/eod/{interval}` | `GET /v1/candles/{instrumentToken}?interval={i}&from={f}&to={t}` | Same endpoint -- no separate intraday/EOD |
+| (TradingView UDF) | `POST /v1/price-charts` | **Drop-in compatible** -- only base URL changes |
+
+### 4.2 Interval Parameter Mapping
+
+The interval parameter values are the same in MDE. No mapping needed.
+
+| Interval | MDE Param Value | Data Source | Notes |
+| --- | --- | --- | --- |
+| 1 minute | `1m` | Redis C2 (today) or ClickHouse (historical) | Auto-routed based on date range |
+| 5 minutes | `5m` | Redis C2 (today) or ClickHouse MV | ClickHouse materialized view rollup |
+| 15 minutes | `15m` | Redis C2 (today) or ClickHouse MV | ClickHouse materialized view rollup |
+| 1 hour | `1h` | Redis C2 (today) or ClickHouse MV | ClickHouse materialized view rollup |
+| 1 day | `1d` | ClickHouse MV | Daily candles from ClickHouse only |
+| 1 week | `1w` | ClickHouse MV | Computed from `candles_1d` materialized view |
+| 1 month | `1M` | ClickHouse MV | Computed from `candles_1d` materialized view |
+
+### 4.3 The `source` Query Parameter (New)
+
+MDE introduces an optional `source` query parameter that controls where candle data is fetched from:
+
+| Value | Behavior |
+| --- | --- |
+| `auto` (default) | Automatically routes: Redis C2 for today's data, ClickHouse for historical. This is the recommended default. |
+| `redis` | Force-read from Redis C2 only. Returns only data within the 2-3 day TTL window. Useful for getting the absolute freshest intraday candles. |
+| `clickhouse` | Force-read from ClickHouse only. Useful for guaranteed-consistent historical queries. |
+
+**Example:**
+```
+GET /v1/candles/NSE:RELIANCE:EQ?interval=1m&from=2026-04-22T09:15:00&to=2026-04-22T15:30:00&source=redis
+```
+
+<Info>
+For most UI use cases, omit the `source` parameter and let MDE auto-route. Use `source=redis` only if you need sub-millisecond response times for current-day charts.
+</Info>
+
+### 4.4 Running Candles (New Capability)
+
+MDE supports "running candles" -- the in-progress candle for the current minute/interval that updates in real-time. This was not available in PML.
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `GET /v1/running-candles/{instrumentToken}?interval={i}` | GET | Returns the current in-progress candle from Redis C2. Default interval: `1m`. |
+
+**Use case:** Display a live-updating candle on the chart that reflects trades happening right now, rather than waiting for the minute to close.
+
+### 4.5 Candle Response Format
+
+```json
+{
+  "instrumentToken": "NSE:RELIANCE:EQ",
+  "interval": "1m",
+  "candles": [
+    {
+      "timestamp": "2026-04-22T09:15:00+05:30",
+      "open": 2520.00,
+      "high": 2535.50,
+      "low": 2518.00,
+      "close": 2530.25,
+      "volume": 125000,
+      "oi": 0,
+      "trades": 450
+    },
+    {
+      "timestamp": "2026-04-22T09:16:00+05:30",
+      "open": 2530.25,
+      "high": 2542.00,
+      "low": 2528.50,
+      "close": 2540.00,
+      "volume": 98000,
+      "oi": 0,
+      "trades": 380
+    }
+  ],
+  "source": "redis",
+  "stale": false
+}
+```
+
+<Note>
+The `stale` field indicates whether the data is potentially outdated (e.g., served from cache during a backend failure). If `stale: true`, the UI should show a subtle freshness indicator (e.g., "Data may be delayed") but should NOT show an error.
+</Note>
+
+### 4.6 TradingView UDF Compatibility
+
+The `POST /v1/price-charts` endpoint on charts-service is **specifically designed for backward compatibility** with the TradingView charting library UDF (Universal Data Feed) protocol.
+
+**What you need to change:** Only the base URL in your TradingView `datafeed` configuration.
+
+```javascript
+// Before (PML)
+const datafeed = new Datafeeds.UDFCompatibleDatafeed(
+  'https://data-price-charts-api.example.com'
+);
+
+// After (MDE)
+const datafeed = new Datafeeds.UDFCompatibleDatafeed(
+  'https://mde-charts.{staging-zone}'
+);
+```
+
+The request/response format, resolution mappings, and symbol info structure remain identical.
+
+### 4.7 Cache Behavior
+
+MDE uses a two-layer cache for chart API responses:
+
+| Layer | Technology | TTL | Scope |
+| --- | --- | --- | --- |
+| L1 | Caffeine (per-pod in-memory) | 5 seconds (intraday), 5 minutes (historical) | Pod-local, fastest |
+| L2 | Redis C2 (cache-aside) | 60 seconds (intraday), 1 hour (historical) | Shared across pods |
+
+**Impact on UI:** Chart data may be up to 5 seconds stale for intraday views. For real-time chart updates, combine the REST candle API with WebSocket tick data to update the latest candle in real-time.
+
+---
+
+## 5. Data Format Changes
+
+### 5.1 Instrument Token Format
+
+This is the **most impactful breaking change** across the entire migration.
+
+| Aspect | Legacy PML | New MDE |
+| --- | --- | --- |
+| **Format** | Numeric `scripId` (e.g., `256265`) | String `instrumentToken` (e.g., `NSE:RELIANCE:EQ`) |
+| **Type** | `number` / `Long` | `string` |
+| **Structure** | Opaque numeric ID | `{EXCHANGE}:{SYMBOL}:{TYPE}` for equity; `{EXCHANGE}:{SYMBOL}:{OPTION_TYPE}:{EXPIRY}:{STRIKE}` for derivatives |
+
+**Examples:**
+
+| Instrument | Legacy PML | New MDE |
+| --- | --- | --- |
+| Reliance equity | `256265` | `NSE:RELIANCE:EQ` |
+| Reliance futures | `11536386` | `NSE:RELIANCE:FUT:2026-04-24` |
+| Reliance call option | `11536642` | `NSE:RELIANCE:CE:2026-04-24:2500` |
+| NIFTY 50 index | `26000` | `NSE:NIFTY_50:INDEX` |
+| BSE Sensex | `99919999` | `BSE:SENSEX:INDEX` |
+
+<Warning>
+Every place in your frontend code that stores, passes, or compares instrument IDs must be updated to use string tokens instead of numeric IDs. This includes: localStorage keys, URL params, API request bodies, Redux/state store keys, and comparison logic.
+</Warning>
+
+**Migration aid:** During the transition period, MDE provides a bidirectional mapping service:
+
+```
+GET /v1/internal/token-map?scripId=256265    ->  "NSE:RELIANCE:EQ"
+GET /v1/internal/token-map?token=NSE:RELIANCE:EQ  ->  256265
+```
+
+### 5.2 Tick Data Format
+
+| Field | Legacy PML (JSON) | New MDE (Protobuf) | Notes |
+| --- | --- | --- | --- |
+| Token | `t` (number) | `instrument_token` (string) | Type change |
+| LTP | `ltp` (number) | `ltp` (float) | Same semantics |
+| Open | `o` (number) | `open` (float) | Field name changed |
+| High | `h` (number) | `high` (float) | Field name changed |
+| Low | `l` (number) | `low` (float) | Field name changed |
+| Close | `c` (number) | `close` (float) | Field name changed |
+| Volume | `v` (number) | `volume` (int64) | Field name changed |
+| Change | `chg` (number) | `change` (float) | Field name changed |
+| Change % | `chg_pct` (number) | `change_percent` (float) | Field name changed |
+| Timestamp | `ts` (number, epoch ms) | `timestamp` (int64, epoch ms) | Field name changed |
+| Previous Close | (not included) | `previous_close` (float) | **New field** |
+| Upper Circuit | (not included) | `upper_circuit` (float) | **New field** |
+| Lower Circuit | (not included) | `lower_circuit` (float) | **New field** |
+| 52W High | (not included) | `high_52w` (float) | **New field** |
+| 52W Low | (not included) | `low_52w` (float) | **New field** |
+| Open Interest | (not included) | `oi` (int64) | **New field** (for F&O) |
+| Depth | (not included) | `depth` (DepthData) | **New field** (if subscribed) |
+| F&O Ban | (not included) | `banned` (bool) | **New field** |
+
+### 5.3 OHLC Candle Data Format
+
+| Field | Legacy PML | New MDE | Notes |
+| --- | --- | --- | --- |
+| Timestamp | `timestamp` or `ts` | `timestamp` (ISO-8601 string) | Consistent ISO-8601 format |
+| Open | `open` or `o` | `open` (float) | Consistent naming |
+| High | `high` or `h` | `high` (float) | Consistent naming |
+| Low | `low` or `l` | `low` (float) | Consistent naming |
+| Close | `close` or `c` | `close` (float) | Consistent naming |
+| Volume | `volume` or `v` | `volume` (int64) | Consistent naming |
+| OI | (not included) | `oi` (int64) | **New field** -- open interest per candle |
+| Trades | (not included) | `trades` (int32) | **New field** -- number of trades in candle |
+
+### 5.4 Market Depth Format (New)
+
+MDE provides 5-level bid/ask depth data. This was not available in PML.
+
+```
+depth: {
+  bid: [
+    { price: float, quantity: int, orders: int },  // Best bid
+    { price: float, quantity: int, orders: int },  // 2nd best
+    { price: float, quantity: int, orders: int },  // 3rd
+    { price: float, quantity: int, orders: int },  // 4th
+    { price: float, quantity: int, orders: int }   // 5th
+  ],
+  ask: [
+    { price: float, quantity: int, orders: int },  // Best ask
+    ...                                             // 4 more levels
+  ],
+  totalBuyQuantity: int64,
+  totalSellQuantity: int64
+}
+```
+
+### 5.5 FNO Option Chain Response Format
+
+MDE enriches the option chain with Greeks, IV, and day-over-day changes. See Section 2.6 for the full response example.
+
+**Key additions vs PML:**
+- Greeks: `delta`, `gamma`, `theta`, `vega`, `rho`
+- Implied Volatility: `iv`
+- Day-over-day changes: `oiChange`, `oiChangePct`, `priceChange`, `priceChangePct`, `volumeChange`
+- Pricing model indicator: BSM for equity options, Black-76 for index options
+
+### 5.6 Market Movers Response Format
+
+See Section 2.4 for the full response example. Key change: movers are now categorized by 8 types (vs 3 in PML) and bucketed by index.
+
+### 5.7 Alert Response Format
+
+See Section 2.8 for the full response example. This is entirely new in MDE.
+
+### 5.8 Zero-Error UX Convention
+
+MDE follows a strict "Zero-Error UX" design principle. APIs convert all 5xx errors to `200 OK` with degraded data:
+
+```json
+{
+  "data": null,
+  "stale": true,
+  "fallbackLayer": "clickhouse"
+}
+```
+
+**Frontend impact:**
+- Never show an error popup when `data` is `null` and `stale` is `true`
+- Treat `null` data as a loading/skeleton state
+- Show a subtle freshness indicator when `stale: true` (e.g., "Data may be delayed")
+- The `X-Fallback-Layer` HTTP header indicates which fallback was used (for debugging)
+
+---
+
+## 6. Authentication and CORS
+
+### 6.1 Authentication Changes
+
+| Aspect | Legacy PML | New MDE |
+| --- | --- | --- |
+| REST APIs | Cookie-based session | Cookie-based session (no change expected -- auth handled by API gateway/ingress) |
+| WebSocket | Cookie-based session | API key via `x-api-key` header during WebSocket handshake |
+
+<Note>
+The exact authentication mechanism for MDE REST APIs depends on the API gateway configuration during deployment. The MDE services themselves use Spring Security with a shared `PermitAllSecurityConfig` for internal communication and standard JWT/session auth for external traffic. Work with the platform team to confirm the auth scheme before implementing.
+</Note>
+
+### 6.2 CORS Configuration
+
+MDE uses an NGINX ingress controller with the following CORS configuration:
+
+```yaml
+# Ingress annotation
+nginx.ingress.kubernetes.io/cors-allow-origin: "https://your-frontend-domain.com"
+nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization, x-api-key"
+nginx.ingress.kubernetes.io/enable-cors: "true"
+```
+
+**Frontend impact:** Ensure your frontend domain is added to the CORS allow-origin list in the MDE ingress configuration. For local development, the ingress allows `localhost:*`.
+
+### 6.3 WebSocket Upgrade
+
+The NGINX ingress is configured with `proxy-read-timeout: 3600s` for WebSocket upgrade support. No special headers needed beyond the standard WebSocket upgrade handshake.
+
+---
+
+## 7. New Capabilities (UI Can Leverage)
+
+These are features that MDE provides which were not available in the legacy PML system. The UI team can build new components to leverage these.
+
+### 7.1 Running Candles (Real-Time Intraday Updates)
+
+**What:** Get the in-progress candle for the current minute that updates as trades happen.
+
+**Endpoint:** `GET /v1/running-candles/{instrumentToken}?interval=1m`
+
+**Use case:** Show a live-updating candle on the chart without waiting for the minute to close.
+
+### 7.2 Market Status Events via WebSocket
+
+**What:** Receive real-time notifications when the market opens, closes, or transitions between sessions.
+
+**Delivery:** Automatic WebSocket broadcast to all connected clients (no subscription needed).
+
+**Use case:** Show market open/close banners, enable/disable order buttons, display session indicators.
+
+### 7.3 FNO Analytics Suite
+
+**What:** Max Pain, ATM Straddle premium, Put-Call Ratio (OI and Volume), OI buildup analytics.
+
+**Endpoints:** See Section 2.7.
+
+**Use case:** Build a dedicated F&O analytics dashboard with Max Pain chart, PCR trend, and straddle premium tracker.
+
+### 7.4 Corporate Action Calendar
+
+**What:** Pre-computed corporate action adjustments (splits, bonus, dividends) with historical price corrections.
+
+**Impact:** Charts automatically show adjusted historical prices after corporate actions. No UI change needed -- the adjusted data is served transparently.
+
+### 7.5 Alert Engine
+
+**What:** User-defined price/volume alerts with 7 condition types and push notification support.
+
+**Endpoints:** See Section 2.8.
+
+**Use case:** Alert creation form on stock detail page, alerts management page, notification center.
+
+### 7.6 Health and Status Dashboard Data
+
+**What:** Cross-service health aggregation, incident history, recon results.
+
+**Endpoints:** `GET /internal/health-check`, `GET /v1/incidents`, `GET /v1/recon`
+
+**Use case:** Internal ops dashboard (not user-facing).
+
+### 7.7 Index Constituents
+
+**What:** Get all instruments in a given index (NIFTY 50, SENSEX, BANK NIFTY, etc.).
+
+**Endpoint:** `GET /v1/indices/{indexToken}/constituents`
+
+**Use case:** Index composition page, sector-wise breakdowns.
+
+---
+
+## 8. Hostname and Port Mapping
+
+### 8.1 Service Inventory
+
+| # | Service | App Port | Management Port | Base Path | Description |
+| --- | --- | --- | --- | --- | --- |
+| 1 | instrument-master | 8081 | 9081 | `/v1/instruments`, `/v1/companies`, `/v1/indices` | Instrument search, company fundamentals |
+| 2 | feed-handler | 8082 | 9082 | `/internal/admin` | Internal only -- no UI traffic |
+| 3 | charts-service | 8083 | 9083 | `/v1/candles`, `/v1/running-candles`, `/v1/price-charts`, `/v1/index` | Charts, candles, TradingView UDF |
+| 4 | market-movers-writer | 8084 | 9084 | `/v1/movers` | Market movers rankings |
+| 5 | fno-data-writer | 8085 | 9085 | `/v1/option-chain`, `/v1/fno-chain`, `/v1/max-pain`, `/v1/atm-straddle`, `/v1/pcr`, `/v1/oi-buildup`, `/v1/expiries` | FNO analytics |
+| 6 | broadcast-service | 8087 | 9087 | `WebSocket /ws/v1/feed`, `/v1/status` | Live WebSocket feed |
+| 7 | ops-service | 8088 | 9088 | `/v1/incidents`, `/v1/recon` | Internal ops only |
+| 8 | alert-engine | 8091 | 9091 | `/v1/alerts` | Alert CRUD and trigger history |
+| 9 | scheduler-service | 8094 | 9094 | (none -- Temporal only) | No REST API |
+| 10 | publisher | (none) | 9086 | (none -- headless) | No REST API |
+
+### 8.2 Staging DNS Zone
+
+All MDE staging services are accessible under the Route 53 private zone:
+
+```
+mde-staging.internal.ap-south-1.staging.lending-v2.risk.pai.mypaytm.com
+```
+
+| Hostname | Service | Protocol |
+| --- | --- | --- |
+| `mde-dashboard.<zone>` | instrument-master | HTTPS |
+| `mde-charts.<zone>` | charts-service | HTTPS |
+| `mde-broadcast.<zone>` | broadcast-service | WSS |
+| `mde-grafana.<zone>` | Grafana dashboards | HTTPS |
+| `mde-temporal.<zone>` | Temporal UI | HTTPS |
+
+### 8.3 Environment Configuration Template
+
+Update your frontend environment config:
+
+```javascript
+// .env.staging
+REACT_APP_MDE_INSTRUMENT_API=https://mde-dashboard.{zone}
+REACT_APP_MDE_CHARTS_API=https://mde-charts.{zone}
+REACT_APP_MDE_WS_URL=wss://mde-broadcast.{zone}/ws/v1/feed
+REACT_APP_MDE_FNO_API=https://mde-fno.{zone}
+REACT_APP_MDE_MOVERS_API=https://mde-movers.{zone}
+REACT_APP_MDE_ALERTS_API=https://mde-alerts.{zone}
+```
+
+<Warning>
+The actual hostnames for FNO, movers, and alerts services may be routed through a single ALB with path-based routing. Confirm the final routing configuration with the DevOps team before hardcoding hostnames.
+</Warning>
+
+---
+
+## 9. Migration Checklist for UI Team
+
+### 9.1 Pre-Migration Setup
+
+- [ ] Obtain MDE staging environment access and hostnames from DevOps
+- [ ] Install `protobufjs` npm package for WebSocket Protobuf decoding
+- [ ] Obtain the `tick.proto` file from the MDE repository (`shared/proto/`)
+- [ ] Set up environment variables for all MDE service URLs (Section 8.3)
+- [ ] Get API key for WebSocket authentication from platform team
+
+### 9.2 P0 -- Blocking Changes (Must Complete Before Traffic Switch)
+
+- [ ] **Token format migration**: Update all code that uses numeric `scripId` to use string `instrumentToken`
+  - [ ] State/store keys
+  - [ ] URL parameters
+  - [ ] localStorage keys
+  - [ ] API request bodies
+  - [ ] Comparison/equality checks (change `===` numeric to string comparison)
+- [ ] **API URL migration**: Update all API base URLs in environment config
+  - [ ] Instrument search/detail
+  - [ ] Charts API
+  - [ ] Market movers
+  - [ ] Option chain
+  - [ ] Company fundamentals
+- [ ] **WebSocket client rewrite**
+  - [ ] Update WebSocket endpoint URL
+  - [ ] Update subscription message format (JSON with string tokens)
+  - [ ] Add Protobuf binary frame decoder
+  - [ ] Handle mixed message types (JSON control + Protobuf data)
+  - [ ] Handle `MARKET_STATUS` broadcast events
+  - [ ] Handle 503 connection rejection with retry
+- [ ] **Chart component update**
+  - [ ] Update TradingView data feed base URL (if using `POST /v1/price-charts`)
+  - [ ] OR update chart data fetching to use `GET /v1/candles` with new params
+  - [ ] Test all intervals: 1m, 5m, 15m, 1h, 1d, 1w, 1M
+
+### 9.3 P1 -- Important Changes (Complete Within 1 Week of Traffic Switch)
+
+- [ ] **Option chain page update**
+  - [ ] Update API endpoint to `GET /v1/option-chain/{underlying}?expiry={date}`
+  - [ ] Add expiry selector using `GET /v1/expiries/{underlying}`
+  - [ ] Display Greeks (delta, gamma, theta, vega) in chain table
+  - [ ] Display IV column
+  - [ ] Display day-over-day OI and price changes
+- [ ] **Market movers widget update**
+  - [ ] Update API to use category and index query params
+  - [ ] Add category selector for new categories (VOLUME_SPIKE, BREAKOUT_HIGH, etc.)
+
+### 9.4 P2 -- New Features (Complete Within 2-4 Weeks)
+
+- [ ] **Market depth widget** (new UI component)
+  - [ ] Build 5-level bid/ask ladder visualization
+  - [ ] Subscribe to WebSocket with `depth: true` for selected instruments
+- [ ] **FNO analytics dashboard** (new UI components)
+  - [ ] Max Pain chart component
+  - [ ] PCR trend chart component
+  - [ ] ATM Straddle premium tracker
+  - [ ] OI buildup visualization
+- [ ] **Alert management** (new UI pages)
+  - [ ] Alert creation form on stock detail page
+  - [ ] Alerts list/management page
+  - [ ] Triggered alerts history
+  - [ ] Push notification integration
+
+### 9.5 Validation and Testing
+
+- [ ] **Instrument search**: Verify search results match PML output for 20 common stocks
+- [ ] **Live price feed**: Compare MDE WebSocket prices against PML for 5 minutes during market hours
+- [ ] **Candlestick charts**: Verify all 7 intervals render correctly for RELIANCE, NIFTY, and 3 random stocks
+- [ ] **Running candles**: Verify current-minute candle updates in real-time
+- [ ] **Market movers**: Verify top gainers/losers match PML output
+- [ ] **Option chain**: Verify chain data for NIFTY and BANKNIFTY with Greeks
+- [ ] **Market depth**: Verify 5-level depth display for a liquid stock
+- [ ] **Alerts CRUD**: Create, list, and delete alerts; verify trigger on price crossing
+- [ ] **Market status**: Verify PRE_OPEN, OPEN, and CLOSED transitions display correctly
+- [ ] **Corporate actions**: Verify adjusted historical chart data after a recent split/bonus
+- [ ] **Error handling**: Verify no error popups when MDE returns `stale: true` responses
+- [ ] **WebSocket reconnection**: Kill and restore network; verify auto-reconnect with snapshot
+
+---
+
+## 10. Rollback Plan
+
+### 10.1 During Migration Period
+
+The migration uses a feature-flag-controlled rollout. If any issue is detected, the frontend can be switched back to legacy PML APIs within minutes.
+
+| Phase | Rollback Trigger | Rollback Action | Time to Recover |
+| --- | --- | --- | --- |
+| Phase 2 (Charts, FNO, Movers) | API errors > 1% or latency > 200ms | Feature flag switch -- route back to old APIs | Less than 5 minutes |
+| Phase 3 (WebSocket live prices) | WebSocket errors > 0.1% or price mismatch | Feature flag switch -- route to old WebSocket | Less than 5 minutes |
+| Phase 4 (Full cutover) | Any critical issue within 3 days | Scale legacy services back from 0 replicas | Less than 15 minutes |
+
+### 10.2 Feature Flag Implementation
+
+The frontend should implement a feature flag check at each API call site:
+
+```javascript
+const BASE_URL = featureFlags.mdeEnabled
+  ? process.env.REACT_APP_MDE_API_URL     // New MDE endpoint
+  : process.env.REACT_APP_PML_API_URL;    // Legacy PML endpoint
+
+const WS_URL = featureFlags.mdeWebSocket
+  ? process.env.REACT_APP_MDE_WS_URL      // New MDE WebSocket
+  : process.env.REACT_APP_PML_WS_URL;     // Legacy PML WebSocket
+```
+
+**Feature flags to implement:**
+
+| Flag | Controls | Default |
+| --- | --- | --- |
+| `mde.websocket.enabled` | WebSocket endpoint routing | `false` |
+| `mde.charts.enabled` | Charts API routing | `false` |
+| `mde.search.enabled` | Instrument search API routing | `false` |
+| `mde.movers.enabled` | Market movers API routing | `false` |
+| `mde.optionchain.enabled` | Option chain API routing | `false` |
+
+### 10.3 Rollback Safety Net
+
+- Legacy PML services are kept at 0 replicas (not deleted) for **4 weeks** after Phase 4 cutover
+- Legacy Docker images remain in ECR for **90 days**
+- Legacy Elasticsearch index snapshots on S3 for **90 days**
+- The bidirectional token mapping service (`/v1/internal/token-map`) remains active for **4 weeks** to support any rollback scenario

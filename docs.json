@@ -51,7 +51,8 @@
           {
             "group": "Migration",
             "pages": [
-              "migration/overview"
+              "migration/overview",
+              "migration/ui-migration"
             ]
           }
         ]
