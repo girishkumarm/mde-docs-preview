@@ -122,7 +122,7 @@ The Market Data Engine is the **single, authoritative source of all market data*
 ## 4. Architecture — High Level
 
 ```
-┌──────────────────────────────────────┐
+                    ┌──────────────────────────────────────┐
                     │         EXCHANGE FEEDS                │
                     │  NSE Direct + Omnenest               │
                     │  (merged, best-of-both)              │
@@ -203,7 +203,7 @@ The Market Data Engine is the **single, authoritative source of all market data*
     │  + Any custom job via Temporal Dashboard            │
     └─────────────────────────────────────────────────────┘
 
-    AI-POWERED INCIDENT MANAGER (platform-wide,):
+    AI-POWERED INCIDENT MANAGER (platform-wide, new in v3.2):
     ┌─────────────────────────────────────────────────────┐
     │  Signal collectors → Anomaly detection → LLM        │
     │  debugger → Auto-remediation + Notification         │

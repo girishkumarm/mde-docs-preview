@@ -23,7 +23,7 @@ title: "Market Data Engine — Kafka vs Redis Pub/Sub Defense"
 ### Redis Pub/Sub — the "radio tower" fanout (what doesn't work)
 
 ```
-┌──────────────────┐
+                            ┌──────────────────┐
                   publisher │ one PUBLISH per  │
                             │ tick per channel │
                             └────────┬─────────┘
@@ -47,30 +47,25 @@ Restart a pod? Every tick between disconnect+reconnect is LOST. No replay.
 ### Kafka — per-pod consumer group (what MDE does)
 
 ```
-┌──────────────────┐
-              feed-handler  UDP→Kafka produce
-                        └────────┬─────────┘
-                                 ▼
-          ┌───────────────────────────────────────────────┐
-          │  6 topics × ~280 partitions total             │
-          │  key = instrumentToken  (per-instrument order)│
-          │  3 brokers, RF=3, min.insync.replicas=2       │
-          └──┬───────┬───────┬───────┬────────────────────┘
-             │       │       │       │
-             │       │       │       │   each pod is its OWN consumer group
-             │       │       │       │   broker serves each pod ONCE per partition
-             ▼       ▼       ▼       ▼
-           pod-1   pod-2   pod-3  pod-20  (unique group.id per pod)
-             │       │       │       │
-             │       │       │       │   pod-local in-memory map:
-             │       │       │       │   RELIANCE → [user1, user7, user42]
-             │       │       │       │   TCS      → [user3, user42]
-             ▼       ▼       ▼       ▼
-           users   users   users   users
+                            ┌──────────────────┐
+                  publisher │ one PUBLISH per  │
+                            │ tick per channel │
+                            └────────┬─────────┘
+                                     ▼
+                          ┌────────────────────┐
+                          │  Redis node (ONE)  │ ← single-threaded event loop
+                          │  ~100k ops/sec cap │ ← Discord's documented cliff
+                          └────────┬───────────┘
+                                   │ must deliver EVERY message
+                                   │ to EVERY subscriber personally
+                ┌──────┬──────┬────┴──┬──────┬──────┐
+                ▼      ▼      ▼       ▼      ▼      ▼
+              pod-1  pod-2  pod-3  pod-4  pod-5  pod-20
+                                                       (and 15 more)
 
-Per-broker egress = 5k × 300 B × 20 pods / 3 brokers = 10 MB/s = 1.3% of 10 GbE.
-Pod restart? Resumes from committed offset. Zero ticks lost.
-Slow pod? Lag grows; broker doesn't care. Fast pods unaffected.
+At 5k ticks/s × 20 pods subscribing = 100k deliveries/s out of that ONE node.
+Slow subscriber? client-output-buffer-limit pubsub 32mb 8mb 60 — Redis KILLS the connection.
+Restart a pod? Every tick between disconnect+reconnect is LOST. No replay.
 ```
 
 ---

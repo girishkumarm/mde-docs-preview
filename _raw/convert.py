@@ -219,8 +219,13 @@ def render_macro(elem, ctx):
     if name == 'code':
         lang = get_param(elem, 'language') or ''
         plain = elem.find(f'{{{NS["ac"]}}}plain-text-body')
-        code = (plain.text or '').strip() if plain is not None else ''
-        # Remove CDATA markers if any
+        raw = plain.text or '' if plain is not None else ''
+        # Strip only leading/trailing *blank lines*, never leading whitespace on the
+        # first content line — ASCII-art diagrams rely on first-line indentation.
+        lines = raw.split('\n')
+        while lines and lines[0].strip() == '': lines.pop(0)
+        while lines and lines[-1].strip() == '': lines.pop()
+        code = '\n'.join(lines)
         return f"\n```{lang}\n{code}\n```\n\n"
 
     if name == 'expand':
