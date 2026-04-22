@@ -144,7 +144,7 @@ The Market Data Engine is the **single, authoritative source of all market data*
                           │               │
               ┌───────────▼──────┐   ┌────▼──────────────┐
               │  2. PUBLISHER    │   │    KAFKA            │
-              │                  │   │    8 topics          │
+              │                  │   │    10 topics          │
               │ Redis C1 HSET   │   │    (durable stream)  │
               │ (live snapshot)  │   │                      │
               │ Market status    │   │  mde-ticks-*         │

@@ -108,14 +108,11 @@ const NAV = [
     ["Service Catalog", "../architecture/service-catalog.mdx"]
   ]},
   { title: "Architecture", pages: [
-    ["Architecture Diagrams", "../architecture/diagrams.mdx"],
-    ["Kafka vs Redis (ADR)", "../decisions/kafka-vs-redis.mdx"]
+    ["Architecture Diagrams", "../architecture/diagrams.mdx"]
   ]},
   { title: "Components", pages: [
     ["Part 1: Feed → Charts", "../components/part1-feed-to-charts.mdx"],
-    ["Part 2: FNO, Movers, Alerts", "../components/part2-fno-movers-alerts.mdx"],
-    ["Candles v2 (current)", "../components/candles-v2.mdx"],
-    ["Candles v2 Diagrams", "../components/candles-v2-diagrams.mdx"]
+    ["Part 2: FNO, Movers, Alerts, Ops", "../components/part2-fno-movers-alerts.mdx"]
   ]},
   { title: "Data & APIs", pages: [
     ["Data Models & APIs", "../data-apis/data-models-and-apis.mdx"],
@@ -123,15 +120,10 @@ const NAV = [
     ["Redis Keys", "../data-apis/redis-keys.mdx"]
   ]},
   { title: "Operations", pages: [
-    ["DevOps Guide", "../operations/devops-guide.mdx"],
-    ["v2 Production Readiness", "../operations/v2-production-readiness.mdx"],
-    ["v2 Oncall Runbook", "../operations/v2-oncall-runbook.mdx"],
-    ["Candles v2 Readiness", "../operations/candles-v2-readiness.mdx"],
-    ["Candles v2 Canary & Rollback", "../operations/candles-v2-canary-rollback.mdx"]
+    ["DevOps Guide", "../operations/devops-guide.mdx"]
   ]},
   { title: "Migration", pages: [
-    ["Overview", "../migration/overview.mdx"],
-    ["Price Engine (detailed)", "../migration/price-engine.mdx"]
+    ["Overview", "../migration/overview.mdx"]
   ]}
 ];
 
@@ -183,7 +175,12 @@ function mdxToHtml(mdx) {
   mdx = mdx.replace(/<Info>([\s\S]*?)<\/Info>/g, (_, b) => `<div class="callout"><div class="callout-label">ℹ️ Info</div>${marked.parse(b.trim())}</div>`);
   mdx = mdx.replace(/<Warning>([\s\S]*?)<\/Warning>/g, (_, b) => `<div class="callout warning"><div class="callout-label">⚠️ Warning</div>${marked.parse(b.trim())}</div>`);
   mdx = mdx.replace(/<Note>([\s\S]*?)<\/Note>/g, (_, b) => `<div class="callout note"><div class="callout-label">📝 Note</div>${marked.parse(b.trim())}</div>`);
+  mdx = mdx.replace(/<AccordionGroup>([\s\S]*?)<\/AccordionGroup>/g, (_, b) => b);
   mdx = mdx.replace(/<Accordion title="([^"]+)">([\s\S]*?)<\/Accordion>/g, (_, t, b) => `<details class="accordion"><summary>${t}</summary><div class="accordion-content">${marked.parse(b.trim())}</div></details>`);
+  // Tip callout
+  mdx = mdx.replace(/<Tip>([\s\S]*?)<\/Tip>/g, (_, b) => `<div class="callout"><div class="callout-label">💡 Tip</div>${marked.parse(b.trim())}</div>`);
+  // CodeGroup — just strip the wrapper, code blocks render normally
+  mdx = mdx.replace(/<CodeGroup>([\s\S]*?)<\/CodeGroup>/g, (_, b) => b);
   // CardGroup / Card
   mdx = mdx.replace(/<CardGroup[^>]*>([\s\S]*?)<\/CardGroup>/g, (_, b) => `<div class="cards">${b}</div>`);
   mdx = mdx.replace(/<Card title="([^"]+)"([^>]*)>([\s\S]*?)<\/Card>/g, (_, t, attrs, b) => {

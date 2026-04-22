@@ -13,13 +13,13 @@ Written primarily by `publisher` and `scheduler-service`; read by `broadcast-ser
 
 | Key pattern | Type | Writer | Readers | TTL | Description |
 | --- | --- | --- | --- | --- | --- |
-| `FEED_PP:{token}` | Hash | publisher | broadcast-service, feed-handler (zero-LTP fallback) | None | Last tick snapshot: ltp, open, high, low, close, volume, oi, chg, chgPct, bid/ask depth |
-| `OHLC:{token}` | Hash | publisher | charts-service (seed), broadcast-service | None | Intraday OHLC: open, high, low, close, volume |
-| `PC:{token}` | Hash | scheduler-service (BOD) | publisher, alert-engine, market-movers-writer | None | Previous close: pc, prevOpen, prevHigh, prevLow, prevVol |
-| `LC_UC:{token}` | Hash | scheduler-service (BOD) + publisher (BSE intraday) | alert-engine, broadcast-service | None | Circuit limits: uc (upper), lc (lower) |
-| `52WK:{token}` | Hash | scheduler-service (BOD) + publisher (Lua CAS) | alert-engine | None | 52-week range: high, low, highDate, lowDate |
-| `DEPTH:{token}` | Hash | publisher | broadcast-service | None | Market depth: 5 bid/ask levels with price, qty, orders |
-| `MKT_STATUS:{exchange}` | String/Hash | publisher | broadcast-service, ops-service | None | Market status: status, session, updatedAt |
+| `FEED_PP:{segment}:{instrumentToken}` | Hash | publisher | broadcast-service, feed-handler (zero-LTP fallback) | None | Last tick snapshot: ltp, open, high, low, close, volume, oi, chg, chgPct, bid/ask depth |
+| `OHLC:{segment}:{instrumentToken}` | Hash | publisher | charts-service (seed), broadcast-service | None | Intraday OHLC: open, high, low, close, volume |
+| `PC:{segment}:{instrumentToken}` | Hash | scheduler-service (BOD) | publisher, alert-engine, market-movers-writer | None | Previous close: pc, prevOpen, prevHigh, prevLow, prevVol |
+| `LC_UC:{segment}:{instrumentToken}` | Hash | scheduler-service (BOD) + publisher (BSE intraday) | alert-engine, broadcast-service | None | Circuit limits: uc (upper), lc (lower) |
+| `52WK:{segment}:{instrumentToken}` | Hash | scheduler-service (BOD) + publisher (Lua CAS) | alert-engine | None | 52-week range: high, low, highDate, lowDate |
+| `DEPTH:{segment}:{instrumentToken}` | Hash | publisher | broadcast-service | None | Market depth: 5 bid/ask levels with price, qty, orders |
+| `MARKET_STATUS` | String | publisher | broadcast-service, ops-service | None | Current market phase: PRE_OPEN, OPEN, POST_CLOSE, CLOSED |
 
 ### Atomic operations (Lua)
 

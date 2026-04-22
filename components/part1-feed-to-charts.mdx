@@ -450,14 +450,13 @@ redisBatchFactory.getRedisQueueProcessor(cacheType)
 
 | Redis Hash Key Pattern | Hash Field | Value Type | Model |
 | --- | --- | --- | --- |
-| `FEED_PP_{exchangeSegment}` | `{scripId}_{exchSegCode}_{msgCode}` | binary byte[] | Raw processed broadcast packet (MbpBroadcast, IndexBroadcast, etc.) |
-| `MGR_{exchSeg}_LC_UC` | `securityId` | JSON byte[] | `CktLimitDto {"upper_ckt": float, "lower_ckt": float}` |
-| `MGR_{exchSeg}_52_WK_HL` | `securityId` | JSON byte[] | `YearlyHighLowDto {"52_wk_high": float, "52_wk_low": float}` |
-| `MGR_{exchSeg}_OHLC` | `securityId` | JSON byte[] | `OhlcDto {"o": float, "c": float, "h": float, "l": float}` |
-| `MGR_{exchSeg}_PC` | `securityId` | JSON byte[] | `PcloseDto {"pc": float, "poi": float}` |
+| `FEED_PP:{token}` | `{scripId}_{exchSegCode}_{msgCode}` | binary byte[] | Raw processed broadcast packet (MbpBroadcast, IndexBroadcast, etc.) |
+| `LC_UC:{token}` | `uc`, `lc` | String | Circuit limits (NSE: from circuit limit packets; BSE: extracted from MBP at byte offsets 264/268 — TASK-15) |
+| `52WK:{token}` | `high`, `low` | JSON byte[] | `YearlyHighLowDto {"52_wk_high": float, "52_wk_low": float}` |
+| `OHLC:{token}` | `o`, `c`, `h`, `l` | JSON byte[] | `OhlcDto {"o": float, "c": float, "h": float, "l": float}` |
+| `PC:{token}` | `pc`, `poi` | JSON byte[] | `PcloseDto {"pc": float, "poi": float}` |
 | `TRD_DAY` | varies | String | Trading day status |
 | `MKT_STATUS:{exchange}` | — | JSON String | Market status (TASK-14) |
-| `LC_UC:{bseToken}` | `uc`, `lc` | String | BSE circuit limits from MBP (TASK-15) |
 
 Exchange segment codes: `NSE_E` (1), `NSE_D` (2), `NSE_I` (0), `BSE_E` (4), `BSE_D` (8), `BSE_I` (0).
 
@@ -496,7 +495,7 @@ BSE does not have a separate DP file for intraday circuit limit updates (unlike 
 **Write to Redis C1:**
 
 ```
-Key:    LC_UC:{bseToken}
+Key:    LC_UC:{token}
 Fields: uc (upper circuit limit), lc (lower circuit limit)
 
 Example:
@@ -545,54 +544,9 @@ For 52-week H/L and OHLC, we need conditional updates (only write if new value b
 - After `CLOSE` (4.0): stop all price updates
 - After-market-close (status 6): trade volume cache updates skipped entirely
 
-**Publisher REST APIs (Periscope — operational endpoints):**
-
-Base URL: `/periscope/v1`
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| PUT | `/reload-redis` | Reload all data from local cache → Redis |
-| PUT | `/reload-local?type={PacketType}` | Reload local cache from Redis |
-| PUT | `/redis-copy?from={dbNumber}` | Copy data between Redis databases |
-| PUT | `/scrip-master` | Trigger scrip master reload from S3 |
-| PUT | `/refresh-packets?type={type}` | Refresh specific packet type in Redis |
-| PUT | `/circuit-limit` | Manual override of circuit limit |
-| PUT | `/f52-week-high-low` | Manual override of 52-week H/L |
-| PUT | `/ohlc` | Manual override of OHLC |
-| PUT | `/pclose` | Manual override of previous close |
-| PUT | `/trade-data` | Manual override of trade data |
-| GET | `/price/live?exchange=&segment=&security_id=` | Live price from local cache |
-| GET | `/price/live-redis?exchange=&segment=&security_id=` | Live price from Redis |
-
-Manual override request body:
-
-```js
-{
-    "scripId": 14366,
-    "exchange": "NSE",
-    "segment": "E",
-    "upperCircuit": 150.50,
-    "lowerCircuit": 120.25
-}
-```
-
-Live price response:
-
-```js
-{
-    "ltp": 1234.50,
-    "ltq": 100,
-    "volume": 500000,
-    "atp": 1230.00,
-    "oi": 0,
-    "open": 1200.00,
-    "close": 1210.00,
-    "high": 1240.00,
-    "low": 1195.00
-}
-```
-
-S2S API base: `/s2s/v1` — for inter-service calls (trigger schedulers, modify data via broadcast info strings).
+<Note>
+**Headless publisher:** The new publisher has no REST API. It is a headless background process — it reads from the feed processor pipeline and writes directly to Redis C1. The legacy `/periscope/v1` and `/s2s/v1` API surfaces belong to the old legacy publisher and are not present in the new architecture. Operational controls (manual overrides, cache reloads) are handled by the ops-service.
+</Note>
 
 ---
 
@@ -604,21 +558,20 @@ Two separate Redis clusters, each dedicated to a specific access pattern:
 
 | Hash Key Pattern | Writers | Readers |
 | --- | --- | --- |
-| `FEED_PP_{exchangeSegment}` | Publisher | Periscope API, Broadcast Service (snapshot on connect) |
-| `MGR_{exchSeg}_OHLC` | Publisher | Periscope API, Broadcast Service (snapshot on connect) |
-| `MGR_{exchSeg}_PC` | Publisher | Periscope API, Broadcast Service (snapshot on connect) |
-| `MGR_{exchSeg}_LC_UC` | Publisher | Periscope API, Broadcast Service (snapshot on connect) |
-| `MGR_{exchSeg}_52_WK_HL` | Publisher | Periscope API, Broadcast Service (snapshot on connect) |
-| `TRD_DAY` | Publisher | Periscope API, Temporal jobs, all services |
-| `MKT_STATUS:{exchange}` | Publisher | Broadcast Service (TASK-18), Ops-Service |
-| `LC_UC:{bseToken}` | Publisher (TASK-15) | Broadcast Service, Charts API |
+| `FEED_PP:{token}` | Publisher | Broadcast Service (snapshot on connect), charts-service |
+| `OHLC:{token}` | Publisher | Broadcast Service (snapshot on connect), charts-service |
+| `PC:{token}` | Publisher | Broadcast Service (snapshot on connect), scheduler-service |
+| `LC_UC:{token}` | Publisher (NSE via circuit-limit packets; BSE via MBP byte offsets 264/268 — TASK-15) | Broadcast Service (snapshot on connect), charts-service |
+| `52WK:{token}` | Publisher | Broadcast Service (snapshot on connect), charts-service |
+| `TRD_DAY` | Publisher | Temporal jobs, all services |
+| `MKT_STATUS:{exchange}` | Publisher | Broadcast Service (TASK-18), ops-service |
 
 **Redis Cluster 2 — API (derived data, higher-volume reads)**
 
 | Key Pattern | Writers | Readers |
 | --- | --- | --- |
-| `candle:1m:{token}:{epochMinute}` (1m candle hash) | Charts Service | Charts Service (REST API) |
-| `candle:idx:{token}` (candle index sorted set) | Charts Service | Charts Service (REST API) |
+| `candle:1m:{token}:{epochMinute}` (1m candle hash) | charts-service | charts-service (REST API) |
+| `candle:idx:{token}` (candle index sorted set) | charts-service | charts-service (REST API) |
 | FNO option chain hashes | FNO Data Writer | FNO Dashboard API |
 | FNO option insights hashes | FNO Data Writer | FNO Dashboard API |
 | `mkt_mvs_{category}_{exchange}_{index_id}` (sorted sets) | Market Movers Writer | Market Movers API |
@@ -634,19 +587,19 @@ Two separate Redis clusters, each dedicated to a specific access pattern:
 
 ### 6.6 Producer
 
-**What it does:** Publishes processed tick data to Kafka topics for durable, replayable consumption by downstream services (Charts Service, FNO Writer, Market Movers Writer, Broadcast Service).
+**What it does:** Publishes processed tick data to Kafka topics for durable, replayable consumption by downstream services (charts-service, FNO Writer, Market Movers Writer, Broadcast Service).
 
 **Kafka Topics (matching current system):**
 
 | Topic | Partitions | Retention | Consumers |
 | --- | --- | --- | --- |
-| `pml-marketfeed-nse-equity-ticks` | 6 | 3 days | Charts Service, Market Movers Writer, Broadcast Service |
-| `pml-marketfeed-bse-equity-ticks` | 6 | 3 days | Charts Service, Market Movers Writer, Broadcast Service |
-| `pml-marketfeed-nse-derivative-ticks` | 9 | 3 days | Charts Service, FNO Writer, Market Movers Writer, Broadcast Service |
-| `pml-marketfeed-bse-derivative-ticks` | 9 | 3 days | Charts Service, FNO Writer, Market Movers Writer, Broadcast Service |
-| `pml-marketfeed-nse-index-ticks` | 3 | 3 days | Charts Service, Broadcast Service |
-| `pml-marketfeed-bse-index-ticks` | 3 | 3 days | Charts Service, Broadcast Service |
-| `mde-candles-1m` | 12 | 3 days | Charts Service (ClickHouse writer thread), Market Movers Writer |
+| `mde-ticks-nse-equity` | 6 | 3 days | charts-service, Market Movers Writer, Broadcast Service |
+| `mde-ticks-bse-equity` | 6 | 3 days | charts-service, Market Movers Writer, Broadcast Service |
+| `mde-ticks-nse-derivative` | 9 | 3 days | charts-service, FNO Writer, Market Movers Writer, Broadcast Service |
+| `mde-ticks-bse-derivative` | 9 | 3 days | charts-service, FNO Writer, Market Movers Writer, Broadcast Service |
+| `mde-ticks-nse-index` | 3 | 3 days | charts-service, Broadcast Service |
+| `mde-ticks-bse-index` | 3 | 3 days | charts-service, Broadcast Service |
+| `mde-candles-1m` | 12 | 3 days | charts-service (ClickHouse writer thread), Market Movers Writer |
 
 **Kafka Producer Configuration:**
 
@@ -659,7 +612,8 @@ delivery.timeout.ms=120000
 linger.ms=1
 compression.type=lz4
 key.serializer=org.apache.kafka.common.serialization.StringSerializer
-value.serializer=io.confluent.kafka.serializers.KafkaAvroSerializer
+value.serializer=org.apache.kafka.common.serialization.ByteArraySerializer
+# Tick messages are serialized as Protobuf bytes (not Avro)
 ```
 
 <Info>
@@ -679,8 +633,8 @@ Normal operation:
     → Each Broadcast Service pod consumes from Kafka topic partitions
     → Consumer group = broadcast-service-${POD_NAME} (unique per pod — TASK-16)
     → Each pod receives ALL ticks (full partition set)
-    → Receive Avro-encoded tick messages
-    → Decode Avro → encode as Protobuf
+    → Receive Protobuf-encoded tick messages
+    → Deserialize Protobuf tick
     → Look up subscribers via inverted index (TASK-17)
     → Push Protobuf frames over WebSocket to subscribed users
 
@@ -851,8 +805,8 @@ mde:
 
 **Market data processing pipeline:**
 
-1. Consume Avro message from Kafka topic partition
-2. Decode Avro → extract securityId, exchangeSegmentCode, messageCode, payload
+1. Consume Protobuf message from Kafka topic partition
+2. Deserialize Protobuf → extract securityId, exchangeSegmentCode, messageCode, payload
 3. Apply validation (reject trade with LTP=0, unless pre-open fallback applied)
 4. Apply business rules (market status checks, including grace window)
 5. Check staleness flag — if feed is UNCERTAIN, attach staleness metadata
@@ -921,7 +875,7 @@ Kafka tick topics (mde-ticks-{exchange})
     ▼
 charts-service consumer threads (one per assigned partition)
     │
-    ├─ Decode Avro tick → extract token, ltp, volume, oi, timestamp
+    ├─ Deserialize Protobuf tick → extract token, ltp, volume, oi, timestamp
     │
     ├─ Aggregate into in-memory 1-minute candle:
     │     ConcurrentHashMap<String, CandleAggregator> activeCandles

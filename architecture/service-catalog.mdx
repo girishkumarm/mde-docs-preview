@@ -33,7 +33,7 @@ description: "Ground-truth inventory of every MDE service after the 15-to-10 con
 | --- | --- | --- | --- | --- | --- |
 | 1 | [instrument-master](#instrument-master) | 8081 / 9081 | PostgreSQL, Redis C1 | Consumer + Producer | Shared Infra |
 | 2 | [feed-handler](#feed-handler) | 8082 / 9082 | None (stateless) | Producer | Always-on |
-| 3 | [publisher](#publisher) | — / 9082 | Redis C1 | Consumer | Always-on |
+| 3 | [publisher](#publisher) | — / 9086 | Redis C1 | Consumer | Always-on |
 | 4 | [broadcast-service](#broadcast-service) | 8087 / 9087 | Redis C1 (read) | Consumer | Always-on |
 | 5 | [charts-service](#charts-service) | 8083 / 9083 | Redis C2, ClickHouse | Consumer + Producer | Always-on |
 | 6 | [market-movers-writer](#market-movers-writer) | 8084 / 9084 | Redis C2 | Consumer | Always-on |
@@ -69,7 +69,7 @@ description: "Ground-truth inventory of every MDE service after the 15-to-10 con
 
 ## Kafka topics
 
-8 topics for inter-service communication:
+10 topics for inter-service communication:
 
 | Topic | Producer | Consumer(s) | Payload |
 | --- | --- | --- | --- |
@@ -80,7 +80,9 @@ description: "Ground-truth inventory of every MDE service after the 15-to-10 con
 | `mde-ticks-bse-derivative` | feed-handler | publisher, charts-service, fno-data-writer, broadcast-service | Protobuf Tick |
 | `mde-ticks-bse-index` | feed-handler | publisher, broadcast-service | Protobuf Tick |
 | `mde-candles-1m` | charts-service | market-movers-writer | Protobuf Candle |
-| `mde-instrument-events` | instrument-master | feed-handler, scheduler-service | JSON instrument change |
+| `mde-instrument-events` | instrument-master | feed-handler | JSON instrument change |
+| `mde-alert-triggers` | alert-engine | Notification service (external) | JSON alert trigger event |
+| `mde-feed-anomalies` | ops-service | Downstream alerting/audit (external) | JSON anomaly event |
 
 ---
 
@@ -160,7 +162,7 @@ description: "Ground-truth inventory of every MDE service after the 15-to-10 con
 
 <Accordion title="Full details">
 
-**Port**: Management only (9082) — no HTTP API | **Storage**: Redis C1
+**Port**: Management only (9086) — no HTTP API | **Storage**: Redis C1
 
 **What it does**: Kafka tick consumer that writes real-time snapshots to Redis Cluster 1. Headless writer service with no REST endpoints. Writes 6 key types that form the live market data snapshot used by broadcast-service and other read-path services.
 
@@ -553,7 +555,7 @@ description: "Ground-truth inventory of every MDE service after the 15-to-10 con
                                                             │       │
      ┌───────────────────┐                                  │       │
      │ instrument-master │ ◄── Kafka: mde-instrument-events │       │
-     │ (PG + Redis C1)   │ ──► feed-handler, scheduler-svc  │       │
+     │ (PG + Redis C1)   │ ──► feed-handler                │       │
      └───────────────────┘                                  │       │
 ```
 

@@ -4,7 +4,7 @@ description: "Every topic in market-data-engine — producers, consumers, schema
 ---
 
 <Info>
-Sourced directly from the consolidated MDE codebase (9 services). All topic names are environment-configurable via `mde.kafka.*` and `mde.<service>.*-topic` properties; values below are the defaults shipped on `main`.
+Sourced directly from the consolidated MDE codebase (10 services). All topic names are environment-configurable via `mde.kafka.*` and `mde.<service>.*-topic` properties; values below are the defaults shipped on `main`.
 </Info>
 
 ## Tick topics (from exchange feeds)
@@ -13,26 +13,28 @@ Sourced directly from the consolidated MDE codebase (9 services). All topic name
 
 | Topic | Partitions | Producer | Consumers | Notes |
 | --- | --- | --- | --- | --- |
-| `mde-ticks-nse-cash` | 12 | feed-handler | publisher, charts-service, alert-engine, broadcast-service | NSE cash segment |
-| `mde-ticks-bse-cash` | 6 | feed-handler | publisher, charts-service, alert-engine, broadcast-service | BSE cash segment |
-| `mde-ticks-nse-fo` | 24 | feed-handler | publisher, charts-service, fno-data-writer, alert-engine, broadcast-service | NSE F&O — highest partition count for options volume |
-| `mde-ticks-bse-fo` | 6 | feed-handler | publisher, charts-service, fno-data-writer, broadcast-service | BSE F&O |
-| `mde-ticks-nse-index` | 3 | feed-handler | publisher, charts-service, broadcast-service | NSE indices |
+| `mde-ticks-nse-equity` | 12 | feed-handler | publisher, charts-service, alert-engine, broadcast-service | NSE equity segment |
+| `mde-ticks-bse-equity` | 6 | feed-handler | publisher, charts-service, broadcast-service | BSE equity segment |
+| `mde-ticks-nse-derivative` | 24 | feed-handler | publisher, charts-service, fno-data-writer, broadcast-service | NSE F&O — highest partition count for options volume |
+| `mde-ticks-bse-derivative` | 6 | feed-handler | publisher, charts-service, fno-data-writer, broadcast-service | BSE F&O |
+| `mde-ticks-nse-index` | 3 | feed-handler | publisher, broadcast-service | NSE indices |
+| `mde-ticks-bse-index` | 3 | feed-handler | publisher, broadcast-service | BSE indices |
 
 ## Candle topics
 
-**Producer**: `charts-service`. Serialization: **JSON** (`CandleEvent`).
+**Producer**: `charts-service`. Serialization: **Protobuf** (`Candle`).
 
 | Topic | Partitions | Producer | Consumers | Notes |
 | --- | --- | --- | --- | --- |
-| `mde-candles-1m` | 12 | charts-service | market-movers-writer, charts-service (historical writer thread) | Closed 1m candles. market-movers-writer consumes candles NOT raw ticks (~120/min vs 50K/sec — see Decision 9). |
+| `mde-candles-1m` | 12 | charts-service | market-movers-writer | Closed 1m candles. market-movers-writer consumes candles NOT raw ticks (~120/min vs 50K/sec — see Decision 9). charts-service flushes closed candles to ClickHouse internally — it does NOT consume its own topic. |
 
-## Control topics
+## Control / event topics
 
 | Topic | Partitions | Producer | Consumers | Purpose |
 | --- | --- | --- | --- | --- |
-| `mde-alerts-triggered` | 6 | alert-engine | broadcast-service, ops-service | Triggered alert notifications for delivery + incident tracking |
-| `mde-market-status` | 1 | feed-handler | publisher, broadcast-service, ops-service | Market status transitions (PRE_OPEN, OPEN, POST_CLOSE, CLOSED) |
+| `mde-alert-triggers` | 6 | alert-engine | Notification service (external) | Triggered alert events for downstream notification delivery |
+| `mde-instrument-events` | 3 | instrument-master | feed-handler | Instrument creates, updates, and delistings — feed-handler refreshes local instrument cache |
+| `mde-feed-anomalies` | 3 | ops-service | Downstream alerting/audit (external) | Feed anomaly events detected by ops-service for audit trail |
 
 ## Delivery guarantees
 
@@ -61,7 +63,7 @@ One group per service, with pod identity when required:
 | alert-engine | `mde-alert-engine` | Shared |
 | fno-data-writer | `mde-fno-data-writer` | Shared |
 | market-movers-writer | `mde-market-movers-writer` | Shared |
-| ops-service | `mde-ops-service` | Shared |
+| instrument-master | `mde-instrument-master` | Shared (self-loop for cache invalidation) |
 
 <Warning>
 **broadcast-service uses UNIQUE consumer group per pod** (`broadcast-service-${POD_NAME}`) so each pod receives ALL messages. A shared group would starve pods and break WebSocket fan-out. All other services use standard consumer groups where partitions are distributed across pods.
@@ -70,9 +72,10 @@ One group per service, with pod identity when required:
 ## Key design notes
 
 - **Tick topics use Protobuf serialization** (`Tick.proto`) for bandwidth efficiency at 50K+ ticks/sec
-- **Candle topics use JSON serialization** (`CandleEvent`) — lower throughput, easier debugging
+- **Candle topics use Protobuf serialization** (`Candle`) — same binary efficiency as ticks for the hot candle pipeline
 - **market-movers-writer consumes `mde-candles-1m`** NOT raw tick topics (Decision 9 — ~120 events/min vs 50K/sec)
-- **alert-engine does NOT consume BSE F&O ticks** — alerts currently limited to NSE cash, BSE cash, and NSE F&O
+- **alert-engine only consumes equity ticks** (`mde-ticks-nse-equity`, `mde-ticks-bse-equity`) — alerts are not evaluated against derivative or index ticks
+- **charts-service flushes ClickHouse internally** — the historical writer thread is part of charts-service itself, not a Kafka consumer of its own topic
 
 ## Local development
 

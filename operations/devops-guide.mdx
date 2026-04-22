@@ -29,7 +29,7 @@ title: "Market Data Engine — DevOps Operating Guide (Staging): Database Strate
 | RDS PostgreSQL 15 | `db.r6g.large` (2 vCPU / 16 GB), Single-AZ | 1 | 50 GB gp3. DBs: `instrument_master`, `alert_engine`, `scheduler_service`, `ops_service`, `temporal` |   |   |
 | ElastiCache Redis 7.2 — C1 (Real-time Snapshots) | `cache.r6g.large`, 3 masters + 3 replicas, cluster-mode-enabled | 6 nodes | maxmemory 8GB, RDB snapshots every 5 min. AUTH in Secrets Manager |   |   |
 | ElastiCache Redis 7.2 — C2 (Candles + Movers + FNO + Alerts) | `cache.r6g.xlarge`, 3 masters + 3 replicas, cluster-mode-enabled | 6 nodes | maxmemory 16GB, AOF (appendfsync everysec). AUTH in Secrets Manager |   |   |
-| Kafka (MSK) | 3 brokers, `m5.large` | 3 | 8 topics, retention per topic (see section 3.2) |   |   |
+| Kafka (MSK) | 3 brokers, `m5.large` | 3 | 10 topics, retention per topic (see section 3.2) |   |   |
 | ClickHouse (Keeper cluster or managed) | 3-node cluster | 3 | 500 GB gp3 EBS initial. `candles_1m` ReplacingMergeTree + 4 MV rollup tables |   |   |
 | Temporal (on EKS) | 1x history + 1x matching + 1x frontend + 1x worker | 4 pods | Uses `temporal` DB on the RDS above |   |   |
 | S3 buckets | `mde-staging-scripmaster` (30 GB), `mde-staging-backups` (100 GB, 14-day retention) | 2 | Versioning ON scripmaster |   |   |
@@ -76,18 +76,20 @@ Build: Jib (Gradle plugin, no Dockerfile needed). Base image: Eclipse Temurin 21
 ### 3.2 Kafka (MSK)
 
 - MSK cluster: 3 brokers, `m5.large`.
-- 8 topics to pre-create:
+- 10 topics to pre-create:
 
 | Topic | Partitions | RF | Retention | Cleanup |
 | --- | --- | --- | --- | --- |
-| `pml-marketfeed-nse-equity-ticks` | 6 | 3 | 7 days | delete |
-| `pml-marketfeed-nse-fno-ticks` | 12 | 3 | 7 days | delete |
-| `pml-marketfeed-nse-index-ticks` | 3 | 3 | 7 days | delete |
-| `pml-marketfeed-bse-equity-ticks` | 3 | 3 | 7 days | delete |
-| `mde-candles-1m` | 6 | 3 | 30 days | delete |
-| `mde-instrument-master-events` | 3 | 3 | 7 days | compact |
-| `mde-alert-events` | 3 | 3 | 7 days | delete |
-| `mde-status-events` | 3 | 3 | 7 days | compact |
+| `mde-ticks-nse-equity` | 12 | 3 | 7 days | delete |
+| `mde-ticks-nse-derivative` | 24 | 3 | 7 days | delete |
+| `mde-ticks-nse-index` | 3 | 3 | 7 days | delete |
+| `mde-ticks-bse-equity` | 6 | 3 | 7 days | delete |
+| `mde-ticks-bse-derivative` | 6 | 3 | 7 days | delete |
+| `mde-ticks-bse-index` | 3 | 3 | 7 days | delete |
+| `mde-candles-1m` | 12 | 3 | 30 days | delete |
+| `mde-alert-triggers` | 6 | 3 | 7 days | delete |
+| `mde-instrument-events` | 3 | 3 | 7 days | compact |
+| `mde-feed-anomalies` | 3 | 3 | 7 days | delete |
 
 ### 3.3 ClickHouse
 
@@ -104,19 +106,19 @@ Build: Jib (Gradle plugin, no Dockerfile needed). Base image: Eclipse Temurin 21
 ### 3.4 Redis Cluster 1 (C1) — Real-time Snapshots
 
 - Instance: 3 masters, 3 replicas, `cache.r6g.large`, maxmemory 8GB.
-- `maxmemory-policy volatile-lru`.
+- `maxmemory-policy noeviction` — C1 keys carry no TTL; fail loudly if memory is full rather than silently drop data.
 - Persistence: RDB snapshots every 5 min.
 - Key patterns:
 
 | Pattern | TTL | Description |
 | --- | --- | --- |
-| `FEED_PP_{exchange}_{segment}:{pmlId}` | 8 h | Feed price packet |
-| `OHLC_{exchange}_{segment}:{pmlId}` | 8 h | OHLC data |
-| `PC_{exchange}_{segment}:{pmlId}` | 8 h | Previous close |
-| `LC_UC_{exchange}_{segment}:{pmlId}` | 8 h | Circuit limits |
-| `52WK_{exchange}_{segment}:{pmlId}` | 24 h | 52-week high/low |
-| `DEPTH_{exchange}_{segment}:{pmlId}` | 8 h | Market depth |
-| `MKT_STATUS:{exchange}:{segment}` | 8 h | Market status |
+| `FEED_PP:{token}` | None | Last tick snapshot: ltp, open, high, low, close, volume, oi, chg, chgPct, bid/ask depth |
+| `OHLC:{token}` | None | Intraday OHLC: open, high, low, close, volume |
+| `PC:{token}` | None | Previous close: pc, prevOpen, prevHigh, prevLow, prevVol |
+| `LC_UC:{token}` | None | Circuit limits: uc (upper), lc (lower) |
+| `52WK:{token}` | None | 52-week range: high, low, highDate, lowDate |
+| `DEPTH:{token}` | None | Market depth: 5 bid/ask levels with price, qty, orders |
+| `MKT_STATUS:{exchange}` | None | Market status: status, session, updatedAt |
 
 - Daily snapshot to S3 (ElastiCache automatic, 7-day retention).
 
@@ -130,12 +132,17 @@ Build: Jib (Gradle plugin, no Dockerfile needed). Base image: Eclipse Temurin 21
 
 | Pattern | TTL | Description |
 | --- | --- | --- |
-| `candle:1m:{token}:{epoch_min}` | 3 h | 1-minute candle hash |
-| `candle:idx:{token}` | 3 h | Candle ZSET index |
-| `MOVERS:{category}:{exchange}:{segment}` | 8 h | Market movers ZSET |
-| `FNO:{type}:{exchange}:{expiry}` | 8 h | FNO analytics |
-| `ALERT:IDX:{userId}` | no TTL | Alert Redis index |
-| `BOD:GUARD:{date}` | 24 h | BOD preload guard key |
+| `candle:1m:{token}:{epochMinute}` | 2–3 days | 1-minute candle hash: open, high, low, close, volume, oi, trades |
+| `candle:idx:{token}` | 2–3 days | Candle time index: ZSET member=epochMinute, score=epochMinute |
+| `MOVERS:{category}:{index}` | 1 day | Market movers ZSET: member=token, score=pctChange/volume |
+| `FNO:CHAIN:{underlying}:{expiry}` | 1 day | Option chain: field=strikeType, value=JSON |
+| `FNO:OI_RANK:{underlying}:{expiry}` | 1 day | OI ranking ZSET: member=strike, score=OI |
+| `FNO:MAX_PAIN:{underlying}:{expiry}` | 1 day | Max pain: strike, totalPain, updatedAt |
+| `FNO:ATM_STRADDLE:{underlying}:{expiry}` | 1 day | ATM straddle: strike, cePrice, pePrice, premium, ceIV, peIV |
+| `FNO:PCR:{underlying}:{expiry}` | 1 day | Put-call ratio: pcrOI, pcrVol, totalCallOI, totalPutOI |
+| `FNO:BAN:{token}` | 1 day | Security ban list: banned, reason, date |
+| `ALERT:IDX:{token}` | None | Alert index: set of alertIds watching this token |
+| `BOD:GUARD:{activity}:{date}` | 2 days | Idempotency guard: prevents re-running BOD activity |
 
 ### 3.6 Temporal
 
@@ -259,7 +266,7 @@ Cost increase vs previous estimate is due to: (1) Redis cluster mode with replic
 - [ ] Redis Cluster 1 (C1): 3 masters + 3 replicas, r6g.large, RDB persistence, maxmemory 8GB
 - [ ] Redis Cluster 2 (C2): 3 masters + 3 replicas, r6g.xlarge, AOF persistence, maxmemory 16GB
 - [ ] ClickHouse 3-node Keeper cluster up + `mde` database + `candles_1m` table + 4 MV rollup tables
-- [ ] MSK Kafka 3-broker cluster + 8 topics pre-created with specified partition counts
+- [ ] MSK Kafka 3-broker cluster + 10 topics pre-created with specified partition counts
 - [ ] S3 buckets `mde-staging-scripmaster` and `mde-staging-backups` with lifecycle rules
 - [ ] Secrets Manager populated (see section 4)
 - [ ] IRSA roles attached to ServiceAccounts

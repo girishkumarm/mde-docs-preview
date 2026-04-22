@@ -56,7 +56,7 @@ flowchart LR
 | --- | --- | --- |
 | Language | Java 21 | All services, virtual threads |
 | Framework | Spring Boot 3.2 | Web, Kafka, Redis, actuator |
-| Message Broker | Apache Kafka (MSK) | Inter-service messaging, 8 topics |
+| Message Broker | Apache Kafka (MSK) | Inter-service messaging, 10 topics |
 | Cache/State | Redis ElastiCache | Two clusters: C1 (snapshots), C2 (candles/movers/FNO/alerts) |
 | Time-Series DB | ClickHouse | Historical candles, ReplacingMergeTree + 4 MV rollups |
 | Relational DB | PostgreSQL (RDS) | Instruments, alerts, corporate actions, ops |
@@ -113,7 +113,7 @@ Databases & Stores (managed, not service pods):
                             52WK, DEPTH, MKT_STATUS), RDB persistence
     Redis Cluster 2 (C2)  — candles + movers + FNO + alerts, AOF persistence
     ClickHouse (3-node)   — candles_1m ReplacingMergeTree + 4 MV rollups
-    Kafka (MSK 3-broker)  — 8 topics
+    Kafka (MSK 3-broker)  — 10 topics
 
 Temporal Workers (reliability over latency):
     Instrument Master Sync (daily)

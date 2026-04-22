@@ -25,7 +25,7 @@ flowchart LR
   end
 
   subgraph Bus["Streaming Bus"]
-    K[(Kafka<br/>8 topics)]
+    K[(Kafka<br/>10 topics)]
     RC1[(Redis C1<br/>Snapshots)]
   end
 
@@ -79,7 +79,7 @@ See **[Architecture Diagrams](/architecture/diagrams)** for the full set (12 dec
 
 ## Core components (9 services)
 
-Consolidated from the original 15 services. See **[Service Catalog](/architecture/service-catalog)** for Spring application classes, per-service endpoints, and storage details.
+Consolidated from the original set of legacy services. See **[Service Catalog](/architecture/service-catalog)** for Spring application classes, per-service endpoints, and storage details.
 
 | # | Service | Port (HTTP/Mgmt) | Purpose |
 | --- | --- | --- | --- |
@@ -95,7 +95,7 @@ Consolidated from the original 15 services. See **[Service Catalog](/architectur
 | — | **ops-service** | 8088 / 9088 | Merged from incident-manager + recon-service. Autonomous operations hub with self-healing, market-hours awareness. LLM-driven RCA (Claude Sonnet 4.5), OHLCV reconciliation → `mde-recon-reports`, AlertManager webhook → Jira + Slack + timeline. |
 
 <Info>
-**Platform infrastructure:** Kafka 3.8.0 (8 topics — see [Kafka topics](/data-apis/kafka-topics)), Redis 7.4 C1 (snapshots, port 6380) + C2 (candles/movers/FNO/alerts, port 6381) — see [Redis keys](/data-apis/redis-keys), ClickHouse (ReplacingMergeTree + 4 materialized view rollups), PostgreSQL 16, Temporal 1.26.2.
+**Platform infrastructure:** Kafka 3.8.0 (10 topics — see [Kafka topics](/data-apis/kafka-topics)), Redis 7.4 C1 (snapshots, port 6380) + C2 (candles/movers/FNO/alerts, port 6381) — see [Redis keys](/data-apis/redis-keys), ClickHouse (ReplacingMergeTree + 4 materialized view rollups), PostgreSQL 16, Temporal 1.26.2.
 </Info>
 
 Detail: **[Service Catalog](/architecture/service-catalog)** (source-of-truth), **[Components Part 1](/components/part1-feed-to-charts)**, **[Components Part 2](/components/part2-fno-movers-alerts)**.
@@ -109,7 +109,7 @@ Detail: **[Service Catalog](/architecture/service-catalog)** (source-of-truth), 
 | **ClickHouse** | Historical candles (all intervals), recon data, corporate action audit. ReplacingMergeTree for dedup + 4 materialized view rollups (5m, 15m, 1h, 1d) | Column-store scan speed; MV rollups replace manual aggregation; 10-year retention |
 | **PostgreSQL 16** | Instrument master data, user alerts, corporate actions metadata, ops incidents | Relational master data, transactional writes |
 | **S3** | Scrip master snapshots (versioned), backups | Downstream services pull nightly |
-| **Kafka** | 8 topics for inter-service messaging (ticks, candles, instruments, corporate actions, recon, anomalies, alerts, control) | Durable stream; replay as ultimate fallback in three-layer durability model |
+| **Kafka** | 10 topics for inter-service messaging (ticks, candles, instruments, corporate actions, recon, anomalies, alerts, control) | Durable stream; replay as ultimate fallback in three-layer durability model |
 
 <Tip>
 **Three-layer durability for candles:** Redis AOF (hot) → ClickHouse batch insert (durable) → Kafka replay as ultimate fallback. No data loss even if Redis restarts.
@@ -149,7 +149,7 @@ Full details: **[Components Part 2 §6.20–6.21](/components/part2-fno-movers-a
 
 <Tabs>
   <Tab title="Current (v4.0)">
-    - **9 consolidated services** (down from 15) — charts-service (3-in-1), scheduler-service (2-in-1), ops-service (2-in-1), instrument-master absorbs company-fundamentals
+    - **9 consolidated services** — charts-service (3-in-1), scheduler-service (2-in-1), ops-service (2-in-1), instrument-master absorbs company-fundamentals
     - **ClickHouse + Redis replaces TimescaleDB** — 1m candles in Redis C2 (hot, AOF), historical in ClickHouse (ReplacingMergeTree + 4 MV rollups), three-layer durability
     - **FNO analytics suite** — Max Pain, ATM Straddle, PCR (OI + Volume), day-over-day changes, BSE F&O, Black-76 for index options
     - **Corporate action pre-computation** — T-1 shadow tables with atomic partition swap

@@ -1,6 +1,6 @@
 ---
 title: "Data Models, APIs & Scheduled Jobs"
-description: "REST APIs, Temporal workflows, domain enums, and architectural decisions for the consolidated 9-service MDE."
+description: "REST APIs, Temporal workflows, domain enums, and architectural decisions for the consolidated 10-service MDE."
 ---
 
 <Info>
@@ -12,16 +12,16 @@ description: "REST APIs, Temporal workflows, domain enums, and architectural dec
 The page below is the **design-level** view for REST APIs, Temporal workflows, enums, and architectural decisions. Where it conflicts with the catalog pages above, trust the catalog pages (they are code-verified).
 </Info>
 
-## REST APIs (consolidated 9 services)
+## REST APIs (consolidated 10 services)
 
 | Service | Port | Endpoints |
 | --- | --- | --- |
 | instrument-master | 8081 | `GET /v1/instruments/search?q={query}`, `GET /v1/instruments/{token}`, `GET /v1/instruments/isin/{isin}`, `GET /v1/indices/{index}/constituents`, `GET /v1/companies/{isin}` (fundamentals), `GET /v1/companies/{isin}/shareholding`, `GET /v1/companies/{isin}/analysts` |
 | charts-service | 8083 | `GET /v1/candles?token={t}&interval={i}&from={f}&to={t}&limit={n}` (intervals: 1m, 5m, 15m, 1h, 1d, 1w, 1M) |
-| market-movers-writer | 8084 | `GET /v1/movers/{index}?categories={cats}&limit={n}`, `GET /v1/depth/{token}` |
+| market-movers-writer | 8084 | `GET /v1/movers/{index}?categories={cats}&limit={n}`, `GET /v1/movers/{category}?exchange={ex}&limit={n}` |
 | fno-data-writer | 8085 | `GET /v1/option-chain/{underlying}?expiry={date}`, `GET /v1/oi-ranking/{underlying}?expiry={date}`, `GET /v1/expiries/{underlying}`, `GET /v1/max-pain/{underlying}?expiry={date}`, `GET /v1/atm-straddle/{underlying}?expiry={date}`, `GET /v1/pcr/{underlying}?expiry={date}` |
 | broadcast-service | 8087 | `WS /ws/market-feed` (WebSocket for live ticks), `GET /v1/status` (connection info) |
-| ops-service | 8088 | `GET /v1/incidents` (list), `GET /v1/recon/runs` (recon history), `POST /v1/recon/trigger` (manual recon), `GET /v1/health/summary` (all-services health) |
+| ops-service | 8088 | `GET /v1/incidents` (list), `GET /v1/incidents/{id}` (get), `POST /v1/incidents/{id}/acknowledge`, `POST /v1/incidents/{id}/resolve`, `GET /v1/recon` (recon history), `POST /v1/recon/trigger` (manual recon), `GET /internal/health-check` (all-services health) |
 | alert-engine | 8091 | `POST /v1/alerts` (create), `GET /v1/alerts` (list), `DELETE /v1/alerts/{id}` (cancel), `GET /v1/alerts/{id}` (get) |
 | scheduler-service | 8094 | Temporal workflows only (no REST API — triggered by Temporal schedules) |
 
@@ -256,7 +256,7 @@ This section tracks the defining decisions behind the current design.
 
 ### Decision 5 — Virtual threads for all services
 
-- Java 21+ virtual threads (`-Djdk.virtualThreadScheduler`) for all 9 services.
+- Java 21+ virtual threads (`-Djdk.virtualThreadScheduler`) for all 10 services.
 - Eliminates thread-pool tuning — each Kafka consumer, Redis call, and HTTP handler gets a lightweight virtual thread.
 - Measured 3x throughput improvement on publisher service under load testing.
 
