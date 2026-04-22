@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 10 1480 1044" width="1480" height="1044">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#495057"/></marker></defs>
+<rect x="10" y="10" width="1480" height="1044" fill="#ffffff"/>
+<rect x="40" y="40" width="1420" height="51" rx="6" ry="6" fill="#e7f5ff" stroke="#1864ab" stroke-width="2" opacity="0.85"/>
+<rect x="40" y="106" width="1420" height="42" rx="6" ry="6" fill="#fff5f5" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="40" y="178" width="1420" height="44" rx="6" ry="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="40" y="237" width="695.0" height="76" rx="6" ry="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1.5" opacity="0.85"/>
+<rect x="765.0" y="237" width="695.0" height="76" rx="6" ry="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1.5" opacity="0.85"/>
+<rect x="40" y="348" width="1420" height="194" rx="6" ry="6" fill="#f3f0ff" stroke="#862e9c" stroke-width="2" opacity="0.85"/>
+<rect x="60" y="413" width="185" height="109" rx="6" ry="6" fill="#eebefa" stroke="#862e9c" stroke-width="1.5" opacity="0.85"/>
+<rect x="259" y="413" width="185" height="109" rx="6" ry="6" fill="#eebefa" stroke="#862e9c" stroke-width="1.5" opacity="0.85"/>
+<rect x="458" y="413" width="185" height="109" rx="6" ry="6" fill="#eebefa" stroke="#862e9c" stroke-width="1.5" opacity="0.85"/>
+<rect x="657" y="413" width="185" height="109" rx="6" ry="6" fill="#eebefa" stroke="#862e9c" stroke-width="1.5" opacity="0.85"/>
+<rect x="856" y="413" width="185" height="109" rx="6" ry="6" fill="#eebefa" stroke="#862e9c" stroke-width="1.5" opacity="0.85"/>
+<rect x="40" y="577" width="1420" height="76" rx="6" ry="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="1.5" opacity="0.85"/>
+<rect x="40" y="668" width="1420" height="89" rx="6" ry="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.5" opacity="0.85"/>
+<rect x="40" y="777" width="1420" height="121" rx="6" ry="6" fill="#e7f5ff" stroke="#1971c2" stroke-width="1.5" opacity="0.85"/>
+<rect x="40" y="913" width="1420" height="111" rx="6" ry="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="1.5" opacity="0.85"/>
+<line x1="750.0" y1="318" x2="750.0" y2="343" stroke="#495057" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="246" y1="467.5" x2="258" y2="467.5" stroke="#495057" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="445" y1="467.5" x2="457" y2="467.5" stroke="#495057" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="644" y1="467.5" x2="656" y2="467.5" stroke="#495057" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="843" y1="467.5" x2="855" y2="467.5" stroke="#495057" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="750.0" y1="562" x2="750.0" y2="572" stroke="#495057" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="374.0" y="74.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="22" fill="#1e1e1e">Decision 8: Historical Data Migration via Temporal Workflow</text>
+<text x="250.0" y="133.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="15" fill="#1e1e1e">Problem: 3+ years of existing candles in MongoDB + Elasticsearch must be migrated safely without gaps or data loss.</text>
+<text x="615.5" y="206.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="16" fill="#1e1e1e">Existing Stores (Read Source)</text>
+<text x="237.5" y="263.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">MongoDB</text>
+<text x="237.5" y="280.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">historical 1m candles (nested arrays)</text>
+<text x="237.5" y="298.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">3+ years of data</text>
+<text x="999.0" y="263.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">Elasticsearch</text>
+<text x="999.0" y="280.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">historical EOD candles</text>
+<text x="999.0" y="298.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">daily rollups per instrument</text>
+<text x="543.0" y="377.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="17" fill="#862e9c">HistoricalDataMigrationWorkflow (Temporal)</text>
+<text x="86.5" y="449.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">1. Read batch from</text>
+<text x="86.5" y="464.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">MongoDB / ES</text>
+<text x="86.5" y="479.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">(by date partition,</text>
+<text x="86.5" y="494.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">paginated)</text>
+<text x="275.0" y="442.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">2. Transform schema</text>
+<text x="275.0" y="457.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">(MongoDB nested arrays</text>
+<text x="275.0" y="472.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">to TimescaleDB rows,</text>
+<text x="275.0" y="487.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">handle dd-MM-yyyy</text>
+<text x="275.0" y="502.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">to epoch conversion)</text>
+<text x="495.0" y="449.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">3. Insert into</text>
+<text x="495.0" y="464.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">TimescaleDB</text>
+<text x="495.0" y="479.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">(idempotent,</text>
+<text x="495.0" y="494.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">handles re-runs)</text>
+<text x="676.5" y="449.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">4. Validate row count</text>
+<text x="676.5" y="464.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">+ checksum</text>
+<text x="676.5" y="479.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">(per instrument</text>
+<text x="676.5" y="494.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">per day)</text>
+<text x="882.5" y="457.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">5. Mark partition</text>
+<text x="882.5" y="472.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">migrated</text>
+<text x="882.5" y="487.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">(in tracking table)</text>
+<text x="531.0" y="603.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">TimescaleDB (Target)</text>
+<text x="531.0" y="620.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">ticks + candles_1m hypertables + continuous aggregates</text>
+<text x="531.0" y="638.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">(candles_5m / 15m / 1h / 1d / 1w / 1M)</text>
+<text x="471.5" y="693.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">Safety Window</text>
+<text x="471.5" y="709.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">- Keep MongoDB + Elasticsearch in READ-ONLY mode for 30 days after cutover</text>
+<text x="471.5" y="725.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">- Rollback path preserved (switch clients back to legacy stores if needed)</text>
+<text x="471.5" y="741.75" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">- Decommission legacy stores only after 30-day validation period</text>
+<text x="479.0" y="802.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">Workflow Properties:</text>
+<text x="479.0" y="818.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">- Idempotent: re-running a batch is safe (upsert by (instrument_id, ts))</text>
+<text x="479.0" y="834.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">- Resumable: workflow resumes after failures via Temporal checkpoints</text>
+<text x="479.0" y="850.75" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">- Parallel: 16 workers migrate different date ranges simultaneously</text>
+<text x="479.0" y="867.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">- Validated: spot-check 100 instruments x 30 days post-migration</text>
+<text x="479.0" y="883.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">- Timezone-safe: dd-MM-yyyy strings converted to IST epoch microseconds</text>
+<text x="462.0" y="939.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">Benefits:</text>
+<text x="462.0" y="956.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- Zero user-visible downtime during migration</text>
+<text x="462.0" y="974.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- Zero data loss (validated by checksum per partition)</text>
+<text x="462.0" y="991.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- Rollback available for 30 days after cutover</text>
+<text x="462.0" y="1009.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- Temporal handles retries, checkpointing, and visibility automatically</text>
+</svg>

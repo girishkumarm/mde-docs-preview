@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1820 1314" width="1820" height="1314" style="background:#ffffff;font-family:Arial,sans-serif">
+<defs>
+<marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+<path d="M0,0 L0,8 L8,4 z" fill="#495057" />
+</marker>
+</defs>
+<rect x="20" y="20" width="1780" height="85" rx="4" fill="#1864ab" fill-opacity="0.85" stroke="#1864ab" stroke-width="2" />
+<rect x="20" y="120" width="1780" height="59" rx="4" fill="#fff9db" fill-opacity="0.85" stroke="#f59f00" stroke-width="2" />
+<rect x="20" y="204" width="1160" height="171" rx="4" fill="#d0ebff" fill-opacity="0.85" stroke="#1971c2" stroke-width="2" />
+<rect x="38" y="244" width="270" height="46" rx="4" fill="#e7f5ff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="322" y="244" width="270" height="46" rx="4" fill="#e7f5ff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="606" y="244" width="270" height="46" rx="4" fill="#e7f5ff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="890" y="244" width="270" height="46" rx="4" fill="#e7f5ff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="38" y="302" width="270" height="46" rx="4" fill="#e7f5ff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="322" y="302" width="270" height="46" rx="4" fill="#e7f5ff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="606" y="302" width="270" height="46" rx="4" fill="#e7f5ff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="890" y="302" width="270" height="46" rx="4" fill="#e7f5ff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="20" y="425" width="1160" height="123" rx="4" fill="#f3d9fa" fill-opacity="0.85" stroke="#862e9c" stroke-width="2" />
+<rect x="38" y="465" width="364" height="56" rx="4" fill="#f8f0fc" fill-opacity="0.85" stroke="#862e9c" stroke-width="1" />
+<rect x="418" y="465" width="364" height="56" rx="4" fill="#f8f0fc" fill-opacity="0.85" stroke="#862e9c" stroke-width="1" />
+<rect x="798" y="465" width="364" height="56" rx="4" fill="#f8f0fc" fill-opacity="0.85" stroke="#862e9c" stroke-width="1" />
+<rect x="20" y="598" width="1160" height="195" rx="4" fill="#ffe8cc" fill-opacity="0.85" stroke="#d9480f" stroke-width="2" />
+<rect x="38" y="642" width="364" height="124" rx="4" fill="#fff4e6" fill-opacity="0.85" stroke="#d9480f" stroke-width="1" />
+<rect x="38" y="642" width="364" height="30" rx="4" fill="#ffd8a8" fill-opacity="0.85" stroke="#ffd8a8" stroke-width="1" />
+<rect x="418" y="642" width="364" height="124" rx="4" fill="#fff4e6" fill-opacity="0.85" stroke="#d9480f" stroke-width="1" />
+<rect x="418" y="642" width="364" height="30" rx="4" fill="#ffc078" fill-opacity="0.85" stroke="#ffc078" stroke-width="1" />
+<rect x="798" y="642" width="364" height="124" rx="4" fill="#fff4e6" fill-opacity="0.85" stroke="#d9480f" stroke-width="1" />
+<rect x="798" y="642" width="364" height="30" rx="4" fill="#fab005" fill-opacity="0.85" stroke="#fab005" stroke-width="1" />
+<rect x="20" y="843" width="1160" height="119" rx="4" fill="#d3f9d8" fill-opacity="0.85" stroke="#2f9e44" stroke-width="2" />
+<rect x="38" y="883" width="215" height="52" rx="4" fill="#ebfbee" fill-opacity="0.85" stroke="#2f9e44" stroke-width="1" />
+<rect x="265" y="883" width="215" height="52" rx="4" fill="#ebfbee" fill-opacity="0.85" stroke="#2f9e44" stroke-width="1" />
+<rect x="492" y="883" width="215" height="52" rx="4" fill="#ebfbee" fill-opacity="0.85" stroke="#2f9e44" stroke-width="1" />
+<rect x="719" y="883" width="215" height="52" rx="4" fill="#ebfbee" fill-opacity="0.85" stroke="#2f9e44" stroke-width="1" />
+<rect x="946" y="883" width="215" height="52" rx="4" fill="#ebfbee" fill-opacity="0.85" stroke="#2f9e44" stroke-width="1" />
+<rect x="1210" y="204" width="590" height="506" rx="4" fill="#f8f9fa" fill-opacity="0.85" stroke="#495057" stroke-width="2" />
+<rect x="1220" y="244" width="570" height="124" rx="4" fill="#ffc9c9" fill-opacity="0.85" stroke="#c92a2a" stroke-width="1" />
+<rect x="1220" y="378" width="570" height="105" rx="4" fill="#ffec99" fill-opacity="0.85" stroke="#e67700" stroke-width="1" />
+<rect x="1220" y="493" width="570" height="86" rx="4" fill="#d0ebff" fill-opacity="0.85" stroke="#1971c2" stroke-width="1" />
+<rect x="1220" y="589" width="570" height="105" rx="4" fill="#d3f9d8" fill-opacity="0.85" stroke="#2f9e44" stroke-width="1" />
+<rect x="20" y="1007" width="1780" height="287" rx="4" fill="#fff9db" fill-opacity="0.85" stroke="#f59f00" stroke-width="2" />
+<line x1="600" y1="393" x2="600" y2="421" stroke="#495057" stroke-width="2" marker-end="url(#arrowhead)" />
+<line x1="600" y1="566" x2="600" y2="594" stroke="#495057" stroke-width="2" marker-end="url(#arrowhead)" />
+<line x1="600" y1="811" x2="600" y2="839" stroke="#495057" stroke-width="2" marker-end="url(#arrowhead)" />
+<text x="603.0" y="54.0" font-size="20" fill="#ffffff" font-weight="600" xml:space="preserve">Decision 11: AI-Powered Incident Manager (from Day 1)</text>
+<text x="718.0" y="74.0" font-size="13" fill="#e7f5ff" font-weight="400" xml:space="preserve">Detect, analyze, and fix issues BEFORE users notice</text>
+<text x="626.0" y="145.57999999999998" font-size="14" fill="#1e1e1e" font-weight="400" xml:space="preserve">Problem: Today, issues are reported by users. By then it is too late.</text>
+<text x="679.0" y="163.5" font-size="14" fill="#1e1e1e" font-weight="400" xml:space="preserve">We need to detect, analyze, and fix BEFORE users notice.</text>
+<text x="36" y="229.0" font-size="15" fill="#0c4a85" font-weight="600" xml:space="preserve">LAYER 1 — SIGNAL COLLECTORS (continuous)</text>
+<text x="106.5" y="272.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Prometheus metrics</text>
+<text x="397.5" y="272.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Application logs</text>
+<text x="706.0" y="272.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Kafka lag</text>
+<text x="958.5" y="272.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Redis slow queries</text>
+<text x="96.0" y="330.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">WebSocket disconnects</text>
+<text x="418.5" y="330.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">API errors</text>
+<text x="681.5" y="330.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Synthetic probes</text>
+<text x="979.5" y="330.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">User reports</text>
+<text x="36" y="450.0" font-size="15" fill="#5f1b72" font-weight="600" xml:space="preserve">LAYER 2 — ANOMALY DETECTION</text>
+<text x="156.0" y="498.0" font-size="13" fill="#1e1e1e" font-weight="400" xml:space="preserve">Z-score baseline</text>
+<text x="536.0" y="498.0" font-size="13" fill="#1e1e1e" font-weight="400" xml:space="preserve">Prophet forecast</text>
+<text x="855.5" y="498.0" font-size="13" fill="#1e1e1e" font-weight="400" xml:space="preserve">Cross-service correlation engine</text>
+<text x="36" y="624.0" font-size="16" fill="#7a2907" font-weight="600" xml:space="preserve">LAYER 3 — LLM DEBUGGER (Claude Sonnet 4.5)</text>
+<text x="201.5" y="662.0" font-size="13" fill="#7a2907" font-weight="400" xml:space="preserve">INPUT</text>
+<text x="50" y="692.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Logs + metrics + traces</text>
+<text x="50" y="711.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Recent deploys</text>
+<text x="50" y="730.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Code context (RAG)</text>
+<text x="50" y="749.6" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Runbook corpus</text>
+<text x="562.5" y="662.0" font-size="13" fill="#7a2907" font-weight="400" xml:space="preserve">PROCESSING</text>
+<text x="430" y="692.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Root cause hypothesis</text>
+<text x="430" y="711.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Suggested fix steps</text>
+<text x="430" y="730.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Risk assessment (L/M/H)</text>
+<text x="430" y="749.6" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Runbook references</text>
+<text x="957.5" y="662.0" font-size="13" fill="#7a2907" font-weight="400" xml:space="preserve">OUTPUT</text>
+<text x="810" y="692.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Slack analysis post</text>
+<text x="810" y="711.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Jira ticket (auto)</text>
+<text x="810" y="730.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Auto-remediation trigger</text>
+<text x="810" y="749.6" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Human approval if risky</text>
+<text x="36" y="868.0" font-size="15" fill="#1a6634" font-weight="600" xml:space="preserve">LAYER 4 — AUTO-REMEDIATION</text>
+<text x="103.5" y="914.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Pod restart</text>
+<text x="302.5" y="914.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Feature flag toggle</text>
+<text x="543.5" y="914.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Traffic reroute</text>
+<text x="760.0" y="914.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Cache invalidation</text>
+<text x="1004.5" y="914.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">Scale up/down</text>
+<text x="1431.5" y="230.0" font-size="15" fill="#212529" font-weight="600" xml:space="preserve">NOTIFICATION FLOW</text>
+<text x="1456.0" y="263.0" font-size="13" fill="#c92a2a" font-weight="400" xml:space="preserve">P0 — Critical</text>
+<text x="1234" y="284.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• PagerDuty page</text>
+<text x="1234" y="303.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Slack #incidents</text>
+<text x="1234" y="322.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• LLM analysis</text>
+<text x="1234" y="341.6" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Human approval for risky actions</text>
+<text x="1471.5" y="397.0" font-size="13" fill="#e67700" font-weight="400" xml:space="preserve">P1 — High</text>
+<text x="1234" y="418.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Slack notification</text>
+<text x="1234" y="437.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Auto-create Jira</text>
+<text x="1234" y="456.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Auto-remediate if safe</text>
+<text x="1464.0" y="512.0" font-size="13" fill="#1971c2" font-weight="400" xml:space="preserve">P2 — Medium</text>
+<text x="1234" y="533.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Jira ticket only</text>
+<text x="1234" y="552.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Batch digest email</text>
+<text x="1467.5" y="608.0" font-size="13" fill="#2f9e44" font-weight="400" xml:space="preserve">Auto-Close</text>
+<text x="1234" y="629.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• When metrics recover</text>
+<text x="1234" y="648.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• LLM writes postmortem</text>
+<text x="1234" y="667.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">• Link to Jira</text>
+<text x="40" y="1034.0" font-size="13" fill="#7a3b04" font-weight="400" xml:space="preserve">EXAMPLE — LLM Analysis of realistic OOM scenario</text>
+<text x="40" y="1049.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve"></text>
+<text x="40" y="1065.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">TRIGGER: FeedHandler pod 2 OOMKilled at 10:23:14, rate ~1 every 3 minutes</text>
+<text x="40" y="1081.6" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve"></text>
+<text x="40" y="1097.8" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">LLM CONTEXT: last 15 min logs (heap 3.8GB of 4GB, GC pause 780ms), recent deploy</text>
+<text x="40" y="1114.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">(v3.2.1 at 09:05, cache size 10k→40k), Prometheus heatmap, runbook for OOMKill</text>
+<text x="40" y="1130.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve"></text>
+<text x="40" y="1146.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">ROOT CAUSE HYPOTHESIS: v3.2.1 increased L1 cache from 10k to 40k entries without</text>
+<text x="40" y="1162.6" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">bumping pod memory. Effective working set ~3.6GB leaves 400MB for heap overhead</text>
+<text x="40" y="1178.8" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">→ fragmented allocs trigger GC storm → OOM.</text>
+<text x="40" y="1195.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve"></text>
+<text x="40" y="1211.2" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">SUGGESTED FIX: (1) rollback v3.2.1 now, OR (2) set cache size 20k and bump memory</text>
+<text x="40" y="1227.4" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">limit to 6GB. Risk: LOW — feature flag controls cache size.</text>
+<text x="40" y="1243.6" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve"></text>
+<text x="40" y="1259.8" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">ACTION: auto-rollback triggered for pod 2, PagerDuty page created, Jira PAI-XXXX</text>
+<text x="40" y="1276.0" font-size="12" fill="#1e1e1e" font-weight="400" xml:space="preserve">opened with attached logs + LLM chain of reasoning. Awaiting on-call approval.</text>
+</svg>

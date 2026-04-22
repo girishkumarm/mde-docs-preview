@@ -1,0 +1,759 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "claude-code",
+  "elements": [
+    {
+      "type": "text",
+      "id": "t1",
+      "x": 150,
+      "y": 20,
+      "text": "Decision 1: Replace Redis PubSub with Kafka Pull",
+      "fontSize": 24,
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "type": "text",
+      "id": "t2",
+      "x": 150,
+      "y": 55,
+      "text": "Problem: Redis PubSub is single-threaded. Fan-out to 20+ pods at high TPS saturates the CPU.",
+      "fontSize": 12,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t3",
+      "x": 150,
+      "y": 100,
+      "text": "BEFORE \u2014 Redis PubSub (Push)",
+      "fontSize": 18,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t4",
+      "x": 900,
+      "y": 100,
+      "text": "AFTER \u2014 Kafka (Pull)",
+      "fontSize": 18,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r5",
+      "x": 230,
+      "y": 140,
+      "width": 260,
+      "height": 54,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t6",
+      "x": 246,
+      "y": 152,
+      "text": "Feed Handler\nprocesses ticks",
+      "fontSize": 12,
+      "strokeColor": "#7048e8"
+    },
+    {
+      "type": "rectangle",
+      "id": "r7",
+      "x": 930,
+      "y": 140,
+      "width": 260,
+      "height": 54,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t8",
+      "x": 946,
+      "y": 152,
+      "text": "Feed Handler\nprocesses ticks",
+      "fontSize": 12,
+      "strokeColor": "#7048e8"
+    },
+    {
+      "type": "arrow",
+      "id": "a9",
+      "x": 360,
+      "y": 194,
+      "width": 0,
+      "height": 30,
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          30
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a10",
+      "x": 1060,
+      "y": 194,
+      "width": 0,
+      "height": 30,
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          30
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r11",
+      "x": 170,
+      "y": 224,
+      "width": 380,
+      "height": 66,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t12",
+      "x": 186,
+      "y": 236,
+      "text": "Publisher  writes to Redis\nHash + PubSub PUSH\n(same connection)",
+      "fontSize": 11,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "type": "rectangle",
+      "id": "r13",
+      "x": 800,
+      "y": 224,
+      "width": 220,
+      "height": 66,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t14",
+      "x": 816,
+      "y": 236,
+      "text": "Publisher\n\u2192 Redis Hash\n(snapshot only)",
+      "fontSize": 11,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "type": "rectangle",
+      "id": "r15",
+      "x": 1070,
+      "y": 224,
+      "width": 220,
+      "height": 66,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t16",
+      "x": 1086,
+      "y": 236,
+      "text": "Producer\n\u2192 Kafka\n(acks=all)",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "arrow",
+      "id": "a17",
+      "x": 360,
+      "y": 290,
+      "width": 0,
+      "height": 30,
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          30
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a18",
+      "x": 1180,
+      "y": 290,
+      "width": 0,
+      "height": 30,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          30
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r19",
+      "x": 130,
+      "y": 320,
+      "width": 460,
+      "height": 98,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t20",
+      "x": 146,
+      "y": 334,
+      "text": "Redis (SINGLE THREAD)\n\nOn every publish, must COPY message\nto each subscriber pod's buffer\n20K msgs/sec \u00d7 20 pods = 400K ops/sec",
+      "fontSize": 11,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "rectangle",
+      "id": "r21",
+      "x": 970,
+      "y": 320,
+      "width": 460,
+      "height": 98,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t22",
+      "x": 986,
+      "y": 334,
+      "text": "Kafka (multi-partition)\n\nWrites ONCE to disk per message\nEach pod PULLS at its own pace\n10 pods or 100 pods = same Kafka load",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "arrow",
+      "id": "a23",
+      "x": 360,
+      "y": 438,
+      "width": -225,
+      "height": 35,
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -225,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a24",
+      "x": 360,
+      "y": 438,
+      "width": -125,
+      "height": 35,
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -125,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a25",
+      "x": 360,
+      "y": 438,
+      "width": -25,
+      "height": 35,
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -25,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a26",
+      "x": 360,
+      "y": 438,
+      "width": 75,
+      "height": 35,
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          75,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a27",
+      "x": 360,
+      "y": 438,
+      "width": 175,
+      "height": 35,
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          175,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a28",
+      "x": 1180,
+      "y": 438,
+      "width": -315,
+      "height": 35,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -315,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a29",
+      "x": 1180,
+      "y": 438,
+      "width": -195,
+      "height": 35,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -195,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a30",
+      "x": 1180,
+      "y": 438,
+      "width": -75,
+      "height": 35,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -75,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a31",
+      "x": 1180,
+      "y": 438,
+      "width": 45,
+      "height": 35,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          45,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a32",
+      "x": 1180,
+      "y": 438,
+      "width": 165,
+      "height": 35,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          165,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r33",
+      "x": 100,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t34",
+      "x": 116,
+      "y": 491,
+      "text": "Pod 1",
+      "fontSize": 10,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "rectangle",
+      "id": "r35",
+      "x": 200,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t36",
+      "x": 216,
+      "y": 491,
+      "text": "Pod 2",
+      "fontSize": 10,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "rectangle",
+      "id": "r37",
+      "x": 300,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t38",
+      "x": 316,
+      "y": 491,
+      "text": "Pod 3",
+      "fontSize": 10,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "rectangle",
+      "id": "r39",
+      "x": 400,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t40",
+      "x": 416,
+      "y": 491,
+      "text": "Pod 4",
+      "fontSize": 10,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "rectangle",
+      "id": "r41",
+      "x": 500,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t42",
+      "x": 516,
+      "y": 491,
+      "text": "Pod 20",
+      "fontSize": 10,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "rectangle",
+      "id": "r43",
+      "x": 830,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t44",
+      "x": 846,
+      "y": 491,
+      "text": "Pod 1",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r45",
+      "x": 950,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t46",
+      "x": 966,
+      "y": 491,
+      "text": "Pod 2",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r47",
+      "x": 1070,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t48",
+      "x": 1086,
+      "y": 491,
+      "text": "Pod 3",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r49",
+      "x": 1190,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t50",
+      "x": 1206,
+      "y": 491,
+      "text": "Pod 4",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r51",
+      "x": 1310,
+      "y": 483,
+      "width": 70,
+      "height": 28,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t52",
+      "x": 1326,
+      "y": 491,
+      "text": "Pod 20",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "text",
+      "id": "t53",
+      "x": 80,
+      "y": 533,
+      "text": "At 100K concurrent connections:\n\u2192 Redis single thread hits 100% CPU\n\u2192 Publish latency climbs from <1ms to 50-100ms\n\u2192 Users see frozen / delayed prices",
+      "fontSize": 11,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t54",
+      "x": 780,
+      "y": 533,
+      "text": "At 100K or 1M concurrent connections:\n\u2192 Kafka just writes ONCE per tick\n\u2192 Each pod's consumer pulls independently\n\u2192 Horizontal scale is unlimited",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r55",
+      "x": 50,
+      "y": 623,
+      "width": 1320,
+      "height": 78,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#f08c00",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t56",
+      "x": 66,
+      "y": 639,
+      "text": "TRADEOFF:  PubSub push was <1 ms delivery.  Kafka pull is 2-5 ms delivery.\nHuman reaction time = 200 ms, so the 1-4 ms difference is invisible to every user.\nWhat IS visible: frozen prices when PubSub saturates at scale.  Kafka never has this problem.",
+      "fontSize": 12,
+      "strokeColor": "#f08c00"
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  }
+}

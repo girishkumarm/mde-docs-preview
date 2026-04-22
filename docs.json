@@ -1,0 +1,83 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Market Data Engine",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": [
+              "introduction",
+              "architecture/overview"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/diagrams",
+              "decisions/kafka-vs-redis"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/part1-feed-to-charts",
+              "components/part2-fno-movers-alerts",
+              "components/candles-v2",
+              "components/candles-v2-diagrams"
+            ]
+          },
+          {
+            "group": "Data & APIs",
+            "pages": [
+              "data-apis/data-models-and-apis"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "operations/devops-guide",
+              "operations/v2-production-readiness",
+              "operations/v2-oncall-runbook",
+              "operations/candles-v2-readiness",
+              "operations/candles-v2-canary-rollback"
+            ]
+          },
+          {
+            "group": "Migration",
+            "pages": [
+              "migration/overview",
+              "migration/price-engine"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Confluence",
+        "href": "https://paytmmoney.atlassian.net/wiki/spaces/PM/pages/683246061"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "website": "https://paytmmoney.com"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 -20 900 780" width="900" height="780">
+  <defs>
+    <marker id="ah-1e1e1e" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#1e1e1e"/></marker>
+    <marker id="ahs-1e1e1e" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#1e1e1e"/></marker>
+    <marker id="ah-c62828" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#c62828"/></marker>
+    <marker id="ahs-c62828" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#c62828"/></marker>
+    <marker id="ah-2e7d32" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#2e7d32"/></marker>
+    <marker id="ahs-2e7d32" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#2e7d32"/></marker>
+    <marker id="ah-666" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#666"/></marker>
+    <marker id="ahs-666" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#666"/></marker>
+  </defs>
+  <rect x="90" y="-20" width="900" height="780" fill="white"/>
+  <rect x="200" y="80" width="300" height="65" rx="6.5" ry="6.5" fill="#fff3e0" stroke="#e65100" stroke-width="2"/>
+  <rect x="200" y="175" width="300" height="65" rx="6.5" ry="6.5" fill="#ffcc80" stroke="#e65100" stroke-width="2"/>
+  <rect x="200" y="270" width="300" height="65" rx="6.5" ry="6.5" fill="#fff9c4" stroke="#f57f17" stroke-width="2"/>
+  <polygon points="350,365 430,415 350,465 270,415" fill="#ffcdd2" stroke="#c62828" stroke-width="2"/>
+  <rect x="560" y="385" width="160" height="60" rx="6" ry="6" fill="#ffcdd2" stroke="#c62828" stroke-width="2"/>
+  <rect x="200" y="495" width="300" height="65" rx="6.5" ry="6.5" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="140" y="620" width="140" height="90" rx="8" ry="8" fill="#bbdefb" stroke="#1565c0" stroke-width="2"/>
+  <rect x="295" y="620" width="140" height="90" rx="8" ry="8" fill="#b2dfdb" stroke="#00695c" stroke-width="2"/>
+  <rect x="450" y="620" width="140" height="90" rx="8" ry="8" fill="#f8bbd0" stroke="#ad1457" stroke-width="2"/>
+  <rect x="605" y="620" width="140" height="90" rx="8" ry="8" fill="#d1c4e9" stroke="#4527a0" stroke-width="2"/>
+  <rect x="760" y="620" width="140" height="90" rx="8" ry="8" fill="#b3e5fc" stroke="#0277bd" stroke-width="2"/>
+  <polyline points="350,145 350,175" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#ah-1e1e1e)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="350,240 350,270" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#ah-1e1e1e)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="350,335 350,365" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#ah-1e1e1e)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="430,415 560,415" fill="none" stroke="#c62828" stroke-width="2" marker-end="url(#ah-c62828)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="350,490 350,495" fill="none" stroke="#2e7d32" stroke-width="2" marker-end="url(#ah-2e7d32)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="350,590 210,620" fill="none" stroke="#666" stroke-width="2" marker-end="url(#ah-666)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="350,590 365,620" fill="none" stroke="#666" stroke-width="2" marker-end="url(#ah-666)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="350,590 520,620" fill="none" stroke="#666" stroke-width="2" marker-end="url(#ah-666)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="350,590 675,620" fill="none" stroke="#666" stroke-width="2" marker-end="url(#ah-666)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="350,590 830,620" fill="none" stroke="#666" stroke-width="2" marker-end="url(#ah-666)" stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="321.6" y="47.16" font-size="22" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="bold" text-anchor="middle" fill="#1565c0"><tspan x="321.6" dy="0">Lifecycle of a Single Tick</tspan></text>
+  <text x="350" y="99.36" font-size="12" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="350" dy="0">Exchange broadcasts tick</tspan><tspan x="350" dy="15">&quot;RELIANCE LTP 2450.30</tspan><tspan x="350" dy="15">Vol 5,200,000&quot;</tspan></text>
+  <text x="350" y="194.36" font-size="12" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="350" dy="0">Feed Handler</tspan><tspan x="350" dy="15">Receives binary packet,</tspan><tspan x="350" dy="15">decodes proprietary format</tspan></text>
+  <text x="350" y="289.36" font-size="12" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="350" dy="0">Normalizer</tspan><tspan x="350" dy="15">Converts to NormalizedTick</tspan><tspan x="350" dy="15">common schema</tspan></text>
+  <text x="321.2" y="405.14" font-size="13" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#c62828"><tspan x="321.2" dy="0">Bad Tick</tspan><tspan x="321.2" dy="16.25">Detector</tspan></text>
+  <text x="640" y="402.955" font-size="11" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="640" dy="0">HOLD</tspan><tspan x="640" dy="13.75">Wait for 3 more</tspan><tspan x="640" dy="13.75">ticks to confirm</tspan></text>
+  <text x="360" y="478.58" font-size="11" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="start" fill="#2e7d32"><tspan x="360" dy="0">PASS</tspan></text>
+  <text x="350" y="514.36" font-size="12" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="350" dy="0">Snapshot Store</tspan><tspan x="350" dy="15">Updates in-memory state</tspan><tspan x="350" dy="15">for RELIANCE</tspan></text>
+  <text x="246.39999999999998" y="602.48" font-size="16" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1565c0"><tspan x="246.39999999999998" dy="0">FAN-OUT (parallel)</tspan></text>
+  <text x="210" y="647.8" font-size="10" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="210" dy="0">Kafka Publish</tspan><tspan x="210" dy="12.5">price.ticks.raw</tspan><tspan x="210" dy="12.5">→ Trade Engine</tspan><tspan x="210" dy="12.5">→ Portfolio Engine</tspan></text>
+  <text x="365" y="647.8" font-size="10" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="365" dy="0">Candle Aggregator</tspan><tspan x="365" dy="12.5">Update 1m/5m/15m</tspan><tspan x="365" dy="12.5">candles</tspan><tspan x="365" dy="12.5">On close → QuestDB</tspan></text>
+  <text x="520" y="647.8" font-size="10" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="520" dy="0">Alert Engine</tspan><tspan x="520" dy="12.5">Evaluate all active</tspan><tspan x="520" dy="12.5">alerts for RELIANCE</tspan><tspan x="520" dy="12.5">Trigger if matched</tspan></text>
+  <text x="675" y="647.8" font-size="10" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="675" dy="0">Option Chain</tspan><tspan x="675" dy="12.5">Builder</tspan><tspan x="675" dy="12.5">Recompute Greeks</tspan><tspan x="675" dy="12.5">for this strike</tspan></text>
+  <text x="830" y="647.8" font-size="10" font-family="'Cascadia Code', 'Fira Code', 'Courier New', monospace" font-weight="normal" text-anchor="middle" fill="#1e1e1e"><tspan x="830" dy="0">WebSocket</tspan><tspan x="830" dy="12.5">Distribution</tspan><tspan x="830" dy="12.5">Throttled 1/sec</tspan><tspan x="830" dy="12.5">→ Subscribed clients</tspan></text>
+</svg>

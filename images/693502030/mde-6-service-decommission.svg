@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -10 700 575" width="700" height="575" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#868e96"/></marker></defs>
+<style>text { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }</style>
+<text x="150" y="34" font-size="24" fill="#1e1e1e">Service Decommission Mapping (12 Current → 5 Groups)</text>
+<text x="30" y="66" font-size="16" fill="#c92a2a">CURRENT (12 services)</text>
+<rect x="20" y="80" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="97" font-size="10" fill="#c92a2a">Streamer (pml-core-streamer)</text>
+<rect x="20" y="112" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="129" font-size="10" fill="#c92a2a">Market Feed Publisher</text>
+<rect x="20" y="144" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="161" font-size="10" fill="#c92a2a">Tick Producer (pml-core-tick-producer)</text>
+<rect x="20" y="176" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="193" font-size="10" fill="#c92a2a">Feed Broadcast (pml-core-feed-broadcast)</text>
+<rect x="20" y="208" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="225" font-size="10" fill="#c92a2a">Charts Data Writer</text>
+<rect x="20" y="240" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="257" font-size="10" fill="#c92a2a">Charts Data Collector</text>
+<rect x="20" y="272" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="289" font-size="10" fill="#c92a2a">FNO Data Writer</text>
+<rect x="20" y="304" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="321" font-size="10" fill="#c92a2a">Market Movers Data Writer</text>
+<rect x="20" y="336" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="353" font-size="10" fill="#c92a2a">Charts API (data-price-charts-api)</text>
+<rect x="20" y="368" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="385" font-size="10" fill="#c92a2a">FNO Dashboard API (fno-dashboard-app)</text>
+<rect x="20" y="400" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="417" font-size="10" fill="#c92a2a">Market Movers API (eq-marketmovers-app)</text>
+<rect x="20" y="432" width="230" height="28" rx="4" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1"/>
+<text x="28" y="449" font-size="10" fill="#c92a2a">Job Manager (CMOTS loader)</text>
+<text x="420" y="66" font-size="16" fill="#2f9e44">NEW (5 deployment groups)</text>
+<rect x="400" y="80" width="280" height="75" rx="4" fill="#d0ebff" stroke="#1971c2" stroke-width="2"/>
+<text x="410" y="94" font-size="9" fill="#1971c2">Core Processing</text>
+<text x="410" y="107" font-size="9" fill="#1971c2">(2-3 pods)</text>
+<text x="410" y="120" font-size="9" fill="#1971c2">Feed Handler + Denormalizer</text>
+<text x="410" y="133" font-size="9" fill="#1971c2">Duplicate Detector</text>
+<text x="410" y="146" font-size="9" fill="#1971c2">Publisher (Redis + PubSub)</text>
+<text x="410" y="159" font-size="9" fill="#1971c2">Producer (Kafka)</text>
+<rect x="400" y="190" width="280" height="75" rx="4" fill="#d0bfff" stroke="#7048e8" stroke-width="2"/>
+<text x="410" y="204" font-size="9" fill="#7048e8">Broadcast Service</text>
+<text x="410" y="217" font-size="9" fill="#7048e8">(20+ pods)</text>
+<text x="410" y="230" font-size="9" fill="#7048e8">Redis PubSub → Protobuf</text>
+<text x="410" y="243" font-size="9" fill="#7048e8">→ WebSocket → Users</text>
+<text x="410" y="256" font-size="9" fill="#7048e8">+ Kafka recovery</text>
+<rect x="400" y="275" width="280" height="75" rx="4" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2"/>
+<text x="410" y="289" font-size="9" fill="#2f9e44">Data Writers</text>
+<text x="410" y="302" font-size="9" fill="#2f9e44">(scale independently)</text>
+<text x="410" y="315" font-size="9" fill="#2f9e44">Charts Data Writer</text>
+<text x="410" y="328" font-size="9" fill="#2f9e44">Charts Data Collector</text>
+<text x="410" y="341" font-size="9" fill="#2f9e44">FNO Data Writer</text>
+<text x="410" y="354" font-size="9" fill="#2f9e44">Market Movers Writer</text>
+<rect x="400" y="380" width="280" height="75" rx="4" fill="#fff3bf" stroke="#e67700" stroke-width="2"/>
+<text x="410" y="394" font-size="9" fill="#e67700">APIs</text>
+<text x="410" y="407" font-size="9" fill="#e67700">(20+ pods)</text>
+<text x="410" y="420" font-size="9" fill="#e67700">Charts API</text>
+<text x="410" y="433" font-size="9" fill="#e67700">FNO Dashboard API</text>
+<text x="410" y="446" font-size="9" fill="#e67700">Market Movers API</text>
+<text x="410" y="459" font-size="9" fill="#e67700">Instrument Master API</text>
+<rect x="400" y="470" width="280" height="75" rx="4" fill="#fff9db" stroke="#f08c00" stroke-width="2"/>
+<text x="410" y="484" font-size="9" fill="#f08c00">Temporal Workers</text>
+<text x="410" y="497" font-size="9" fill="#f08c00">Instrument Master Sync</text>
+<text x="410" y="510" font-size="9" fill="#f08c00">Corporate Actions</text>
+<text x="410" y="523" font-size="9" fill="#f08c00">Pre-Market Loading</text>
+<text x="410" y="536" font-size="9" fill="#f08c00">EOD Recon + Archival</text>
+<line x1="250" y1="94" x2="400" y2="100" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="126" x2="400" y2="115" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="158" x2="400" y2="130" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="190" x2="400" y2="210" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="222" x2="400" y2="295" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="254" x2="400" y2="310" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="286" x2="400" y2="325" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="318" x2="400" y2="340" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="350" x2="400" y2="400" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="382" x2="400" y2="415" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="414" x2="400" y2="430" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="250" y1="446" x2="400" y2="490" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+</svg>

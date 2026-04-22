@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 -10 1486 711" width="1486" height="711" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#868e96"/></marker></defs>
+<style>text { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }</style>
+<rect x="50" y="140" width="250" height="84" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="2" opacity="0.85"/>
+<rect x="320" y="140" width="250" height="84" rx="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="590" y="140" width="250" height="84" rx="6" fill="#c92a2a" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="860" y="140" width="250" height="98" rx="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="1130" y="140" width="250" height="84" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="570" y="300" width="180" height="54" rx="6" fill="#c92a2a" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="830" y="300" width="260" height="70" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="1160" y="300" width="220" height="70" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="50" y="455" width="260" height="84" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="325" y="455" width="260" height="84" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="600" y="455" width="260" height="98" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="875" y="455" width="260" height="98" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="1150" y="455" width="260" height="98" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="50" y="575" width="1330" height="93" rx="6" fill="#fff9db" stroke="#f08c00" stroke-width="2" opacity="0.85"/>
+<line x1="300" y1="182" x2="315" y2="182" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="570" y1="182" x2="585" y2="182" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="840" y1="182" x2="855" y2="182" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="1110" y1="189" x2="1125" y2="189" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="770" y1="327" x2="820" y2="327" stroke="#2f9e44" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1100" y1="335" x2="1150" y2="335" stroke="#2f9e44" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="310" y1="497" x2="320" y2="497" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="585" y1="497" x2="595" y2="497" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="860" y1="504" x2="870" y2="504" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1135" y1="504" x2="1145" y2="504" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="200" y="44.0" font-size="24" fill="#1e1e1e" font-weight="500">Decision 5: Expiry Day Cleanup (Thursday)</text>
+<text x="200" y="67.0" font-size="12" fill="#c92a2a" font-weight="500">Problem: Expired contracts served as live data for 2.5 hours after market close (until 6 PM daily sync).</text>
+<text x="50" y="118.0" font-size="18" fill="#c92a2a" font-weight="500">BEFORE — Thursday Timeline</text>
+<text x="66" y="165.0" font-size="11" fill="#e67700" font-weight="500">2:00-3:00 PM</text>
+<text x="66" y="178.75" font-size="11" fill="#e67700" font-weight="500"></text>
+<text x="66" y="192.5" font-size="11" fill="#e67700" font-weight="500">Traders rolling /</text>
+<text x="66" y="206.25" font-size="11" fill="#e67700" font-weight="500">closing positions</text>
+<text x="336" y="165.0" font-size="11" fill="#c92a2a" font-weight="500">3:00-3:30 PM</text>
+<text x="336" y="178.75" font-size="11" fill="#c92a2a" font-weight="500"></text>
+<text x="336" y="192.5" font-size="11" fill="#c92a2a" font-weight="500">OI drops to zero</text>
+<text x="336" y="206.25" font-size="11" fill="#c92a2a" font-weight="500">across 100s of strikes</text>
+<text x="606" y="165.0" font-size="11" fill="#c92a2a" font-weight="500">3:30 PM</text>
+<text x="606" y="178.75" font-size="11" fill="#c92a2a" font-weight="500"></text>
+<text x="606" y="192.5" font-size="11" fill="#c92a2a" font-weight="500">Market CLOSES</text>
+<text x="606" y="206.25" font-size="11" fill="#c92a2a" font-weight="500">Weekly expiry done</text>
+<text x="876" y="165.0" font-size="11" fill="#c92a2a" font-weight="500">3:30-6:00 PM (2.5 hrs!)</text>
+<text x="876" y="178.75" font-size="11" fill="#c92a2a" font-weight="500"></text>
+<text x="876" y="192.5" font-size="11" fill="#c92a2a" font-weight="500">Expired contracts</text>
+<text x="876" y="206.25" font-size="11" fill="#c92a2a" font-weight="500">STILL SHOWN AS LIVE</text>
+<text x="876" y="220.0" font-size="11" fill="#c92a2a" font-weight="500">PCR/Max Pain meaningless</text>
+<text x="1146" y="165.0" font-size="11" fill="#2f9e44" font-weight="500">6:00 PM</text>
+<text x="1146" y="178.75" font-size="11" fill="#2f9e44" font-weight="500"></text>
+<text x="1146" y="192.5" font-size="11" fill="#2f9e44" font-weight="500">Daily sync finally</text>
+<text x="1146" y="206.25" font-size="11" fill="#2f9e44" font-weight="500">marks them inactive</text>
+<text x="50" y="288.0" font-size="18" fill="#2f9e44" font-weight="500">AFTER — With ExpiryCleanupWorkflow</text>
+<text x="586" y="324.0" font-size="12" fill="#c92a2a" font-weight="500">3:30 PM</text>
+<text x="586" y="339.0" font-size="12" fill="#c92a2a" font-weight="500">Market CLOSES</text>
+<text x="846" y="324.0" font-size="12" fill="#2f9e44" font-weight="500">3:30-3:31 PM</text>
+<text x="846" y="339.0" font-size="12" fill="#2f9e44" font-weight="500">ExpiryCleanupWorkflow</text>
+<text x="846" y="354.0" font-size="12" fill="#2f9e44" font-weight="500">(&lt; 30 seconds)</text>
+<text x="1176" y="324.0" font-size="12" fill="#2f9e44" font-weight="500">3:31 PM onward</text>
+<text x="1176" y="339.0" font-size="12" fill="#2f9e44" font-weight="500">Only next week's</text>
+<text x="1176" y="354.0" font-size="12" fill="#2f9e44" font-weight="500">contracts shown</text>
+<text x="50" y="436.0" font-size="16" fill="#7048e8" font-weight="500">ExpiryCleanupWorkflow (Temporal — 5 sequential steps, &lt; 30 sec total)</text>
+<text x="66" y="480.0" font-size="11" fill="#7048e8" font-weight="500">STEP 1</text>
+<text x="66" y="493.75" font-size="11" fill="#7048e8" font-weight="500">Identify expiring</text>
+<text x="66" y="507.5" font-size="11" fill="#7048e8" font-weight="500">contracts in</text>
+<text x="66" y="521.25" font-size="11" fill="#7048e8" font-weight="500">PostgreSQL</text>
+<text x="341" y="480.0" font-size="11" fill="#7048e8" font-weight="500">STEP 2</text>
+<text x="341" y="493.75" font-size="11" fill="#7048e8" font-weight="500">Mark EXPIRED</text>
+<text x="341" y="507.5" font-size="11" fill="#7048e8" font-weight="500">status in</text>
+<text x="341" y="521.25" font-size="11" fill="#7048e8" font-weight="500">PostgreSQL</text>
+<text x="616" y="480.0" font-size="11" fill="#7048e8" font-weight="500">STEP 3</text>
+<text x="616" y="493.75" font-size="11" fill="#7048e8" font-weight="500">Clean Redis</text>
+<text x="616" y="507.5" font-size="11" fill="#7048e8" font-weight="500">Cluster 2</text>
+<text x="616" y="521.25" font-size="11" fill="#7048e8" font-weight="500">(option chain,</text>
+<text x="616" y="535.0" font-size="11" fill="#7048e8" font-weight="500">movers, insights)</text>
+<text x="891" y="480.0" font-size="11" fill="#7048e8" font-weight="500">STEP 4</text>
+<text x="891" y="493.75" font-size="11" fill="#7048e8" font-weight="500">Recalculate</text>
+<text x="891" y="507.5" font-size="11" fill="#7048e8" font-weight="500">PCR / Max Pain</text>
+<text x="891" y="521.25" font-size="11" fill="#7048e8" font-weight="500">using only LIVE</text>
+<text x="891" y="535.0" font-size="11" fill="#7048e8" font-weight="500">contracts</text>
+<text x="1166" y="480.0" font-size="11" fill="#7048e8" font-weight="500">STEP 5</text>
+<text x="1166" y="493.75" font-size="11" fill="#7048e8" font-weight="500">Publish settlement</text>
+<text x="1166" y="507.5" font-size="11" fill="#7048e8" font-weight="500">prices to Kafka</text>
+<text x="1166" y="521.25" font-size="11" fill="#7048e8" font-weight="500">→ Portfolio Engine</text>
+<text x="1166" y="535.0" font-size="11" fill="#7048e8" font-weight="500">→ Ledger Engine</text>
+<text x="66" y="603.0" font-size="12" fill="#f08c00" font-weight="500">Applies to ALL expiry events:</text>
+<text x="66" y="618.0" font-size="12" fill="#f08c00" font-weight="500">Weekly NIFTY / BANKNIFTY / FINNIFTY options  •  Monthly stock options  •  Monthly futures  •  Quarterly futures</text>
+<text x="66" y="633.0" font-size="12" fill="#f08c00" font-weight="500"></text>
+<text x="66" y="648.0" font-size="12" fill="#f08c00" font-weight="500">Triggered by market status change (CLOSE), NOT by daily 6 PM sync.  Runs in parallel with other post-close jobs.</text>
+</svg>

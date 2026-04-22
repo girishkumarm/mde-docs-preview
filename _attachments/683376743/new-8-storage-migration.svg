@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -40 1330 1144" width="1330" height="1144">
+  <defs>
+    <marker id="ah-e65100" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#e65100"/></marker>
+    <marker id="ahs-e65100" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#e65100"/></marker>
+    <marker id="ah-1565c0" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#1565c0"/></marker>
+    <marker id="ahs-1565c0" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#1565c0"/></marker>
+    <marker id="ah-c62828" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#c62828"/></marker>
+    <marker id="ahs-c62828" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#c62828"/></marker>
+    <marker id="ah-2e7d32" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#2e7d32"/></marker>
+    <marker id="ahs-2e7d32" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#2e7d32"/></marker>
+  </defs>
+  <rect x="-20" y="-40" width="1330" height="1144" fill="white"/>
+  <rect x="200" y="10" width="860" height="36" rx="3.6" ry="3.6" fill="#e8eaf6" stroke="#283593" stroke-width="2"/>
+  <rect x="30" y="60" width="460" height="36" rx="3.6" ry="3.6" fill="#ffcdd2" stroke="#c62828" stroke-width="2"/>
+  <rect x="800" y="60" width="460" height="36" rx="3.6" ry="3.6" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="30" y="106" width="460" height="280" rx="8" ry="8" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="30" y="106" width="460" height="30" rx="0" ry="0" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="44" y="144" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="178" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="212" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="246" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="280" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="314" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="348" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="30" y="402" width="460" height="178" rx="8" ry="8" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="30" y="402" width="460" height="30" rx="0" ry="0" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="44" y="440" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="474" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="508" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="542" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="30" y="596" width="460" height="178" rx="8" ry="8" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="30" y="596" width="460" height="30" rx="0" ry="0" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="44" y="634" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="668" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="702" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="736" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="30" y="790" width="460" height="178" rx="8" ry="8" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="30" y="790" width="460" height="30" rx="0" ry="0" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="44" y="828" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="862" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="896" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="44" y="930" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#f57f17" stroke-width="1"/>
+  <rect x="800" y="106" width="460" height="178" rx="8" ry="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="1"/>
+  <rect x="800" y="106" width="460" height="30" rx="0" ry="0" fill="#a5d6a7" stroke="#388e3c" stroke-width="1"/>
+  <rect x="814" y="144" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="178" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="212" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="246" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="800" y="300" width="460" height="178" rx="8" ry="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="1"/>
+  <rect x="800" y="300" width="460" height="30" rx="0" ry="0" fill="#a5d6a7" stroke="#388e3c" stroke-width="1"/>
+  <rect x="814" y="338" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="372" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="406" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="440" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="800" y="494" width="460" height="178" rx="8" ry="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="1"/>
+  <rect x="800" y="494" width="460" height="30" rx="0" ry="0" fill="#a5d6a7" stroke="#388e3c" stroke-width="1"/>
+  <rect x="814" y="532" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="566" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="600" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="634" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="800" y="688" width="460" height="178" rx="8" ry="8" fill="#e8f5e9" stroke="#388e3c" stroke-width="1"/>
+  <rect x="800" y="688" width="460" height="30" rx="0" ry="0" fill="#a5d6a7" stroke="#388e3c" stroke-width="1"/>
+  <rect x="814" y="726" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="760" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="794" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="814" y="828" width="432" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#f1f8e9" stroke="#558b2f" stroke-width="1"/>
+  <rect x="565" y="243" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="163" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="565" y="214" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fce4ec" stroke="#c62828" stroke-width="1"/>
+  <rect x="565" y="214" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="565" y="459" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="265" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="565" y="299" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="565" y="408" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="459" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="539" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="476" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="565" y="585" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="636" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="565" y="670" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="767" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="565" y="779" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="813" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="565" y="864" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="565" y="932" width="200" height="24" rx="2.4000000000000004" ry="2.4000000000000004" fill="#fce4ec" stroke="#c62828" stroke-width="1"/>
+  <rect x="30" y="1004" width="1230" height="50" rx="5" ry="5" fill="#fafafa" stroke="#616161" stroke-width="1"/>
+  <rect x="30" y="1004" width="1230" height="26" rx="0" ry="0" fill="#e0e0e0" stroke="#616161" stroke-width="1"/>
+  <rect x="44" y="1034" width="160" height="16" rx="1.6" ry="1.6" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="224" y="1034" width="180" height="16" rx="1.6" ry="1.6" fill="#fff3e0" stroke="#e65100" stroke-width="1"/>
+  <rect x="424" y="1034" width="160" height="16" rx="1.6" ry="1.6" fill="#e8f5e9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="604" y="1034" width="160" height="16" rx="1.6" ry="1.6" fill="#fce4ec" stroke="#c62828" stroke-width="1"/>
+  <polyline points="508,55 508,1010" fill="none" stroke="#bdbdbd" stroke-width="1" stroke-dasharray="4 4" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,158 563,255" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,255 812,352" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,192 563,175" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,175 812,158" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,226 563,226" fill="none" stroke="#c62828" stroke-width="1" marker-end="url(#ah-c62828)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,260 563,226" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,226 812,192" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,294 563,471" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,471 812,648" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,328 563,277" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,277 812,226" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,362 563,311" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,311 812,260" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,454 563,420" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,420 812,386" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,488 563,471" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,471 812,454" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,522 563,551" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,551 812,580" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,556 563,488" fill="none" stroke="#2e7d32" stroke-width="1" marker-end="url(#ah-2e7d32)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,488 812,420" fill="none" stroke="#2e7d32" stroke-width="1" marker-end="url(#ah-2e7d32)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,648 563,597" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,597 812,546" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,682 563,648" fill="none" stroke="#2e7d32" stroke-width="1" marker-end="url(#ah-2e7d32)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,648 812,614" fill="none" stroke="#2e7d32" stroke-width="1" marker-end="url(#ah-2e7d32)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,716 563,682" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,682 812,648" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,750 563,779" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,779 812,808" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,842 563,791" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,791 812,740" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,876 563,825" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,825 812,774" fill="none" stroke="#1565c0" stroke-width="1" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,910 563,876" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="767,876 812,842" fill="none" stroke="#e65100" stroke-width="1" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="478,944 563,944" fill="none" stroke="#c62828" stroke-width="1" marker-end="url(#ah-c62828)" stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="630" y="31.1" font-size="20" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="bold" text-anchor="middle" fill="#1a237e"><tspan x="630" dy="0">Storage Migration: Current  --&gt;  New Architecture</tspan></text>
+  <text x="260" y="80.48" font-size="16" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#c62828"><tspan x="260" dy="0">CURRENT STORAGE</tspan></text>
+  <text x="1030" y="80.48" font-size="16" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#2e7d32"><tspan x="1030" dy="0">NEW STORAGE</tspan></text>
+  <text x="260" y="123.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="260" dy="0">Redis (7 databases)</tspan></text>
+  <text x="260" y="159.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">DB 0 — Feed source config</tspan></text>
+  <text x="260" y="193.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">DB 3 — LTP by pmlId</tspan></text>
+  <text x="260" y="227.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">DB 5 — UDP multicast config</tspan></text>
+  <text x="260" y="261.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">DB 7 — User sessions / subscriptions</tspan></text>
+  <text x="260" y="295.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">DB 8 — Price alerts</tspan></text>
+  <text x="260" y="329.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">DB 9 — Rate limits</tspan></text>
+  <text x="260" y="363.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">DB 12 — Instrument cache</tspan></text>
+  <text x="260" y="419.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="260" dy="0">Elasticsearch (40+ indices)</tspan></text>
+  <text x="260" y="455.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Market data indices</tspan></text>
+  <text x="260" y="489.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Trade history indices</tspan></text>
+  <text x="260" y="523.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Audit log indices</tspan></text>
+  <text x="260" y="557.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Analytics indices</tspan></text>
+  <text x="260" y="613.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="260" dy="0">MySQL</tspan></text>
+  <text x="260" y="649.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Instrument master</tspan></text>
+  <text x="260" y="683.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">User preferences</tspan></text>
+  <text x="260" y="717.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Alert configs</tspan></text>
+  <text x="260" y="751.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Corporate actions</tspan></text>
+  <text x="260" y="807.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="260" dy="0">S3</tspan></text>
+  <text x="260" y="843.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">EOD snapshots</tspan></text>
+  <text x="260" y="877.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Bhav copies</tspan></text>
+  <text x="260" y="911.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">CMOTS raw data</tspan></text>
+  <text x="260" y="945.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4e342e"><tspan x="260" dy="0">Backup archives</tspan></text>
+  <text x="1030" y="123.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1030" dy="0">Redis Cluster</tspan></text>
+  <text x="1030" y="159.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Live price snapshot (ts-versioned)</tspan></text>
+  <text x="1030" y="193.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Session state</tspan></text>
+  <text x="1030" y="227.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Rate limiting</tspan></text>
+  <text x="1030" y="261.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Instrument cache</tspan></text>
+  <text x="1030" y="317.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1030" dy="0">QuestDB</tspan></text>
+  <text x="1030" y="353.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Raw ticks (partitioned by DAY)</tspan></text>
+  <text x="1030" y="387.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Candles (1m/5m/15m/1h/1d)</tspan></text>
+  <text x="1030" y="421.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Greeks history</tspan></text>
+  <text x="1030" y="455.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Volume / OI time-series</tspan></text>
+  <text x="1030" y="511.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1030" dy="0">PostgreSQL</tspan></text>
+  <text x="1030" y="547.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Instrument master (Flyway-managed)</tspan></text>
+  <text x="1030" y="581.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Audit trail</tspan></text>
+  <text x="1030" y="615.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Workflow state (Temporal)</tspan></text>
+  <text x="1030" y="649.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Alert configs</tspan></text>
+  <text x="1030" y="705.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1030" dy="0">S3 (Intelligent Tiering)</tspan></text>
+  <text x="1030" y="741.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Candle archive (Parquet)</tspan></text>
+  <text x="1030" y="775.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Tick archive (7d -&gt; cold)</tspan></text>
+  <text x="1030" y="809.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Corporate action history</tspan></text>
+  <text x="1030" y="843.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#33691e"><tspan x="1030" dy="0">Compliance snapshots</tspan></text>
+  <text x="665" y="256.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">Schema transform</tspan></text>
+  <text x="665" y="176.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="665" dy="0">Direct migration</tspan></text>
+  <text x="665" y="227.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="665" dy="0">Decommissioned</tspan></text>
+  <text x="665" y="227.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="665" dy="0">Direct migration</tspan></text>
+  <text x="665" y="472.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">Schema transform</tspan></text>
+  <text x="665" y="278.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="665" dy="0">Direct migration</tspan></text>
+  <text x="665" y="312.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="665" dy="0">Direct migration</tspan></text>
+  <text x="665" y="421.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">Schema transform</tspan></text>
+  <text x="665" y="472.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">Schema transform</tspan></text>
+  <text x="665" y="552.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">Schema transform</tspan></text>
+  <text x="665" y="489.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="665" dy="0">New capability</tspan></text>
+  <text x="665" y="598.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">PostFlyway migration</tspan></text>
+  <text x="665" y="649.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="665" dy="0">New capability</tspan></text>
+  <text x="665" y="683.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">Schema merge</tspan></text>
+  <text x="665" y="780.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="665" dy="0">Direct migration</tspan></text>
+  <text x="665" y="792.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">Parquet conversion</tspan></text>
+  <text x="665" y="826.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="665" dy="0">Direct migration</tspan></text>
+  <text x="665" y="877.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="665" dy="0">Schema transform</tspan></text>
+  <text x="665" y="945.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="665" dy="0">Decommissioned</tspan></text>
+  <text x="645" y="1019.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="645" dy="0">Migration Legend</tspan></text>
+  <text x="124" y="1043.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="124" dy="0">Direct migration</tspan></text>
+  <text x="314" y="1043.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="314" dy="0">Schema transformation</tspan></text>
+  <text x="504" y="1043.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="504" dy="0">New capability</tspan></text>
+  <text x="684" y="1043.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="684" dy="0">Decommissioned</tspan></text>
+</svg>

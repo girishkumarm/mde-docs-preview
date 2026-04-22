@@ -1,0 +1,217 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "claude-code",
+  "elements": [
+    {
+      "type": "text",
+      "id": "t1",
+      "x": 150,
+      "y": 20,
+      "text": "Decision 2: Split Redis into 2 Clusters",
+      "fontSize": 24,
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "type": "text",
+      "id": "t2",
+      "x": 150,
+      "y": 55,
+      "text": "Problem: One Redis holds everything \u2014 if it dies, the entire platform goes down.",
+      "fontSize": 12,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t3",
+      "x": 50,
+      "y": 100,
+      "text": "BEFORE \u2014 Single Redis Instance",
+      "fontSize": 18,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "rectangle",
+      "id": "r4",
+      "x": 50,
+      "y": 130,
+      "width": 620,
+      "height": 253,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t5",
+      "x": 66,
+      "y": 144,
+      "text": "ONE Redis Instance Holds EVERYTHING:\n\n\u2022 Live tick snapshots (FEED_PP_*)\n\u2022 OHLC, previous close, circuit limits, 52-week H/L\n\u2022 Chart candles (current-day)\n\u2022 FNO option chain + Greeks + insights\n\u2022 Market movers sorted sets\n\u2022 Trading day status flag\n\n\u2192 If this Redis dies (AWS Multi-AZ failover: 15-30 sec)\n\u2192 FULL PLATFORM OUTAGE:\n    \u2717 Feed pipeline stops writing\n    \u2717 Charts API returns errors\n    \u2717 FNO API returns errors\n    \u2717 Market Movers API returns errors\n    \u2717 WebSocket shows frozen prices",
+      "fontSize": 11,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t6",
+      "x": 740,
+      "y": 100,
+      "text": "AFTER \u2014 Two Independent Clusters",
+      "fontSize": 18,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r7",
+      "x": 740,
+      "y": 130,
+      "width": 620,
+      "height": 154,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t8",
+      "x": 756,
+      "y": 144,
+      "text": "REDIS CLUSTER 1  (Feed Pipeline)\n\n\u2022 Live tick snapshots (FEED_PP_*)\n\u2022 OHLC, previous close, circuit limits\n\u2022 52-week H/L, trading day status\n\nWriters: Publisher (via Lua atomic scripts)\nReaders: Periscope API, Broadcast Service\n          (for snapshot-on-connect)",
+      "fontSize": 11,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "type": "rectangle",
+      "id": "r9",
+      "x": 740,
+      "y": 304,
+      "width": 620,
+      "height": 182,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t10",
+      "x": 756,
+      "y": 318,
+      "text": "REDIS CLUSTER 2  (API Read Cache)\n\n\u2022 Current-day chart candles ({pmlId}_{date})\n\u2022 FNO option chain hashes per expiry\n\u2022 Option insights (PCR, Max Pain, ATM Straddle)\n\u2022 Market movers sorted sets\n\nWriters: Charts Data Writer, FNO Data Writer,\n          Market Movers Writer\nReaders: Charts API, FNO Dashboard API,\n          Market Movers API",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "text",
+      "id": "t11",
+      "x": 50,
+      "y": 526,
+      "text": "Failure Scenarios Compared",
+      "fontSize": 16,
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "type": "rectangle",
+      "id": "r12",
+      "x": 50,
+      "y": 556,
+      "width": 440,
+      "height": 112,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t13",
+      "x": 66,
+      "y": 570,
+      "text": "If Redis Cluster 1 dies:\n\u2713 Live price writes pause for 15-30 sec\n\u2713 Kafka keeps flowing (no tick loss)\n\u2713 Charts / FNO / Movers APIs keep serving\n\u2713 WebSocket delivery continues (Kafka-based)\n\u2717 Snapshot-on-connect unavailable until recovery",
+      "fontSize": 11,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "type": "rectangle",
+      "id": "r14",
+      "x": 510,
+      "y": 556,
+      "width": 440,
+      "height": 112,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t15",
+      "x": 526,
+      "y": 570,
+      "text": "If Redis Cluster 2 dies:\n\u2713 Feed pipeline fully unaffected\n\u2713 Kafka keeps flowing to Broadcast\n\u2713 WebSocket users still see live prices\n\u2717 Charts API returns errors (15-30 sec)\n\u2717 FNO + Movers APIs return errors (15-30 sec)",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r16",
+      "x": 970,
+      "y": 556,
+      "width": 400,
+      "height": 140,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#f08c00",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t17",
+      "x": 986,
+      "y": 570,
+      "text": "If BOTH die (rare):\n\u2717 Full outage until recovery\n\nBUT Kafka still persists all ticks\n\u2192 On recovery, replay last N seconds\n\u2192 Zero permanent data loss\n\nMulti-AZ with separate AZ placement",
+      "fontSize": 11,
+      "strokeColor": "#f08c00"
+    },
+    {
+      "type": "rectangle",
+      "id": "r18",
+      "x": 50,
+      "y": 726,
+      "width": 1320,
+      "height": 62,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#f08c00",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t19",
+      "x": 66,
+      "y": 742,
+      "text": "Cost:  ~$200/month extra for 2nd ElastiCache instance.  Config: maxmemory-policy = noeviction, alert at 80% usage.\nUse key prefixes (no DB 5/6/7 pattern) \u2014 required for future Redis Cluster migration.  Neither failure kills everything.",
+      "fontSize": 12,
+      "strokeColor": "#f08c00"
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  }
+}

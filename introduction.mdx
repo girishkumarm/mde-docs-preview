@@ -1,0 +1,307 @@
+---
+title: "Market Data Engine — Technical Design Document"
+---
+
+<Info>
+**Version 3.2 — April 2026.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+</Info>
+
+# Market Data Engine — Technical Design Document
+
+<Info>
+**Status:** DRAFT | **Version:** 3.2 | **Date:** April 2026
+
+**What changed from v3.1:**
+
+- **Added AI-Powered Incident Manager** (proactive detection + LLM debugging) — platform-wide capability that detects incidents before users notice and uses an LLM to root-cause + suggest fixes (§6.21).
+- **Added Zero-Error UX** — users should NEVER see an error. Layered fallback strategy, stale-while-revalidate, circuit breakers, silent feature flags, request hedging (§6.20).
+- **Added Decision 11** (AI-Powered Incident Manager from Day 1) and **Decision 12** (Zero-Error User Experience via Graceful Degradation) in §10.1.
+- Tech stack, deployment, monitoring, and business-rules sections updated accordingly.
+
+**What changed from v3.0:** Unified time-series storage on **TimescaleDB** (replacing QuestDB + MongoDB + Elasticsearch). Charts Data Collector service eliminated — continuous aggregates take over manual rollups. Historical data migration framed as a Temporal workflow.
+</Info>
+
+---
+
+## 1. Overview
+
+### What is the Market Data Engine?
+
+The Market Data Engine is the **single, authoritative source of all market data** in the Paytm Money Pro platform. Every price a user sees — equity LTP, option chain, chart candle, market mover ranking, index value — originates from this engine.
+
+**No other system connects directly to exchange feeds.** This means:
+
+- One place to fix a bad price
+- One place to monitor feed health
+- One place for corporate action adjustments
+- One audit trail for price corrections
+
+### What It Covers
+
+| Data Domain | Examples |
+| --- | --- |
+| **Equity** | LTP, OHLC, volume, previous close, 52-week H/L, circuit limits for all NSE/BSE stocks |
+| **Futures** | LTP, OI, volume, OHLC for equity/index/currency futures |
+| **Options** | LTP, OI, Greeks (delta, gamma, theta, vega), IV for all option contracts |
+| **Indices** | NIFTY 50, SENSEX, BANK NIFTY — real-time values |
+| **ETFs, REITs, InvITs, Bonds** | Same as equity — LTP, OHLC, volume |
+| **Option Insights** | PCR (OI/Volume), Max Pain, ATM Straddle, CPR |
+| **Charts** | 1m, 5m, 15m, 1h, 1d, 1w, 1M candles — current day + historical |
+| **Market Movers** | Gainers, losers, volume gainers, value gainers, 52-week H/L hitters |
+| **Instrument Master** | Scrip definitions, company info, segment mappings |
+| **Corporate Actions** | Splits, bonus, dividends, rights — with historical price adjustments |
+
+### Design Philosophy
+
+1. **Correctness first** — A wrong price delivered fast is worse than a correct price slightly slower.
+2. **Self-healing over manual intervention** — Auto-reconnect, auto-recover, notify operators (not page them).
+3. **Composable** — Independently deployable. Trade Engine, Portfolio Engine, Ledger Engine depend on it, not the other way around.
+4. **Observable** — Every tick, correction, feed switch, reconnection is logged, metriced, and traceable.
+5. **API-compatible** — All read APIs match the current contract since the UI is not being replaced.
+6. **Zero-Error UX (new in v3.2)** — Users must never see an error popup. The system degrades silently through layered fallbacks; the AI Incident Manager handles internal noise.
+
+---
+
+## 2. Instrument Scope
+
+~90,000 active instruments across NSE + BSE:
+
+| Segment | ScripType | Examples | Count |
+| --- | --- | --- | --- |
+| Equity | `ES` | RELIANCE, INFY, TCS | ~5,000 |
+| ETF | `ETF` | NIFTYBEES, GOLDBEES | ~300 |
+| REIT | `REIT` | Embassy, Mindspace | ~10 |
+| InvIT | `INVIT` | IndiGrid, IRB InvIT | ~10 |
+| Bond | `BOND` | Various G-Sec, Corp bonds | ~200 |
+| Index | `INDEX` | NIFTY 50, SENSEX, BANK NIFTY | ~200 |
+| Futures | `FUTURE` | RELIANCE APR FUT, NIFTY APR FUT | ~5,000 |
+| Options | `OPTION` | RELIANCE 2500 CE APR, NIFTY 22000 PE | ~80,000 |
+| Currency Derivatives | `FUTURE`/`OPTION` | USDINR FUT, EURINR FUT | ~500 |
+
+---
+
+## 3. Throughput & Latency
+
+### Real Throughput Numbers
+
+| Metric | Value | Notes |
+| --- | --- | --- |
+| **Peak incoming TPS** | **~4,000 TPS** | ~2K from NSE Direct + ~2K from Omnenest; after dedup output is ~2K TPS |
+| **After denormalization** | ~10,000–20,000 individual instrument updates/sec | One segment tick → denormalized into per-instrument updates |
+| **Market open burst** | Up to 5,000 TPS for 3–5 seconds | 9:15 AM auction settlement |
+| **Instruments** | ~90,000 active | Across NSE + BSE + all segments |
+
+<Note>
+**Note:** Exchanges send ticks only when a value changes — not every second. During low-volatility periods, some instruments may go minutes or hours without a tick. This is normal, not a failure.
+</Note>
+
+### Latency Budget
+
+| Stage | Target | How Achieved |
+| --- | --- | --- |
+| Feed receive | < 0.1 ms | UDP multicast on dedicated NIC |
+| Decode + Denormalize | < 0.5 ms | Single-pass binary decode, Java 21 |
+| Duplicate detection (incl. cross-source dedup) | < 0.05 ms | In-process ConcurrentHashMap check |
+| Redis snapshot write | < 0.5 ms | Redis HSET, Lua scripts for atomics |
+| Kafka publish | < 3 ms | Avro, linger.ms=1, acks=all, idempotent |
+| **Total feed-to-Redis** | **< 1.5 ms** |   |
+| **Total feed-to-user (WebSocket)** | **< 8 ms** | Via Kafka → Broadcast Service |
+
+### Current Production Baselines
+
+| Use Case | Current Req/s | Current P99 | New Target P99 |
+| --- | --- | --- | --- |
+| Charts API | 450–500 | 50ms | <10ms |
+| Option Chain API | 350–400 | 50ms | <10ms |
+| Option Insights | 10–15 | 50ms | <10ms |
+| Market Movers | 350 | 50ms | <5ms |
+| WebSocket conn/pod | 8,500 (hard cap) | — | 100,000+ |
+
+---
+
+## 4. Architecture — High Level
+
+```
+┌──────────────────────────────────────┐
+                    │         EXCHANGE FEEDS                │
+                    │  NSE Direct + Omnenest               │
+                    │  (merged, best-of-both)              │
+                    │  BSE Direct (same merge approach)    │
+                    └─────────────┬────────────────────────┘
+                                  │ UDP Multicast (binary, 6 streams per source)
+                                  │ External circuit breaker (not our service)
+                                  │
+                    ┌─────────────▼────────────────────────┐
+                    │         FEED HANDLER                  │
+                    │  Receive → Decode → Denormalize       │
+                    │  Cross-Source Dedup (instrument+ts)   │
+                    │  Sequence Gap Detection               │
+                    └─────────────┬────────────────────────┘
+                                  │
+                          ┌───────┴───────┐
+                          │               │
+              ┌───────────▼──────┐   ┌────▼──────────────┐
+              │    PUBLISHER     │   │    PRODUCER        │
+              │                  │   │                    │
+              │ Redis Hash       │   │ Kafka Topics       │
+              │ (live snapshot)  │   │ (durable stream)   │
+              └──────┬───────────┘   └────┬───────────────┘
+                     │                    │
+                     │              ┌─────┼─────────┬──────────────┐
+                     │              │     │         │              │
+              ┌──────┴───────┐  ┌──▼─────▼──┐  ┌──▼─────────┐ ┌──▼──────────┐
+              │  PERISCOPE   │  │  CHARTS   │  │  FNO DATA  │ │  MARKET     │
+              │  API         │  │  DATA     │  │  WRITER    │ │  MOVERS     │
+              │              │  │  WRITER   │  │            │ │  WRITER     │
+              │ Reads Redis  │  │           │  │ Option     │ │             │
+              │ + local      │  │ Timescale │  │ Chain +    │ │ Redis       │
+              │ cache        │  │ DB        │  │ Insights   │ │ Sorted Sets │
+              │              │  │ → Redis   │  │ Greeks     │ │             │
+              │              │  │ (current  │  │ → Redis    │ │             │
+              │              │  │ day)      │  │            │ │             │
+              └──────────────┘  └──────┬────┘  └─────┬──────┘ └──────┬──────┘
+                                       │             │              │
+              ┌──────────────┐  ┌──────▼────┐  ┌────▼────────┐ ┌──▼──────────┐
+              │  BROADCAST   │  │  CHARTS   │  │  FNO        │ │  MARKET     │
+              │  SERVICE     │  │  API      │  │  DASHBOARD  │ │  MOVERS     │
+              │              │  │           │  │  API        │ │  API        │
+              │ Kafka pull   │  └───────────┘  └─────────────┘ └─────────────┘
+              │ → Protobuf   │
+              │ → WebSocket  │
+              │ → Users      │
+              │              │
+              │ Redis Hash   │
+              │ for snapshot  │
+              │ on connect   │
+              └──────┬───────┘
+                     │
+              ┌──────▼───────┐
+              │  USER        │
+              │  PHONE/WEB   │
+              └──────────────┘
+
+    TIME-SERIES STORE (separate PostgreSQL instance):
+    ┌─────────────────────────────────────────────────────┐
+    │  TimescaleDB                                         │
+    │  - ticks (hypertable, 7-day retention)              │
+    │  - candles_1m (hypertable, 10-year retention,       │
+    │    native compression after 7 days)                 │
+    │  - continuous aggregates: 5m, 15m, 1h, 1d, 1w, 1M  │
+    │    (auto-maintained from candles_1m)                │
+    └─────────────────────────────────────────────────────┘
+
+    TEMPORAL PLATFORM (generic job framework):
+    ┌─────────────────────────────────────────────────────┐
+    │  Historical Data Migration (one-time, Phase 0)      │
+    │  Instrument Master Sync (daily 6 PM)                │
+    │  Corporate Action Processor (event + daily 8 PM)    │
+    │  Pre-Market Data Loading (daily 7:35 AM)            │
+    │  EOD Reconciliation (daily post-close)              │
+    │  Candle Archival (scheduled)                        │
+    │  NAV Update (daily 11 PM)                           │
+    │  Expiry Day Cleanup (weekly/monthly expiry days)    │
+    │  + Any custom job via Temporal Dashboard            │
+    └─────────────────────────────────────────────────────┘
+
+    AI-POWERED INCIDENT MANAGER (platform-wide, new in v3.2):
+    ┌─────────────────────────────────────────────────────┐
+    │  Signal collectors → Anomaly detection → LLM        │
+    │  debugger → Auto-remediation + Notification         │
+    └─────────────────────────────────────────────────────┘
+```
+
+---
+
+## 5. Feed Sources & Failover
+
+### Merged Feed Architecture
+
+The Market Data Engine receives data from **two independent sources simultaneously** and merges them into a single, best-of-both stream:
+
+| Source | Protocol | Location | Typical Latency |
+| --- | --- | --- | --- |
+| **NSE/BSE Direct** | UDP Multicast, dedicated cable, 6 streams | Exchange colocation | Baseline (fastest) |
+| **Omnenest** | Omnenest RS protocol (proprietary) | Third-party DC | 3–8 ms slower than NSE Direct |
+
+**How the merge works:**
+
+Both NSE Direct and Omnenest feed into the **same Feed Handler**. The Feed Handler deduplicates by `(instrumentId, timestamp)` — whichever tick arrives first wins. Since NSE Direct is typically 3–8 ms faster, NSE ticks usually arrive first and are used. Omnenest ticks that arrive second are dropped as duplicates. But if NSE misses a UDP packet (packet loss), the Omnenest copy fills the gap automatically — and vice versa.
+
+**Key properties of the merged architecture:**
+
+- **All users get the best-of-both sources** — always the fastest, most complete data
+- **No user is ever on a "slower" feed** — unlike an 85/15 traffic split
+- **Omnenest is continuously validated** — every Omnenest tick is compared against its NSE counterpart. Divergence beyond threshold triggers an alert.
+- **Automatic gap filling** — if either source drops a packet, the other fills in seamlessly
+- **Zero-switchover failover** — if NSE dies entirely (heartbeat timeout), Omnenest is already active and delivering data. No switchover delay.
+- **Input ~4K TPS** (2K from each source), **output ~2K TPS** after dedup
+
+<Info>
+**Open point:** Verify whether `NSE_FNO_0` / `NSE_FNO_1` represent A/B redundancy (same instruments, two copies) or separate instrument sets (different instruments per stream). This affects dedup logic.
+</Info>
+
+### Failover Detection
+
+<Warning>
+**Critical:** Exchanges only send ticks when values change. Not receiving a tick for a few seconds is normal — it means no trades happened. We **cannot** use "no ticks received" as the sole detection signal.
+</Warning>
+
+**Detection mechanisms (in order of reliability):**
+
+| Signal | Method | Threshold |
+| --- | --- | --- |
+| **Heartbeat absence** | Exchanges send heartbeat packets (transaction code 99) periodically even when markets are quiet. If heartbeats stop → feed is dead. | 3 seconds if exchange heartbeats are available (open point: confirm heartbeat interval with exchange connectivity team). If heartbeats not available, fallback to cross-source divergence detection. |
+| **Staleness indicator** | Within 1 second of no heartbeat, mark feed as UNCERTAIN and propagate staleness flag to Broadcast Service. Users see "Last updated: Xs ago" with amber (>3s) / red (>10s) coloring. | 1 second → UNCERTAIN flag |
+| **Sequence gap** | UDP sequence numbers should be continuous. A sustained gap with no recovery → connection problem. | Gap > 100 with no fill for 5 seconds |
+| **All-segment silence** | If ALL 6 streams go silent simultaneously during market hours (9:15–3:30) → infrastructure failure. Individual stream silence is normal. | All streams silent for 15 seconds during `OPEN` status |
+| **Cross-source divergence** | If Omnenest is delivering but NSE Direct is not (or vice versa) → one source is down. | One source active, other silent for 3 seconds |
+
+**Failover actions:**
+
+```
+NSE Direct feed drops (heartbeat lost):
+    → Detect within 3 seconds (heartbeat timeout)
+    → Omnenest is already active — zero switchover time
+    → All ticks now come from Omnenest (no dedup partner)
+    → Alert: P0 Slack "NSE Direct feed down, Omnenest sole source"
+    → Mark feed quality as DEGRADED (single source, no cross-validation)
+    → Attempt NSE reconnection with exponential backoff
+
+Omnenest feed drops:
+    → NSE Direct continues as sole source — no user impact
+    → Alert: P0 Slack "Omnenest down, NSE Direct sole source"
+    → Mark feed quality as DEGRADED
+
+Both feeds drop:
+    → CRITICAL alert — page on-call immediately
+    → Serve stale data from Redis (mark as stale)
+    → WebSocket sends stale flag to clients
+    → Frontend shows "Delayed" indicator with red coloring
+```
+
+### External Circuit Breaker
+
+A **circuit breaker sits between the exchange and our feed handler**. This is NOT our service — it's managed externally. When the exchange halts trading on an instrument (circuit limit hit), the halt message reaches us through this external component.
+
+### UDP Multicast Streams (6 streams per source)
+
+| Stream | ExchangeType ID | Buffer | Segment |
+| --- | --- | --- | --- |
+| `NSE_CASH` | 1 | 8192 bytes | NSE Equity + Index |
+| `NSE_FNO_0` | 2 | 8192 bytes | NSE F&O |
+| `NSE_FNO_1` | 2 | 8192 bytes | NSE F&O overflow |
+| `BSE_CASH` | 3 | 8192 bytes | BSE Equity + Index |
+| `BSE_FNO_0` | 4 | 8192 bytes | BSE F&O |
+| `BSE_FNO_1` | 4 | 8192 bytes | BSE F&O overflow |
+
+### Datacenter Regions
+
+| Region | ID | Role |
+| --- | --- | --- |
+| Chandivali | 1 | Primary DC |
+| Hyderabad | 3 | Secondary DC |
+| Omnenest | 4 | Third-party feed source |
+
+---
+
+## 6. Component Deep Dives

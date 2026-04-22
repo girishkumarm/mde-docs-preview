@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 -10 790 682" width="790" height="682" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1e1e1e"/></marker></defs>
+<style>text { font-family: Segoe UI, Helvetica, Arial, sans-serif; }</style>
+<text x="250" y="32" font-size="22" fill="#1e1e1e">Feed Source Failover Chain & Multi-DC Deployment</text>
+<rect x="50" y="70" width="200" height="80" rx="8" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="85" y="96" font-size="16" fill="#1e1e1e">NSE Direct Feed</text>
+<text x="60" y="116" font-size="11" fill="#868e96">3 UDP streams</text>
+<text x="60" y="131" font-size="11" fill="#868e96">225.0.0.1/3/6:7780-7785</text>
+<rect x="300" y="70" width="200" height="80" rx="8" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="335" y="96" font-size="16" fill="#1e1e1e">BSE Direct Feed</text>
+<text x="310" y="116" font-size="11" fill="#868e96">3 UDP streams</text>
+<text x="310" y="131" font-size="11" fill="#868e96">225.0.1.1/3/6:7782-7787</text>
+<rect x="550" y="70" width="200" height="80" rx="8" fill="#fff3bf" stroke="#f08c00" stroke-width="1.5"/>
+<text x="575" y="94" font-size="14" fill="#e8590c">Omnenest Feed [NEW]</text>
+<text x="560" y="116" font-size="11" fill="#868e96">Third-party aggregator</text>
+<text x="560" y="131" font-size="11" fill="#868e96">RS protocol, warm standby</text>
+<rect x="100" y="200" width="600" height="120" rx="8" fill="#ebfbee" stroke="#2f9e44" stroke-width="1.5"/>
+<text x="280" y="226" font-size="16" fill="#1e1e1e">Feed Handler — Failover Chain</text>
+<text x="120" y="252" font-size="12" fill="#495057">Priority 1: NSE/BSE Primary (direct UDP, hot, always processing)</text>
+<text x="120" y="268" font-size="12" fill="#495057">         ↓ drops</text>
+<text x="120" y="284" font-size="12" fill="#495057">Priority 2: NSE/BSE Standby (direct UDP, hot, already receiving, instant switch)</text>
+<text x="120" y="300" font-size="12" fill="#495057">         ↓ drops</text>
+<text x="120" y="316" font-size="12" fill="#495057">Priority 3: Omnenest (RS protocol, warm, always connected, not processing)</text>
+<text x="120" y="332" font-size="12" fill="#495057">         ↓ drops</text>
+<text x="120" y="348" font-size="12" fill="#495057">CRITICAL: Serve stale from Redis + exponential backoff reconnection</text>
+<line x1="150" y1="150" x2="250" y2="200" stroke="#2f9e44" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="400" y1="150" x2="400" y2="200" stroke="#2f9e44" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="650" y1="150" x2="550" y2="200" stroke="#f08c00" stroke-width="2" marker-end="url(#arrow)" stroke-dasharray="8,4"/>
+<text x="250" y="390" font-size="20" fill="#1e1e1e">Multi-Datacenter Deployment</text>
+<rect x="30" y="410" width="230" height="150" rx="8" fill="#d0bfff" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="60" y="434" font-size="14" fill="#1e1e1e">Chandivali DC (Mumbai)</text>
+<text x="40" y="456" font-size="11" fill="#495057">Primary production DC</text>
+<text x="40" y="471" font-size="11" fill="#495057">NSE/BSE direct UDP feeds</text>
+<text x="40" y="486" font-size="11" fill="#495057">Core pods + API pods</text>
+<text x="40" y="501" font-size="11" fill="#495057">Temporal workers</text>
+<text x="40" y="516" font-size="11" fill="#495057">Closest to exchange servers</text>
+<rect x="290" y="410" width="230" height="150" rx="8" fill="#d0bfff" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="320" y="434" font-size="14" fill="#1e1e1e">Hyderabad DC</text>
+<text x="300" y="456" font-size="11" fill="#495057">DR / active-active</text>
+<text x="300" y="471" font-size="11" fill="#495057">NSE/BSE direct UDP feeds</text>
+<text x="300" y="486" font-size="11" fill="#495057">Core pods + API pods</text>
+<text x="300" y="501" font-size="11" fill="#495057">Temporal workers</text>
+<text x="300" y="516" font-size="11" fill="#495057">Geographic redundancy</text>
+<rect x="550" y="410" width="230" height="150" rx="8" fill="#fff3bf" stroke="#f08c00" stroke-width="1.5"/>
+<text x="580" y="434" font-size="14" fill="#e8590c">Omnenest DC [NEW]</text>
+<text x="560" y="456" font-size="11" fill="#495057">Tertiary / failover</text>
+<text x="560" y="471" font-size="11" fill="#495057">Omnenest aggregated feed</text>
+<text x="560" y="486" font-size="11" fill="#495057">API pods (read-only)</text>
+<text x="560" y="501" font-size="11" fill="#495057">No Core pods (reads Redis)</text>
+<text x="560" y="516" font-size="11" fill="#495057">Independent feed path</text>
+<rect x="200" y="590" width="400" height="50" rx="8" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="250" y="616" font-size="14" fill="#1e1e1e">Shared Redis ElastiCache (cross-AZ, 3-node cluster)</text>
+<line x1="145" y1="560" x2="295" y2="590" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="405" y1="560" x2="405" y2="590" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="665" y1="560" x2="515" y2="590" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)" stroke-dasharray="8,4"/>
+<text x="80" y="575" font-size="10" fill="#2f9e44">read/write</text>
+<text x="410" y="575" font-size="10" fill="#2f9e44">read/write</text>
+<text x="620" y="575" font-size="10" fill="#f08c00">read only</text>
+</svg>

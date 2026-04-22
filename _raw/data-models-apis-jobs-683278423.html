@@ -1,0 +1,234 @@
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="a38f614e-2a3a-40db-bea0-fde1b433dee0"><ac:rich-text-body><p><strong>Version 3.2 &mdash; April 2026.</strong> Adds platform-wide resilience and AI-powered incident management. New &sect;6.20 Resilience &amp; Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New &sect;6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 &amp; 12) in &sect;10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.</p></ac:rich-text-body></ac:structured-macro>
+<h2>7. Scheduled Jobs (Pre-Market Data Loading)</h2>
+<p>All jobs annotated <code>@TradeDay</code> &mdash; execute only on trading days (checked against <code>TRD_DAY</code> Redis key). A <code>ConditionalSchedulingAspect</code> AOP intercept enforces this.</p>
+<h3>Data Cache Schedulers</h3>
+<table><tbody>
+<tr><th>Job</th><th>Cron (IST)</th><th>Purpose</th></tr>
+<tr><td><code>dataCleanUp()</code></td><td><code>0 35 7 <em> </em> *</code> (7:35 AM)</td><td>Clear Redis keys + local cache</td></tr>
+<tr><td><code>updateScripMasterData()</code></td><td><code>0 35 7 <em> </em> *</code> (7:35 AM)</td><td>Load security master from S3 (all segments)</td></tr>
+<tr><td><code>updateCktLimitData()</code></td><td><code>0 40 7 <em> </em> *</code> (7:40 AM)</td><td>Load circuit limit data</td></tr>
+<tr><td><code>update52WkHiLowData()</code></td><td><code>0 40 7 <em> </em> *</code> (7:40 AM)</td><td>Load 52-week high/low</td></tr>
+<tr><td><code>updateOhlcData()</code></td><td><code>0 40 7 <em> </em> *</code> (7:40 AM)</td><td>Initialize OHLC cache</td></tr>
+<tr><td><code>updateEqPCloseData()</code></td><td><code>0 40 7 <em> </em> *</code> (7:40 AM)</td><td>Equity previous close</td></tr>
+<tr><td><code>updateDrvPCloseData()</code></td><td><code>0 40 7 <em> </em> *</code> (7:40 AM)</td><td>Derivative previous close</td></tr>
+<tr><td><code>updateTradeData()</code></td><td><code>0 45 7 <em> </em> *</code> (7:45 AM)</td><td>Initialize trade structure</td></tr>
+<tr><td><code>updateIndexData()</code></td><td><code>0 45 7 <em> </em> *</code> (7:45 AM)</td><td>Initialize index structure</td></tr>
+</tbody></table>
+<p><strong>Execution order matters:</strong> dataCleanUp &rarr; scripMaster &rarr; ckt/OHLC/pclose/52wk &rarr; trade/index.</p>
+<h3>Scheduler Status Monitor</h3>
+<p>Runs on two cron schedules, checks each job against its completion deadline:</p>
+<table><tbody>
+<tr><th>Job Name</th><th>Must Complete By (IST)</th></tr>
+<tr><td><code>SM</code> (Scrip Master)</td><td>06:57</td></tr>
+<tr><td><code>CKT_INFO</code></td><td>07:07</td></tr>
+<tr><td><code>YEARLY_HIGH_LOW</code></td><td>07:07</td></tr>
+<tr><td><code>OHLC</code></td><td>07:07</td></tr>
+<tr><td><code>TRD_DATA</code></td><td>07:12</td></tr>
+<tr><td><code>INDEX_STRUCT</code></td><td>07:12</td></tr>
+<tr><td><code>PCLOSE</code></td><td>09:02</td></tr>
+</tbody></table>
+<p>If any job is overdue &rarr; P0 Slack alert (<code>SCHEDULER_STATUS_OVERDUE_ALERT</code>). If all pass &rarr; INFO Slack alert (<code>SCHEDULER_STATUS_DONE_ALERT</code>). If <code>TRD_DAY</code> Redis key is absent &rarr; P0 alert (<code>TRD_DAY_STATUS_UNAVAILABLE</code>).</p>
+<hr />
+<h2>8. Reconciliation System</h2>
+<h3>What Is Reconciled</h3>
+<p><strong>Only previous close</strong> is reconciled. The service compares its Redis-stored values against the official exchange bhav copy.</p>
+<h3>Flow</h3>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="90a9701a-c58f-4354-8ca7-0b1054156b46"><ac:plain-text-body><![CDATA[pcloseRecon() — triggered by PC_RECON_PRE_MKT_CRON
+    ↓
+reconProcessor.publishMismatchPclose()
+    ↓
+1. Read all securityId → PcloseDto from Redis (all MGR_{exchSeg}_PC keys)
+2. Download bhav copies from S3:
+     - nse-cm-bhavcopy-{date}
+     - bse-cm-bhavcopy-{date}
+     - nse-fo-bhavcopy-{date}
+     - bse-fo-bhavcopy-{date}
+3. Parse bhav copy CSVs → extract previousClose per securityId
+4. Compare field by field
+    ↓
+Generate CSV mismatch report
+Upload to S3: post-processing-recon-report/{date}/PCLOSE/pre_{timestamp}.csv
+    ↓
+If critical mismatches → P0 Slack alert (RECON_CRITICAL_ALERT)]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Recon CSV format:</strong> <code>scripId, symbol, exchange, segment, field, ourValue, targetValue, timestamp</code></p>
+<p><strong>Feature flags:</strong></p>
+<ul>
+<li><code>enable.recon.with.exchange=true</code> &mdash; validate against exchange bhav copy</li>
+<li><code>enable.recon.write.to.local=false</code> &mdash; write CSV locally for debugging</li>
+</ul>
+<hr />
+<h2>9. Temporal Platform (Generic Job Framework)</h2>
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="03390550-13ef-4c3a-b4ad-dab7ec75a2e4"><ac:rich-text-body><p><strong>This is a platform capability, not just Market Data Engine internal tooling.</strong> Any team should be able to create, schedule, and monitor jobs through a Temporal dashboard.</p></ac:rich-text-body></ac:structured-macro>
+<h3>What We're Building</h3>
+<p>A generic Temporal-based job execution framework with:</p>
+<ol>
+<li><strong>Temporal Server</strong> &mdash; self-hosted or Temporal Cloud</li>
+<li><strong>Worker Pool</strong> &mdash; Java 21 workers that execute workflows and activities</li>
+<li><strong>Admin Dashboard</strong> &mdash; Temporal Web UI for:</li>
+</ol>
+<ul>
+<li>Viewing all workflows (running, completed, failed, timed out)</li>
+<li>Searching workflows by type, status, date range</li>
+<li>Inspecting workflow history (every activity, input, output, retry)</li>
+<li>Manually triggering, pausing, resuming, terminating workflows</li>
+<li>Viewing worker health and task queue depth</li>
+</ul>
+<ol>
+<li><strong>SDK + Templates</strong> &mdash; reusable patterns for creating new jobs:</li>
+</ol>
+<ul>
+<li>Scheduled workflows (cron)</li>
+<li>Event-driven workflows (Kafka trigger)</li>
+<li>One-time workflows (ad-hoc)</li>
+<li>Parent-child workflow composition</li>
+</ul>
+<h3>Market Data Engine Workflows</h3>
+<table><tbody>
+<tr><th>Workflow</th><th>Schedule</th><th>Task Queue</th><th>Timeout</th></tr>
+<tr><td><code>HistoricalDataMigrationWorkflow</code></td><td><strong>One-time (Phase 0)</strong></td><td><code>market-data-migration</code></td><td>24 hours</td></tr>
+<tr><td><code>InstrumentMasterSyncWorkflow</code></td><td>Daily 6:00 PM</td><td><code>market-data-sync</code></td><td>1 hour</td></tr>
+<tr><td><code>CorporateActionWorkflow</code></td><td>Daily 8:00 PM + event-driven</td><td><code>market-data-sync</code></td><td>30 min</td></tr>
+<tr><td><code>PreMarketDataLoadWorkflow</code></td><td>Daily 7:35 AM</td><td><code>market-data-ops</code></td><td>30 min</td></tr>
+<tr><td><code>EODReconciliationWorkflow</code></td><td>Daily post-close</td><td><code>market-data-recon</code></td><td>1 hour</td></tr>
+<tr><td><code>CandleArchivalWorkflow</code></td><td>Weekly</td><td><code>market-data-archival</code></td><td>4 hours</td></tr>
+<tr><td><code>NAVUpdateWorkflow</code></td><td>Daily 11:00 PM</td><td><code>market-data-sync</code></td><td>30 min</td></tr>
+<tr><td><code>ExpiryCleanupWorkflow</code></td><td>Expiry days (Thu) post-close</td><td><code>market-data-ops</code></td><td>5 min</td></tr>
+</tbody></table>
+<h3>Creating a New Job (any team)</h3>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="fd678b97-8086-42ee-a8e6-dff77f8aef2a"><ac:parameter ac:name="language">java</ac:parameter><ac:plain-text-body><![CDATA[// 1. Define the workflow interface
+@WorkflowInterface
+public interface MyCustomWorkflow {
+    @WorkflowMethod
+    void execute(MyInput input);
+}
+
+// 2. Implement the workflow
+public class MyCustomWorkflowImpl implements MyCustomWorkflow {
+    private final MyActivity activity = Workflow.newActivityStub(MyActivity.class,
+        ActivityOptions.newBuilder()
+            .setStartToCloseTimeout(Duration.ofMinutes(5))
+            .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(3).build())
+            .build());
+
+    @Override
+    public void execute(MyInput input) {
+        activity.step1(input);
+        activity.step2(input);
+    }
+}
+
+// 3. Register in the worker
+worker.registerWorkflowImplementationTypes(MyCustomWorkflowImpl.class);
+worker.registerActivitiesImplementations(new MyActivityImpl());
+
+// 4. Schedule via cron (or trigger ad-hoc via dashboard)
+WorkflowOptions options = WorkflowOptions.newBuilder()
+    .setTaskQueue("my-team-queue")
+    .setCronSchedule("0 9 * * *")  // daily 9 AM
+    .build();]]></ac:plain-text-body></ac:structured-macro>
+<h3>Dashboard Features</h3>
+<ul>
+<li><strong>Workflow list:</strong> Filter by namespace, type, status, date range</li>
+<li><strong>Workflow detail:</strong> Full event history &mdash; every activity execution, retries, failures</li>
+<li><strong>Search:</strong> By workflow ID, run ID, or custom search attributes</li>
+<li><strong>Bulk operations:</strong> Terminate/cancel/signal multiple workflows</li>
+<li><strong>Metrics:</strong> Workflow latency, failure rate, retry rate per workflow type</li>
+<li><strong>Alerts:</strong> Webhook integration for workflow failures &rarr; Slack</li>
+</ul>
+<hr />
+<h2>10. Domain Model &mdash; Enums</h2>
+<h3>Exchange</h3>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="71a883fb-67be-44d7-b45c-05039ccb6beb"><ac:parameter ac:name="language">java</ac:parameter><ac:plain-text-body><![CDATA[NSE, BSE]]></ac:plain-text-body></ac:structured-macro>
+<h3>ExchangeSegment</h3>
+<table><tbody>
+<tr><th>Enum</th><th>Code</th><th>Exchange</th><th>Segment</th></tr>
+<tr><td><code>NSE_I</code></td><td>0</td><td>NSE</td><td>INDEX</td></tr>
+<tr><td><code>NSE_E</code></td><td>1</td><td>NSE</td><td>EQUITY</td></tr>
+<tr><td><code>NSE_D</code></td><td>2</td><td>NSE</td><td>DERIVATIVE</td></tr>
+<tr><td><code>BSE_I</code></td><td>0</td><td>BSE</td><td>INDEX</td></tr>
+<tr><td><code>BSE_E</code></td><td>4</td><td>BSE</td><td>EQUITY</td></tr>
+<tr><td><code>BSE_D</code></td><td>8</td><td>BSE</td><td>DERIVATIVE</td></tr>
+</tbody></table>
+<h3>PacketType</h3>
+<table><tbody>
+<tr><th>Enum</th><th>Code</th></tr>
+<tr><td><code>TRADE_STRUCT</code></td><td>1</td></tr>
+<tr><td><code>MBP_ROW</code></td><td>2</td></tr>
+<tr><td><code>OHLC</code></td><td>3</td></tr>
+<tr><td><code>INDEX_STRUCT</code></td><td>5</td></tr>
+<tr><td><code>TOP_BID_ASK</code></td><td>6</td></tr>
+<tr><td><code>MARKET_STATUS</code></td><td>29</td></tr>
+<tr><td><code>PRICE_TICKER</code></td><td>30</td></tr>
+<tr><td><code>PCLOSE</code></td><td>32</td></tr>
+<tr><td><code>CKT_INFO</code></td><td>33</td></tr>
+<tr><td><code>YEARLY_HIGH_LOW</code></td><td>36</td></tr>
+<tr><td><code>HEARTBEAT</code></td><td>99</td></tr>
+</tbody></table>
+<h3>MarketStatus</h3>
+<table><tbody>
+<tr><th>Enum</th><th>Float Value</th></tr>
+<tr><td><code>PRE_OPEN_START</code></td><td>1.0</td></tr>
+<tr><td><code>PRE_OPEN_END</code></td><td>2.0</td></tr>
+<tr><td><code>OPEN</code></td><td>3.0</td></tr>
+<tr><td><code>CLOSE</code></td><td>4.0</td></tr>
+<tr><td><code>POST_CLOSE_START</code></td><td>5.0</td></tr>
+<tr><td><code>POST_CLOSE_END</code></td><td>6.0</td></tr>
+</tbody></table>
+<h3>ScripType</h3>
+<table><tbody>
+<tr><th>Enum</th><th>Segment</th></tr>
+<tr><td><code>ES</code></td><td>EQUITY</td></tr>
+<tr><td><code>ETF</code></td><td>EQUITY</td></tr>
+<tr><td><code>REIT</code></td><td>EQUITY</td></tr>
+<tr><td><code>INVIT</code></td><td>EQUITY</td></tr>
+<tr><td><code>BOND</code></td><td>EQUITY</td></tr>
+<tr><td><code>INDEX</code></td><td>INDEX</td></tr>
+<tr><td><code>FUTURE</code></td><td>DERIVATIVE</td></tr>
+<tr><td><code>OPTION</code></td><td>DERIVATIVE</td></tr>
+</tbody></table>
+<h3>AlertType</h3>
+<table><tbody>
+<tr><th>Enum</th><th>Priority</th><th>Meaning</th></tr>
+<tr><td><code>TRD_DAY_STATUS_UNAVAILABLE</code></td><td>P0</td><td>Trading day status missing</td></tr>
+<tr><td><code>RECON_CRITICAL_ALERT</code></td><td>P0</td><td>Critical pclose mismatch</td></tr>
+<tr><td><code>SCHEDULER_STATUS_OVERDUE_ALERT</code></td><td>P0</td><td>Scheduler job not completed by deadline</td></tr>
+<tr><td><code>SCHEDULER_STATUS_DONE_ALERT</code></td><td>INFO</td><td>All scheduler jobs completed</td></tr>
+</tbody></table>
+<hr />
+<h2>10.1 Key Architectural Decisions</h2>
+<p>This section tracks the defining decisions behind the v3.x design. Decisions 1&ndash;8 were captured in v3.0. Decisions 9 and 10 are from v3.1. Decisions 11 and 12 are new in v3.2.</p>
+<h3>Decision 9 &mdash; TimescaleDB for all time-series (replaces MongoDB + Elasticsearch + Charts Data Collector)</h3>
+<ul>
+<li><strong>Single DB for ticks + candles at all intervals.</strong> Raw ticks, 1-minute candles, and all higher-interval candles live in one database, one schema, one backup domain.</li>
+<li><strong>Continuous aggregates eliminate a manual rollup service.</strong> The v3 Charts Data Collector &mdash; which aggregated 1m into 5m/15m/1h in application code &mdash; is gone. TimescaleDB auto-refreshes every interval from <code>candles_1m</code>.</li>
+<li><strong>PostgreSQL-based &mdash; team already knows SQL.</strong> No new query language, no bespoke operational playbook, standard Postgres tooling for backup/PITR/monitoring.</li>
+<li><strong>Used by Robinhood, Coinbase for similar workloads.</strong> Proven at tick-rate scale in retail brokerage and crypto.</li>
+<li><strong>Separate instance from Instrument Master PG (workload isolation).</strong> Time-series ingest and large scans do not compete with instrument-master OLTP traffic. Independent sizing, upgrade, and backup policies.</li>
+</ul>
+<h3>Decision 10 &mdash; Historical data migration via Temporal workflow</h3>
+<ul>
+<li><strong>One-time Temporal workflow reads MongoDB historical candles &rarr; writes TimescaleDB.</strong> Executed in Phase 0 of the migration (see &sect;13).</li>
+<li><strong>Reads Elasticsearch historical data &rarr; writes TimescaleDB.</strong> Same workflow, separate activity per source.</li>
+<li><strong>Validates row counts and spot-checks sample instruments.</strong> Per-day row counts must match source; sample OHLCV rows across liquid and illiquid instruments are byte-compared.</li>
+<li><strong>Keep MongoDB + ES in read-only mode for 30 days as safety net.</strong> Charts API can temporarily fall back to the old stores if TimescaleDB reads reveal a data bug.</li>
+<li><strong>Cut over after validation passes.</strong> Charts API begins serving historical intervals from TimescaleDB only after validation activities complete successfully.</li>
+<li><strong>Flyway-style versioned migrations with idempotent design.</strong> Each activity can be re-run safely &mdash; <code>ON CONFLICT (instrument_token, bucket) DO UPDATE</code> on candle writes; retention and compression policies are declared once and are idempotent.</li>
+</ul>
+<h3>Decision 11 &mdash; AI-Powered Incident Manager from Day 1 (platform-wide, not post-launch)</h3>
+<ul>
+<li><strong>Build it before launch, not after.</strong> A platform with this many services, this much real-time data, and this latency budget cannot be operated reliably without proactive incident detection. Adding it post-launch means months of preventable user-visible incidents.</li>
+<li><strong>Platform-wide capability, not MDE-only.</strong> All Pro services (Trade Engine, Portfolio Engine, Ledger Engine, Market Data Engine) emit signals into the same Incident Manager; correlation engine works across services. One source of truth for &quot;is the platform healthy?&quot;</li>
+<li><strong>Use an LLM as the debugger.</strong> Rule-based alerting produces noise; LLMs read logs/metrics/traces holistically and produce root-cause hypotheses with evidence. Models good enough for this exist today (Claude Sonnet 4.5 used in production at multiple companies for similar use cases).</li>
+<li><strong>Auto-remediate the obvious; escalate the novel.</strong> Reversible, well-understood actions (rollout undo, pod restart, feature-flag toggle, scale up consumers) execute automatically when LLM confidence is high. Anything destructive or ambiguous goes to humans with full context preassembled.</li>
+<li><strong>Reduce MTTR from hours to minutes.</strong> Today: incidents reported by users &rarr; operator scrambles to gather context &rarr; fix slowly. With Incident Manager: detected in seconds, context assembled, LLM analysis pre-staged, fix proposed before a human is on the call.</li>
+</ul>
+<h3>Decision 12 &mdash; Zero-Error User Experience via Graceful Degradation</h3>
+<ul>
+<li><strong>Users should NEVER see an error.</strong> This is a hard product rule, not a goal. Error popups and &quot;Something went wrong&quot; screens damage trust irreversibly. The system must always render <em>something</em> useful.</li>
+<li><strong>Layered fallback for every user-facing data path.</strong> Primary (live) &rarr; Cached (Redis Cluster 2) &rarr; Stale (TimescaleDB) &rarr; Final (skeleton/empty UI). Each downgrade is silent at the UI; staleness is shown as a subtle freshness indicator, never as an error.</li>
+<li><strong>Stale-while-revalidate by default.</strong> APIs always return within 50 ms with whatever they have; background tasks refresh upstream. The user never blocks on a slow service.</li>
+<li><strong>Circuit breakers on every downstream call.</strong> Resilience4j-wrapped, per-service thresholds. Open circuits short-circuit to fallback instead of cascading failure.</li>
+<li><strong>Silent feature flags, auto-managed by Incident Manager.</strong> When a backend component is degraded, the affected widgets are HIDDEN from the UI &mdash; not error-banner'd, not greyed out. The page renders normally with one fewer widget.</li>
+<li><strong>Convert all 5xx to 200 OK with <code>data: null, stale: true</code>.</strong> The frontend treats null data as a loading state, never as an error. HTTP failure surface area at the client is reduced to &quot;use last known good&quot;.</li>
+</ul>
+<hr />

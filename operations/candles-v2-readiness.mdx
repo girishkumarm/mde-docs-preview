@@ -1,0 +1,121 @@
+---
+title: "MDE Candles v2 — Production Readiness Checklist"
+---
+
+**Scope: **Candles v2 rollout (candle-writer dual-sink, Redis running candles, ClickHouse ReplacingMergeTree + MV rollups, charts-api source switch).
+
+**Audit date: **2026-04-20 against market-data-engine repo, commits dbab118 · 1e4312a · 22b566c · 22e3db6 · bb3f8ff · a9863de · 35560c0 · cf966ec.
+
+**Overall readiness: ~72% — safe for canary, NOT safe for full cutover until blockers cleared.**
+
+Legend: ✅ Done · 🟡 Partial · ❌ Missing
+
+---
+
+## 1. Code readiness
+
+| Item | Status | Evidence / Gap |
+| --- | --- | --- |
+| Spotless (Palantir Java Format) applied and CI-gated | ✅ Done | Root build.gradle wires check → spotlessCheck on every subproject; all 11 service build.gradle files apply the plugin. |
+| Test coverage ≥ threshold (e.g. 70% line / 60% branch) | ❌ Missing | No jacocoTestCoverageVerification or minimum-coverage rule in root or any service build.gradle. Coverage is measured but not gated. |
+| CodeArtifact auth documented (CODEARTIFACT_TOKEN) | 🟡 Partial | pm-jobs-sdk still consumed via mavenLocal() per PRODUCTION_READINESS.md §5. Real CodeArtifact release must be cut before prod. |
+| No hardcoded secrets in repo | ✅ Done | Grep for credentials in source tree clean. All secrets read from env vars (KEYCLOAK_CLIENT_SECRET, CMOTS_API_KEY, CLICKHOUSE_PASSWORD). .env.example names only, .env gitignored. |
+| All 12 services compile and boot | ✅ Done | Per PRODUCTION_READINESS.md: 351 unit tests pass, live E2E proven 2026-04-19. |
+
+## 2. Observability
+
+| Item | Status | Evidence / Gap |
+| --- | --- | --- |
+| Prometheus scrape for management ports 9081-9095 | 🟡 Partial | 9081-9092 covered (instrument-master, feed-handler, publisher, market-movers-writer, fno-data-writer, charts-writer, broadcast-service, recon-service, premarket-scheduler, incident-manager, candle-writer). charts-api on 9188 and charts-historical-writer on 9190 are OUTSIDE 9081-9095; scrape jobs exist but infra port convention needs alignment. |
+| Grafana dashboards (6 shipped) | ✅ Done | 7 dashboards in infra/grafana/dashboards/: 01-mde-overview, 02-feed-handler, 03-publisher-redis, 04-broadcast-ws, 05-charts-pipeline, 06-alerts, 07-business-ops. |
+| Alert rule: kafka-lag | ✅ Done | mde-alerts.yml mde.kafka group: warning at 10k, critical at 100k on kafka_consumer_records_lag_max. |
+| Alert rule: redis-latency | ✅ Done | mde-redis-alerts.yml: p99 write latency warning >50ms, critical >500ms. |
+| AlertManager routing to incident-manager | ✅ Done | infra/alertmanager/alertmanager.yml + extra_hosts host.docker.internal:host-gateway wired in compose. |
+| Service availability alert (up == 0) | ✅ Done | mde.service.availability fires MDEServiceDown at 1m, MDEServiceRestarted on >2 restarts/10m. |
+
+## 3. Data stores
+
+| Item | Status | Evidence / Gap |
+| --- | --- | --- |
+| ClickHouse TTL on candles_1m = 180d | ❌ Missing | CONFLICT: V2_1__candles_v2_schema.sql sets TTL bucket_start + INTERVAL 180 DAY (v2 baseline), but V3__retention.sql issues ALTER TABLE candles_1m MODIFY TTL bucket_start + INTERVAL 7 YEAR DELETE. V3 runs last — effective TTL is 7 YEARS, not 180d. Decide target and align. |
+| ClickHouse TTL on roll-ups (5m/15m/1h) | 🟡 Partial | V3 sets 7-year TTL uniformly. candles_1d intentionally has no TTL (kept forever). |
+| Redis memory caps | ✅ Done | docker-compose.yml: redis-feed (6380) and redis-api (6381) pinned to --maxmemory 512mb --maxmemory-policy noeviction (local). Prod sizes in DevOps Operating Guide parent page. |
+| Kafka partitions per tick topic | ✅ Done | kafka-init: NSE/BSE equity = 6, NSE/BSE derivative = 9, NSE/BSE index = 3, mde-candles-1m = 6, control topics = 1. |
+| Kafka retention / compaction policy | 🟡 Partial | Topic creation sets partitions + replication-factor=1 (local). Retention and cleanup.policy rely on broker defaults. Needs explicit per-topic retention for prod. |
+
+## 4. Security
+
+| Item | Status | Evidence / Gap |
+| --- | --- | --- |
+| Keycloak realm wired (KEYCLOAK_ISSUER_URI) | 🟡 Partial | Only instrument-master/application.yml has spring.security.oauth2.resourceserver.jwt.issuer-uri from KEYCLOAK_ISSUER_URI. Other 10 services do NOT configure an OAuth2 resource server. feed-handler notes: swap back to when-authorized once Keycloak is wired. |
+| JWT validation on all /v1/ endpoints | ❌ Missing | Only instrument-master enforces JWT when KEYCLOAK_ISSUER_URI is set. charts-api, publisher, broadcast-service, recon-service, incident-manager, fno-data-writer, market-movers-writer, candle-writer, charts-writer, charts-historical-writer, premarket-scheduler expose /v1/** without Bearer enforcement. |
+| Actuator exposure — no /heapdump, no /threaddump | ✅ Done | All 13 application.yml restrict management.endpoints.web.exposure.include to health,info,prometheus,metrics,loggers (+ env,configprops on most). heapdump and threaddump absent. |
+| Actuator env/configprops exposure gated | 🟡 Partial | 11 of 13 services include env,configprops on the management port. Leaks effective config (Spring sanitizes raw secrets) — acceptable only if management port 908x is on internal-only SG. |
+| CORS allow-list env-driven | ✅ Done | instrument-master/WebConfig.java reads mde.cors.allowed-origins from MDE_CORS_ALLOWED_ORIGINS. Default dev-only. Needs prod origin list. |
+| Health endpoint show-details when-authorized | ✅ Done | All services use when-authorized (not always). |
+
+## 5. Resilience
+
+| Item | Status | Evidence / Gap |
+| --- | --- | --- |
+| Graceful shutdown (30s) | ✅ Done | All 11 service application.yml set spring.lifecycle.timeout-per-shutdown-phase: 30s and server.shutdown: graceful. Shared GracefulShutdownHook in shared/common. |
+| Kafka consumer group per service | ✅ Done | publisher=mde-publisher, candle-writer=mde-candle-writer, fno=mde-fno-writer, movers=mde-market-movers, broadcast=mde-broadcast-${HOSTNAME} (per-pod fanout). |
+| Circuit breakers on external calls (CMOTS via Resilience4j) | ❌ Missing | No @CircuitBreaker annotations or resilience4j config blocks in any source file. CmotsClient has retry metrics but no circuit breaker. Resilience4j appears only as transitive dep in packaged JARs. |
+| Readiness / liveness probes | ✅ Done | management.endpoint.health.probes.enabled: true and readinessstate/livenessstate.enabled: true on all services. |
+| Kafka auto-offset-reset / commit strategy | 🟡 Partial | Default Spring Kafka behaviour; not explicitly pinned per consumer. Review before prod. |
+
+## 6. Performance
+
+| Item | Status | Evidence / Gap |
+| --- | --- | --- |
+| k6 bake-off script (Redis vs ClickHouse) | ✅ Done | scripts/k6/candles-bakeoff.js: 10 NIFTY50 tokens, 5s/1m/5m/15m/1h mix, peak 10k VUs, 24h run, CloudWatch export supported. |
+| Bake-off baseline captured | 🟡 Partial | Script exists; 24h staging run results per Confluence 698482697 §9 acceptance (Redis p99 ≥ 3x lower, mem <75%) not yet filed under this page. |
+| p99 target — Redis reads ≤ 50ms | 🟡 Partial | Alert rule enforces 50ms warn / 500ms crit; bake-off result confirming Redis meets ≤50ms p99 under peak VUs still pending. |
+| p99 target — ClickHouse reads ≤ 300ms | ❌ Missing | No ClickHouse-side latency alert rule or SLO baseline committed in mde-alerts.yml. Needs recording rule + alert. |
+| Redis cluster memory headroom < 75% | 🟡 Partial | Monitored via k6 bake-off acceptance; no standing alert rule on redis_memory_used_bytes / redis_total_system_memory_bytes. |
+
+## 7. Runbook
+
+| Item | Status | Evidence / Gap |
+| --- | --- | --- |
+| Oncall runbooks committed | ✅ Done | docs/runbooks/: cmots-outage, feed-silence, kafka-broker-loss, redis-primary-failover, timescaledb-promote-replica, clickhouse-shard-rebuild + README. |
+| Oncall contact / rotation defined | ❌ Missing | No ONCALL.md or PagerDuty schedule referenced in repo. Alert annotations point at https://wiki/mde/runbooks/... placeholder. |
+| Dashboards URL published | 🟡 Partial | Grafana at http://localhost:3001 (dev); prod dashboard URL not yet in alert annotations. |
+| Alert routing documented | ✅ Done | AlertManager config routes severity=critical → incident-manager webhook. |
+| Verification scripts for alert pipeline | ✅ Done | scripts/verify-kafka-lag-alert.sh, scripts/verify-redis-latency.sh, scripts/push-synthetic-kafka-lag.sh (Pushgateway synthetic verification). |
+
+## 8. Rollout
+
+| Item | Status | Evidence / Gap |
+| --- | --- | --- |
+| Feature flag source=auto switch | ✅ Done | charts-api: MDE_CHARTS_API_DEFAULT_SOURCE env var, default auto in ChartsApiProperties.defaultSource. ?source=redis\|clickhouse\|auto query param on /v1/candles. |
+| Canary plan | ❌ Missing | No canary deployment spec in deploy/staging or deploy/prod. Needs explicit traffic-shifting plan (5% → 25% → 50% → 100%). |
+| Rollback plan | ❌ Missing | No written rollback steps specific to Candles v2. Implied path: flip MDE_CHARTS_API_DEFAULT_SOURCE back to redis or drop MV rollups; must be explicit. |
+| Co-existence with legacy PML Kafka topic names | 🟡 Partial | PRODUCTION_READINESS.md §5 item 7: MDE uses pml-marketfeed-nse-equity-ticks, legacy uses PML_CHAN_MT_11_PC_101. Dual-publish or rename required during cutover. |
+| Database migrations ordered (Flyway) | ✅ Done | charts-historical-writer/db/migration-clickhouse: V1 → V2_1 (v2 schema) → V2_2 (drop old) → V3 (retention). |
+
+## 9. Sign-offs
+
+| Role | Name | Status | Date |
+| --- | --- | --- | --- |
+| DevOps | TBD | ⬜ Pending |   |
+| SRE | TBD | ⬜ Pending |   |
+| Product | TBD | ⬜ Pending |   |
+| Security | TBD | ⬜ Pending |   |
+| Engineering Lead (MDE) | Girish Kumar | ⬜ Pending |   |
+
+---
+
+## Blocker summary (must fix before full cutover)
+
+1. **ClickHouse TTL conflict** — V3 migration overrides v2's 180-day target with 7 years on candles_1m. Decide and align.
+2. **JWT enforcement missing on 10 of 11 services** — only instrument-master validates Keycloak JWT. Remaining /v1/** endpoints are open.
+3. **No Jacoco coverage gate** — CI does not fail on coverage regressions.
+4. **No circuit breakers** — CMOTS, ClickHouse and Redis calls have no Resilience4j wiring despite plan references.
+5. **Canary + rollback plan undocumented** — source=auto flag exists but traffic-shift and roll-back steps are not written.
+6. **pm-jobs-sdk on mavenLocal** — real CodeArtifact release required.
+7. **Oncall + dashboard URLs** — runbook annotations reference https://wiki/mde/runbooks/* placeholder, no paging rotation published.
+
+## Ready-for-canary summary
+
+Code, observability scaffolding (scrape + dashboards + alert rules), graceful shutdown, per-service Kafka consumer groups, k6 bake-off script, source=auto feature flag, and 6 runbooks are in place. Safe to run a time-boxed canary behind source=auto while the seven blockers above are closed out.

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 0 1000 1003" width="1000" height="1003" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1e1e1e"/></marker></defs>
+<style>text { font-family: Segoe UI, Helvetica, Arial, sans-serif; }</style>
+<rect x="350" y="20" width="300" height="60" rx="8" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="390" y="53" font-size="18" fill="#1e1e1e">NSE / BSE / Omnenest</text>
+<text x="355" y="97" font-size="12" fill="#868e96">6 UDP Multicast Streams (binary, dedicated cable)</text>
+<line x1="500" y1="80" x2="500" y2="130" stroke="#e03131" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="320" y="130" width="360" height="80" rx="8" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="365" y="158" font-size="18" fill="#1e1e1e">Feed Handler</text>
+<text x="335" y="177" font-size="12" fill="#495057">Primary + Standby + Omnenest tertiary</text>
+<text x="335" y="193" font-size="12" fill="#495057">Sequence gap detection + replay</text>
+<line x1="500" y1="210" x2="500" y2="240" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="370" y="240" width="260" height="50" rx="8" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="410" y="264" font-size="14" fill="#1e1e1e">Normalizer (binary → NormalizedTick)</text>
+<line x1="500" y1="290" x2="500" y2="320" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="370" y="320" width="260" height="50" rx="8" fill="#fff3bf" stroke="#f08c00" stroke-width="1.5"/>
+<text x="385" y="344" font-size="14" fill="#e8590c">Duplicate Detector [NEW]</text>
+<text x="635" y="343" font-size="11" fill="#868e96">← Skips ~30-40% unchanged ticks</text>
+<text x="635" y="358" font-size="11" fill="#868e96">   (same LTP+volume+ATP)</text>
+<line x1="500" y1="370" x2="500" y2="400" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="370" y="400" width="260" height="50" rx="8" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="390" y="423" font-size="13" fill="#1e1e1e">Bad Tick Detector (outlier/circuit/auction)</text>
+<line x1="500" y1="450" x2="500" y2="480" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="330" y="480" width="340" height="80" rx="8" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="370" y="506" font-size="16" fill="#1e1e1e">Snapshot Store (Redis ElastiCache)</text>
+<text x="340" y="526" font-size="11" fill="#e8590c">Lua atomic: 52wk H/L, OHLC, prev close [NEW]</text>
+<text x="340" y="541" font-size="11" fill="#e8590c">Yearly H/L tracking [NEW] | Illiquid flags [NEW]</text>
+<line x1="400" y1="560" x2="200" y2="620" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="30" y="620" width="240" height="50" rx="8" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="55" y="646" font-size="14" fill="#1e1e1e">Candle Aggregator → QuestDB</text>
+<line x1="450" y1="560" x2="350" y2="690" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="30" y="690" width="240" height="70" rx="8" fill="#fff3bf" stroke="#f08c00" stroke-width="1.5"/>
+<text x="50" y="709" font-size="14" fill="#1e1e1e">Option Chain Builder</text>
+<text x="40" y="726" font-size="11" fill="#e8590c">Greeks + PCR + Max Pain [NEW]</text>
+<text x="40" y="741" font-size="11" fill="#e8590c">+ ATM Straddle + CPR [NEW]</text>
+<line x1="550" y1="560" x2="650" y2="620" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="550" y="620" width="260" height="70" rx="8" fill="#d0bfff" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="580" y="646" font-size="16" fill="#1e1e1e">Kafka Publisher</text>
+<text x="560" y="666" font-size="11" fill="#e8590c">10 new topics + 6 legacy (dual-publish)</text>
+<text x="560" y="681" font-size="11" fill="#e8590c">Protobuf-encoded once here [NEW]</text>
+<line x1="500" y1="560" x2="500" y2="760" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="370" y="760" width="260" height="50" rx="8" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="410" y="785" font-size="13" fill="#1e1e1e">Alert Engine (async, LMAX Disruptor)</text>
+<rect x="550" y="760" width="260" height="60" rx="8" fill="#fff3bf" stroke="#f08c00" stroke-width="1.5"/>
+<text x="575" y="779" font-size="14" fill="#e8590c">Market Movers [NEW]</text>
+<text x="560" y="801" font-size="11" fill="#495057">Gainers/Losers/Volume/52wk</text>
+<text x="560" y="816" font-size="11" fill="#495057">Redis Sorted Sets, 5s refresh</text>
+<line x1="680" y1="690" x2="830" y2="810" stroke="#1e1e1e" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="730" y="810" width="260" height="70" rx="8" fill="#ffd8a8" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="755" y="831" font-size="16" fill="#1e1e1e">Distribution Service</text>
+<text x="740" y="851" font-size="11" fill="#e8590c">Protobuf WebSocket, 1 tick/sec throttle</text>
+<text x="740" y="866" font-size="11" fill="#e8590c">SSO auth at handshake [NEW], 100K+ conn/pod</text>
+<line x1="860" y1="880" x2="860" y2="920" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="780" y="920" width="160" height="50" rx="8" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="810" y="947" font-size="14" fill="#1e1e1e">User Phone/Web</text>
+<rect x="30" y="20" width="20" height="20" rx="0" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="55" y="34" font-size="12" fill="#1e1e1e">Original design</text>
+<rect x="30" y="45" width="20" height="20" rx="0" fill="#fff3bf" stroke="#f08c00" stroke-width="1.5"/>
+<text x="55" y="59" font-size="12" fill="#e8590c">New / Updated (Addendum)</text>
+<rect x="280" y="920" width="400" height="50" rx="8" fill="#e9ecef" stroke="#1e1e1e" stroke-width="1.5"/>
+<text x="300" y="941" font-size="13" fill="#495057">3 Deployments: Core (feed+snapshot+candle)</text>
+<text x="300" y="958" font-size="13" fill="#495057">API (charts+options+movers) | Temporal (workflows)</text>
+</svg>

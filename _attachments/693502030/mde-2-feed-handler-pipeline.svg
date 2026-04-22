@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 -10 1380 985" width="1380" height="985" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#868e96"/></marker></defs>
+<style>text { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }</style>
+<rect x="210" y="110" width="450" height="70" rx="6" fill="#fff3bf" stroke="#e67700" stroke-width="2" opacity="0.85"/>
+<rect x="740" y="110" width="450" height="70" rx="6" fill="#ffe8cc" stroke="#e8590c" stroke-width="2" opacity="0.85"/>
+<rect x="250" y="220" width="900" height="60" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="250" y="310" width="900" height="60" rx="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="250" y="400" width="900" height="50" rx="6" fill="#d0ebff" stroke="#1971c2" stroke-width="2" opacity="0.85"/>
+<rect x="250" y="480" width="900" height="50" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="30" y="570" width="215" height="100" rx="6" fill="#d0ebff" stroke="#1971c2" stroke-width="2" opacity="0.85"/>
+<rect x="255" y="570" width="215" height="100" rx="6" fill="#ffe8cc" stroke="#e8590c" stroke-width="2" opacity="0.85"/>
+<rect x="480" y="570" width="215" height="100" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="705" y="570" width="215" height="100" rx="6" fill="#fff9db" stroke="#f08c00" stroke-width="2" opacity="0.85"/>
+<rect x="930" y="570" width="215" height="100" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="1155" y="570" width="215" height="100" rx="6" fill="#f1f3f5" stroke="#495057" stroke-width="2" opacity="0.85"/>
+<rect x="40" y="735" width="423" height="100" rx="6" fill="#d0ebff" stroke="#1971c2" stroke-width="2" opacity="0.85"/>
+<rect x="488" y="735" width="423" height="100" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="936" y="735" width="423" height="100" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="40" y="865" width="1320" height="80" rx="6" fill="#fff9db" stroke="#f08c00" stroke-width="2" opacity="0.85"/>
+<line x1="435" y1="180" x2="550" y2="220" stroke="#e67700" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="965" y1="180" x2="850" y2="220" stroke="#e8590c" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="700" y1="280" x2="700" y2="310" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="700" y1="370" x2="700" y2="400" stroke="#c92a2a" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="700" y1="450" x2="700" y2="480" stroke="#1971c2" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="700" y1="530" x2="700" y2="570" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="700" y1="675" x2="251" y2="730" stroke="#495057" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="700" y1="675" x2="699" y2="730" stroke="#495057" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="700" y1="675" x2="1147" y2="730" stroke="#495057" stroke-width="1" marker-end="url(#arrow)"/>
+<text x="200" y="33.0" font-size="24" fill="#1e1e1e" font-weight="500">Feed Handler Pipeline — Packet Processing (v3)</text>
+<text x="200" y="71.0" font-size="12" fill="#495057" font-weight="500">Receives binary UDP packets from merged NSE+Omnenest feed, parses, routes, and publishes to Kafka.</text>
+<text x="226" y="133.0" font-size="13" fill="#e67700" font-weight="500">NSE Direct UDP Multicast</text>
+<text x="226" y="149.2" font-size="13" fill="#e67700" font-weight="500">6 streams × 8192 byte buffer</text>
+<text x="756" y="133.0" font-size="13" fill="#e8590c" font-weight="500">Omnenest RS Feed</text>
+<text x="756" y="149.2" font-size="13" fill="#e8590c" font-weight="500">same 6 streams (failover/merge source)</text>
+<text x="270" y="251.0" font-size="14" fill="#7048e8" font-weight="500">Virtual Thread Receiver (Java 21): 12 threads total — 6 per source</text>
+<text x="270" y="341.0" font-size="14" fill="#c92a2a" font-weight="500">Cross-Source Deduplication: take whichever arrives first by (instrument, timestamp)</text>
+<text x="270" y="428.0" font-size="14" fill="#1971c2" font-weight="500">Parse BCastHeaderBroadcast (64 bytes) → extract packetCode</text>
+<text x="270" y="508.0" font-size="14" fill="#7048e8" font-weight="500">Route by packetCode (18 codes)</text>
+<text x="40" y="593.0" font-size="12" fill="#1971c2" font-weight="500">MbpProcessor</text>
+<text x="40" y="623.0" font-size="10" fill="#1971c2" font-weight="500">111002, 112002,</text>
+<text x="40" y="635.5" font-size="10" fill="#1971c2" font-weight="500">211002, 212002</text>
+<text x="265" y="593.0" font-size="12" fill="#e8590c" font-weight="500">CircuitLimitProcessor</text>
+<text x="265" y="623.0" font-size="10" fill="#e8590c" font-weight="500">111006, 112006</text>
+<text x="490" y="593.0" font-size="12" fill="#2f9e44" font-weight="500">MarketStatusProcessor</text>
+<text x="490" y="623.0" font-size="10" fill="#2f9e44" font-weight="500">111001, 112001,</text>
+<text x="490" y="635.5" font-size="10" fill="#2f9e44" font-weight="500">211001, 212001</text>
+<text x="715" y="593.0" font-size="12" fill="#f08c00" font-weight="500">IndexProcessor</text>
+<text x="715" y="623.0" font-size="10" fill="#f08c00" font-weight="500">111003, 211003</text>
+<text x="940" y="593.0" font-size="12" fill="#7048e8" font-weight="500">OpenInterestProcessor</text>
+<text x="940" y="623.0" font-size="10" fill="#7048e8" font-weight="500">112004, 212004</text>
+<text x="1165" y="593.0" font-size="12" fill="#495057" font-weight="500">HeartbeatProcessor</text>
+<text x="1165" y="623.0" font-size="10" fill="#495057" font-weight="500">111007, 112007,</text>
+<text x="1165" y="635.5" font-size="10" fill="#495057" font-weight="500">211007, 212007</text>
+<text x="40" y="713.0" font-size="14" fill="#1e1e1e" font-weight="500">All processors (except Heartbeat) follow the same 3-step pattern:</text>
+<text x="52" y="758.0" font-size="13" fill="#1971c2" font-weight="500">1. Write to LocalCache</text>
+<text x="52" y="788.0" font-size="11" fill="#1971c2" font-weight="500">ConcurrentHashMap —</text>
+<text x="52" y="801.8" font-size="11" fill="#1971c2" font-weight="500">per-JVM hot cache</text>
+<text x="500" y="758.0" font-size="13" fill="#2f9e44" font-weight="500">2. Publish to Kafka</text>
+<text x="500" y="788.0" font-size="11" fill="#2f9e44" font-weight="500">acks=all, idempotent —</text>
+<text x="500" y="801.8" font-size="11" fill="#2f9e44" font-weight="500">for Broadcast + Charts +</text>
+<text x="500" y="815.5" font-size="11" fill="#2f9e44" font-weight="500">FNO + Movers consumers</text>
+<text x="948" y="758.0" font-size="13" fill="#7048e8" font-weight="500">3. Enqueue for batch Redis HSET</text>
+<text x="948" y="788.0" font-size="11" fill="#7048e8" font-weight="500">Redis Cluster 1,</text>
+<text x="948" y="801.8" font-size="11" fill="#7048e8" font-weight="500">async 10ms flush</text>
+<text x="56" y="890.0" font-size="12" fill="#f08c00" font-weight="500">Cross-source dedup happens BEFORE routing. 12 UDP receiver threads feed into one shared deduplication stage.</text>
+<text x="56" y="905.0" font-size="12" fill="#f08c00" font-weight="500">Output: ~2K TPS net after dedup (4K TPS input from both sources combined).</text>
+</svg>

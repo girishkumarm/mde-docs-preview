@@ -1,0 +1,84 @@
+<h2>Market Data Engine &mdash; Architecture Diagrams</h2>
+<p>This page contains all architecture diagrams for the Market Data Engine design document. Each diagram is stored as an <code>.excalidraw</code> file (open in <a href="https://excalidraw.com">excalidraw.com</a> to view/edit) and also rendered as SVG below.</p>
+<p><ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="f5758586-0a33-4ee1-9924-9d4fba652c07"><ac:rich-text-body><p><strong>v3 diagrams are the current architecture.</strong> The v2 diagrams at the bottom are kept for historical reference only.</p></ac:rich-text-body></ac:structured-macro></p>
+
+<h3>Diagrams Index</h3>
+<table>
+<tbody><tr><th>#</th><th>Diagram</th><th>What it shows</th></tr>
+<tr><td>1</td><td><strong>High-Level Architecture (v3)</strong></td><td>Full system: Merged Feed model, dual Redis clusters (Feed + API), Kafka-based broadcast, all data flows</td></tr>
+<tr><td>2</td><td>Feed Handler Pipeline</td><td>Packet processing: UDP streams &rarr; Virtual Thread Receiver &rarr; Header Parse &rarr; Router &rarr; 6 Processors &rarr; LocalCache + Kafka + Batch HSET</td></tr>
+<tr><td>3</td><td>Temporal Platform</td><td>Temporal Server &rarr; Dashboard &rarr; Worker Pool &rarr; Task Queues &rarr; Workflows + extensibility</td></tr>
+<tr><td>4</td><td>Service Decommission Mapping</td><td>12 current services &rarr; 5 new deployment groups</td></tr>
+</tbody></table>
+
+<h3>Decision Diagrams Index</h3>
+<table>
+<tbody><tr><th>#</th><th>Decision</th><th>What it resolves</th></tr>
+<tr><td>D1</td><td>Replace Redis PubSub with Kafka Pull</td><td>Why Broadcast Service uses Kafka consumer groups instead of Redis PubSub fan-out</td></tr>
+<tr><td>D2</td><td>Two Redis Clusters (Feed + API)</td><td>Separation of hot-path feed writes from high-volume API reads</td></tr>
+<tr><td>D3</td><td>Merged Feed Architecture</td><td>Both NSE Direct and Omnenest in same pipeline with cross-source dedup (replaces 85/15 split)</td></tr>
+<tr><td>D4</td><td>Kafka acks=all + Idempotent Producer</td><td>Strongest delivery guarantees for market data despite ~1ms latency</td></tr>
+<tr><td>D5</td><td>Expiry Day Cleanup Workflow</td><td>Temporal workflow for expired F&amp;O contract cleanup</td></tr>
+<tr><td>D6</td><td>Scrip Master in PostgreSQL Only</td><td>Instrument master in PostgreSQL + ConcurrentHashMap, not Redis</td></tr>
+</tbody></table>
+
+<h3>How to use</h3>
+<ul>
+<li>Download any <code>.excalidraw</code> file attached to this page</li>
+<li>Open <a href="https://excalidraw.com">excalidraw.com</a></li>
+<li>Drag and drop the file onto the canvas</li>
+<li>Edit, export as PNG/SVG, or share</li>
+</ul>
+
+<hr />
+<h2>Architecture Diagrams (v3 &mdash; Current)</h2>
+
+<h3>Diagram 1: High-Level Architecture (v3 &mdash; Merged Feed)</h3>
+<p>Complete system architecture with merged feed model, dual Redis clusters, and all data flows.</p>
+<p><ac:image ac:width="900" ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-1-high-level-architecture-v3.svg" ri:version-at-save="4" /></ac:image></p>
+<p><em>Source: <ac:link><ri:attachment ri:filename="mde-1-high-level-architecture-v3.excalidraw" ri:version-at-save="4" /><ac:plain-text-link-body><![CDATA[mde-1-high-level-architecture-v3.excalidraw]]></ac:plain-text-link-body></ac:link></em></p>
+
+<h3>Diagram 2: Feed Handler Pipeline</h3>
+<p><ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-2-feed-handler-pipeline.svg" ri:version-at-save="1" /></ac:image></p>
+
+<h3>Diagram 3: Temporal Platform</h3>
+<p><ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-5-temporal-platform.svg" ri:version-at-save="1" /></ac:image></p>
+
+<h3>Diagram 4: Service Decommission Mapping</h3>
+<p><ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-6-service-decommission.svg" ri:version-at-save="1" /></ac:image></p>
+
+<hr />
+<h2>Decision Diagrams (v3)</h2>
+<p>These diagrams document the key architectural decisions made in the Market Data Engine v3 design.</p>
+
+<h3>Decision 1: Replace Redis PubSub with Kafka Pull</h3>
+<p>Why Broadcast Service uses Kafka consumer groups instead of Redis PubSub fan-out.</p>
+<p><ac:image ac:width="900"><ri:attachment ri:filename="mde-decision-1-pubsub-to-kafka.svg" ri:version-at-save="3" /></ac:image></p>
+<p><em>Source: <ac:link><ri:attachment ri:filename="mde-decision-1-pubsub-to-kafka.excalidraw" ri:version-at-save="3" /><ac:plain-text-link-body><![CDATA[mde-decision-1-pubsub-to-kafka.excalidraw]]></ac:plain-text-link-body></ac:link></em></p>
+
+<h3>Decision 2: Two Redis Clusters (Feed + API)</h3>
+<p>Separation of hot-path feed writes from high-volume API reads into dedicated clusters.</p>
+<p><ac:image ac:width="900"><ri:attachment ri:filename="mde-decision-2-redis-split.svg" ri:version-at-save="3" /></ac:image></p>
+<p><em>Source: <ac:link><ri:attachment ri:filename="mde-decision-2-redis-split.excalidraw" ri:version-at-save="3" /><ac:plain-text-link-body><![CDATA[mde-decision-2-redis-split.excalidraw]]></ac:plain-text-link-body></ac:link></em></p>
+
+<h3>Decision 3: Merged Feed Architecture</h3>
+<p>Why both NSE Direct and Omnenest feed into the same pipeline with cross-source dedup instead of 85/15 traffic split.</p>
+<p><ac:image ac:width="900"><ri:attachment ri:filename="mde-decision-3-feed-merge.svg" ri:version-at-save="3" /></ac:image></p>
+<p><em>Source: <ac:link><ri:attachment ri:filename="mde-decision-3-feed-merge.excalidraw" ri:version-at-save="3" /><ac:plain-text-link-body><![CDATA[mde-decision-3-feed-merge.excalidraw]]></ac:plain-text-link-body></ac:link></em></p>
+
+<h3>Decision 4: Kafka acks=all + Idempotent Producer</h3>
+<p>Why market data requires strongest delivery guarantees despite ~1ms latency increase.</p>
+<p><ac:image ac:width="900"><ri:attachment ri:filename="mde-decision-4-kafka-acks.svg" ri:version-at-save="3" /></ac:image></p>
+<p><em>Source: <ac:link><ri:attachment ri:filename="mde-decision-4-kafka-acks.excalidraw" ri:version-at-save="3" /><ac:plain-text-link-body><![CDATA[mde-decision-4-kafka-acks.excalidraw]]></ac:plain-text-link-body></ac:link></em></p>
+
+<h3>Decision 5: Expiry Day Cleanup Workflow</h3>
+<p>Temporal workflow for cleaning up expired F&amp;O contracts from Redis and recalculating dependent metrics.</p>
+<p><ac:image ac:width="900"><ri:attachment ri:filename="mde-decision-5-expiry-cleanup.svg" ri:version-at-save="3" /></ac:image></p>
+<p><em>Source: <ac:link><ri:attachment ri:filename="mde-decision-5-expiry-cleanup.excalidraw" ri:version-at-save="3" /><ac:plain-text-link-body><![CDATA[mde-decision-5-expiry-cleanup.excalidraw]]></ac:plain-text-link-body></ac:link></em></p>
+
+<h3>Decision 6: Scrip Master in PostgreSQL Only</h3>
+<p>Why instrument master lives in PostgreSQL + in-memory ConcurrentHashMap instead of Redis.</p>
+<p><ac:image ac:width="900"><ri:attachment ri:filename="mde-decision-6-scrip-master.svg" ri:version-at-save="3" /></ac:image></p>
+<p><em>Source: <ac:link><ri:attachment ri:filename="mde-decision-6-scrip-master.excalidraw" ri:version-at-save="3" /><ac:plain-text-link-body><![CDATA[mde-decision-6-scrip-master.excalidraw]]></ac:plain-text-link-body></ac:link></em></p>
+
+<h3>Decision 7: TimescaleDB for All Time-Series Data</h3><p><ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-decision-7-timescaledb.svg" ri:version-at-save="1" /></ac:image></p><p>Excalidraw source: <ac:link><ri:attachment ri:filename="mde-decision-7-timescaledb.excalidraw" ri:version-at-save="1" /></ac:link></p><h3>Decision 8: Historical Data Migration via Temporal</h3><p><ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-decision-8-historical-migration.svg" ri:version-at-save="1" /></ac:image></p><p>Excalidraw source: <ac:link><ri:attachment ri:filename="mde-decision-8-historical-migration.excalidraw" ri:version-at-save="1" /></ac:link></p><h3>Decision 11: AI-Powered Incident Manager (from Day 1)</h3><p><ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-decision-11-incident-manager.svg" ri:version-at-save="1" /></ac:image></p><p>Source (editable): <ac:link><ri:attachment ri:filename="mde-decision-11-incident-manager.excalidraw" ri:version-at-save="1" /><ac:plain-text-link-body><![CDATA[mde-decision-11-incident-manager.excalidraw]]></ac:plain-text-link-body></ac:link></p><h3>Decision 12: Zero-Error UX (Graceful Degradation)</h3><p><ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-decision-12-graceful-degradation.svg" ri:version-at-save="1" /></ac:image></p><p>Source (editable): <ac:link><ri:attachment ri:filename="mde-decision-12-graceful-degradation.excalidraw" ri:version-at-save="1" /><ac:plain-text-link-body><![CDATA[mde-decision-12-graceful-degradation.excalidraw]]></ac:plain-text-link-body></ac:link></p><h2>Resilience Overview</h2><p>Cross-cutting view of how MDE resilience layers compose (ties Decisions 11 &amp; 12 together):</p><p><ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mde-decision-resilience-layers.svg" ri:version-at-save="1" /></ac:image></p><p>Source (editable): <ac:link><ri:attachment ri:filename="mde-decision-resilience-layers.excalidraw" ri:version-at-save="1" /><ac:plain-text-link-body><![CDATA[mde-decision-resilience-layers.excalidraw]]></ac:plain-text-link-body></ac:link></p>

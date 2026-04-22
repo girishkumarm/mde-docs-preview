@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 -10 1260 818" width="1260" height="818" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#868e96"/></marker></defs>
+<style>text { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }</style>
+<rect x="50" y="140" width="180" height="58" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="280" y="140" width="240" height="52" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="280" y="207" width="240" height="52" rx="6" fill="#f1f3f5" stroke="#868e96" stroke-width="1" opacity="0.85"/>
+<rect x="280" y="274" width="240" height="52" rx="6" fill="#f1f3f5" stroke="#868e96" stroke-width="1" opacity="0.85"/>
+<rect x="50" y="441" width="180" height="58" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="280" y="441" width="240" height="52" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="280" y="508" width="240" height="52" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="280" y="575" width="240" height="52" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="50" y="682" width="1200" height="74" rx="6" fill="#fff9db" stroke="#f08c00" stroke-width="2" opacity="0.85"/>
+<line x1="230" y1="169" x2="270" y2="169" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="230" y1="470" x2="270" y2="470" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="200" y="44.0" font-size="24" fill="#1e1e1e" font-weight="500">Decision 4: Kafka acks=all (Zero Tick Loss)</text>
+<text x="200" y="67.0" font-size="12" fill="#c92a2a" font-weight="500">Problem: acks=1 means only leader confirms. Leader crash before replication = tick lost forever.</text>
+<text x="50" y="118.0" font-size="18" fill="#c92a2a" font-weight="500">BEFORE — acks=1 (Unsafe)</text>
+<text x="66" y="166.0" font-size="12" fill="#7048e8" font-weight="500">Producer</text>
+<text x="66" y="181.0" font-size="12" fill="#7048e8" font-weight="500">sends tick</text>
+<text x="296" y="163.0" font-size="11" fill="#2f9e44" font-weight="500">Broker 1 (LEADER)</text>
+<text x="296" y="176.75" font-size="11" fill="#2f9e44" font-weight="500">✓ Got it!</text>
+<text x="296" y="230.0" font-size="11" fill="#868e96" font-weight="500">Broker 2 (follower)</text>
+<text x="296" y="243.75" font-size="11" fill="#868e96" font-weight="500">⏳ Copying...</text>
+<text x="296" y="297.0" font-size="11" fill="#868e96" font-weight="500">Broker 3 (follower)</text>
+<text x="296" y="310.75" font-size="11" fill="#868e96" font-weight="500">⏳ Copying...</text>
+<text x="570" y="154.0" font-size="14" fill="#c92a2a" font-weight="500">⚡ LEADER CRASHES</text>
+<text x="570" y="176.0" font-size="11" fill="#c92a2a" font-weight="500">before copying to Broker 2 &amp; 3!</text>
+<text x="570" y="206.0" font-size="11" fill="#c92a2a" font-weight="500">→ Tick existed ONLY on crashed server</text>
+<text x="570" y="226.0" font-size="11" fill="#c92a2a" font-weight="500">→ Broker 2 becomes new leader</text>
+<text x="570" y="246.0" font-size="11" fill="#c92a2a" font-weight="500">→ New leader never had the tick</text>
+<text x="570" y="272.0" font-size="12" fill="#c92a2a" font-weight="500">→ GONE FOREVER:</text>
+<text x="590" y="291.0" font-size="11" fill="#c92a2a" font-weight="500">• Wrong candle in charts</text>
+<text x="590" y="311.0" font-size="11" fill="#c92a2a" font-weight="500">• Stale Greeks in FNO</text>
+<text x="590" y="331.0" font-size="11" fill="#c92a2a" font-weight="500">• Missing market mover update</text>
+<text x="50" y="419.0" font-size="18" fill="#2f9e44" font-weight="500">AFTER — acks=all (Safe)</text>
+<text x="66" y="467.0" font-size="12" fill="#7048e8" font-weight="500">Producer</text>
+<text x="66" y="482.0" font-size="12" fill="#7048e8" font-weight="500">sends tick</text>
+<text x="296" y="464.0" font-size="11" fill="#2f9e44" font-weight="500">Broker 1 (LEADER)</text>
+<text x="296" y="477.75" font-size="11" fill="#2f9e44" font-weight="500">✓ Got it!</text>
+<text x="296" y="531.0" font-size="11" fill="#2f9e44" font-weight="500">Broker 2 (follower)</text>
+<text x="296" y="544.75" font-size="11" fill="#2f9e44" font-weight="500">✓ Got it!</text>
+<text x="296" y="598.0" font-size="11" fill="#2f9e44" font-weight="500">Broker 3 (follower)</text>
+<text x="296" y="611.75" font-size="11" fill="#2f9e44" font-weight="500">✓ Got it!</text>
+<text x="570" y="455.0" font-size="14" fill="#2f9e44" font-weight="500">✅ ALL 3 CONFIRMED</text>
+<text x="570" y="477.0" font-size="11" fill="#2f9e44" font-weight="500">NOW Producer moves on to next tick</text>
+<text x="570" y="507.0" font-size="11" fill="#2f9e44" font-weight="500">If leader crashes AFTER confirmation:</text>
+<text x="590" y="532.0" font-size="11" fill="#2f9e44" font-weight="500">• Broker 2 has the tick ✓</text>
+<text x="590" y="552.0" font-size="11" fill="#2f9e44" font-weight="500">• Broker 3 has the tick ✓</text>
+<text x="590" y="572.0" font-size="11" fill="#2f9e44" font-weight="500">• New leader elected from them</text>
+<text x="570" y="605.0" font-size="14" fill="#2f9e44" font-weight="500">→ ZERO DATA LOSS</text>
+<text x="66" y="709.0" font-size="11" fill="#f08c00" font-weight="500">TRADEOFF:  +1-2 ms per Kafka write (2 ms → 3 ms).  At 2K TPS, Kafka handles this easily.</text>
+<text x="66" y="722.75" font-size="11" fill="#f08c00" font-weight="500">BENEFIT:  Zero tick loss, even during broker crashes.  No wrong candles, no stale Greeks, no missing market data.</text>
+<text x="66" y="736.5" font-size="11" fill="#f08c00" font-weight="500">Also enabled:  enable.idempotence=true,  retries=∞,  max.in.flight.requests.per.connection=5</text>
+</svg>

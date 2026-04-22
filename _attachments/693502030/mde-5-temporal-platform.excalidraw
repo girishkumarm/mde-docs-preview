@@ -1,0 +1,422 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "claude-code",
+  "elements": [
+    {
+      "type": "text",
+      "x": 200,
+      "y": 10,
+      "text": "Temporal Platform \u2014 Generic Job Framework",
+      "fontSize": 24,
+      "strokeColor": "#1e1e1e",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 250,
+      "y": 60,
+      "width": 250,
+      "height": 45,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 290,
+      "y": 68,
+      "text": "Temporal Server\n(self-hosted or Cloud)",
+      "fontSize": 12,
+      "strokeColor": "#7048e8",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 530,
+      "y": 60,
+      "width": 200,
+      "height": 45,
+      "backgroundColor": "#eebefa",
+      "strokeColor": "#9c36b5",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 545,
+      "y": 68,
+      "text": "Temporal Web Dashboard\nView / Search / Retry / Cancel",
+      "fontSize": 10,
+      "strokeColor": "#9c36b5",
+      "id": "d2t40"
+    },
+    {
+      "type": "arrow",
+      "x": 375,
+      "y": 105,
+      "width": 0,
+      "height": 25,
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          25
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "rectangle",
+      "x": 250,
+      "y": 135,
+      "width": 250,
+      "height": 35,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 280,
+      "y": 142,
+      "text": "Worker Pool (Java 21 Virtual Threads)",
+      "fontSize": 11,
+      "strokeColor": "#7048e8",
+      "id": "d2t40"
+    },
+    {
+      "type": "arrow",
+      "x": 310,
+      "y": 170,
+      "width": -60,
+      "height": 30,
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -60,
+          30
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 375,
+      "y": 170,
+      "width": 0,
+      "height": 30,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          30
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 440,
+      "y": 170,
+      "width": 60,
+      "height": 30,
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          60,
+          30
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 205,
+      "width": 140,
+      "height": 30,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 190,
+      "y": 212,
+      "text": "market-data-sync",
+      "fontSize": 10,
+      "strokeColor": "#1971c2",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 330,
+      "y": 205,
+      "width": 140,
+      "height": 30,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 340,
+      "y": 212,
+      "text": "market-data-ops",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 480,
+      "y": 205,
+      "width": 140,
+      "height": 30,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 490,
+      "y": 212,
+      "text": "market-data-recon",
+      "fontSize": 10,
+      "strokeColor": "#e8590c",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 260,
+      "width": 300,
+      "height": 25,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 185,
+      "y": 265,
+      "text": "Instrument Master Sync \u2014 Daily 6:00 PM",
+      "fontSize": 10,
+      "strokeColor": "#1971c2",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 290,
+      "width": 300,
+      "height": 25,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 185,
+      "y": 295,
+      "text": "Corporate Action \u2014 Daily 8:00 PM + events",
+      "fontSize": 10,
+      "strokeColor": "#1971c2",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 320,
+      "width": 300,
+      "height": 25,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 185,
+      "y": 325,
+      "text": "NAV Update \u2014 Daily 11:00 PM",
+      "fontSize": 10,
+      "strokeColor": "#1971c2",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 350,
+      "width": 300,
+      "height": 25,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 185,
+      "y": 355,
+      "text": "Pre-Market Data Loading \u2014 Daily 7:35 AM",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 380,
+      "width": 300,
+      "height": 25,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 185,
+      "y": 385,
+      "text": "Candle Archival \u2014 Weekly",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 410,
+      "width": 300,
+      "height": 25,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 185,
+      "y": 415,
+      "text": "EOD Reconciliation \u2014 Daily post-close",
+      "fontSize": 10,
+      "strokeColor": "#e8590c",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 440,
+      "width": 300,
+      "height": 25,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 185,
+      "y": 445,
+      "text": "MongoDB Migration \u2014 One-time",
+      "fontSize": 10,
+      "strokeColor": "#e8590c",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 180,
+      "y": 480,
+      "width": 450,
+      "height": 50,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#f08c00",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 190,
+      "y": 488,
+      "text": "Any team can create new workflows:\n1. Define @WorkflowInterface  2. Implement  3. Register worker  4. Schedule via cron or trigger ad-hoc",
+      "fontSize": 10,
+      "strokeColor": "#f08c00",
+      "id": "d2t40"
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  }
+}

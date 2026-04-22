@@ -1,0 +1,146 @@
+---
+title: "Market Data Engine — v2 Production Readiness Checklist"
+---
+
+# Market Data Engine — v2 Production Readiness Checklist
+
+Audit date: 2026-04-20
+Scope: main tip `dbab118`, shipped commits `35560c0`, `cf966ec`, `22b566c` (impl `a84a777`), `bb3f8ff`, `a9863de`, `22e3db6`, `1e4312a`, `dbab118`.
+
+---
+
+## Executive Summary
+
+**Verdict: RED — DO NOT DEPLOY v2 CANDLE PATH TO PROD**
+
+Three hard-wired contract mismatches between the new `candle-writer` service, the new v2 ClickHouse schema, and `charts-api` v2 readers mean the end-to-end candle pipeline is non-functional against the v2 migration. Even though each unit compiles and every service boots, no candle written by `candle-writer` can be read back correctly — and the ClickHouse INSERT will fail outright against the v2 schema:
+
+1. 🔴 **BLOCKER**: `ClickHouseCandleSink` INSERT column list does not match `mde.candles_1m` v2 schema (writes `pml_id` + `last_trade_micros`, omits mandatory `exchange`, `segment`).
+2. 🔴 **BLOCKER**: Redis hash field names disagree writer → reader (`o/h/l/c/v/n/t/last_micros` vs `open/high/low/close/volume/tick_count/bucket_start/last_updated_ts`).
+3. 🔴 **BLOCKER**: `HistoricalCandleRepository` SELECTs `*_state` columns + `oi_state/vwap` that were removed in V2_1 (v2 columns are bare `open/high/low/close/volume/tick_count`).
+
+Commits `22e3db6` (reactive MDC) and `a9863de` (charts-api Redis auto-config exclusion) are low-risk YELLOW — they ship with correctness limitations worth calling out but no data-plane impact. Commits `1e4312a` (flow-chart docs) and `dbab118` (k6 load script) are test/doc-only changes and do not affect this verdict.
+
+---
+
+## Per-commit review
+
+### 1. `35560c0` — v2 candles ClickHouse schema + drop TimescaleDB — YELLOW
+
+**What's good**
+
+- Clean `ReplacingMergeTree` base + `AggregatingMergeTree` roll-ups. MV definitions use `argMinState/argMaxState` correctly, partition keys sensible, multi-year retention TTLs.
+- Docker-compose cleanup deletes TSDB; `.env.example` and README updated consistently.
+
+**Concerns**
+
+- No Flyway/migration runner points at the new `migration-clickhouse/` directory — file header admits "candle-writer will wire up its own runner" but candle-writer (`a84a777`) does **not** ship such a runner, so the DDL must be applied manually. No init-container, no bootstrap check, no drift detection. **Severity: HIGH**.
+- `V2_2__drop_old_tables.sql` ships alongside the new schema; if applied in staging before the new services catch up, charts-historical-writer breaks. Need deploy-ordering guardrail. **Severity: MEDIUM**.
+- `candles_1m` has `exchange` and `segment` `LowCardinality(String)` without defaults — writer must populate them (currently doesn't, see below). **Severity: HIGH** (contributes to blocker 1).
+
+### 1b. `cf966ec` — charts-historical-writer V2_1 migration — INFO
+
+Migration file corresponding to the schema change in `35560c0`. Ships the V2_1 DDL script used by charts-historical-writer bootstrap. No independent concerns beyond the migration-runner gap called out under `35560c0`.
+
+### 2. `22b566c` / `a84a777` — new candle-writer dual-sink service — RED
+
+**What's good**
+
+- `CandleAggregator` single-partition-per-token invariant + `ConcurrentHashMap.compute` per-key serialization is the right model.
+- Rollover semantics for 1m → 5m/15m/1h cascade are deterministic and well-commented.
+- ClickHouse HikariCP wrapping with explicit socket/connect/query timeouts.
+- Kafka `MANUAL_IMMEDIATE` ack mode, decode-error counter + silent drop for non-TRADE packets.
+- Comprehensive per-operation Prometheus counters + flush-lag gauges + per-interval active-bucket gauges.
+
+**Concerns**
+
+- 🔴 **BLOCKER**: `ClickHouseCandleSink.INSERT_SQL` columns = `(instrument_token, pml_id, bucket_start, open, high, low, close, volume, tick_count, last_trade_micros, updated_at)` but v2 schema columns = `(instrument_token, exchange, segment, bucket_start, open, high, low, close, volume, tick_count, updated_at)`. Extra columns `pml_id`, `last_trade_micros` do not exist; required columns `exchange`, `segment` are not sent. ClickHouse will reject every batch. **Severity: CRITICAL**.
+- 🔴 **BLOCKER**: `RedisCandleSink.toHash` writes keys `t,i,o,h,l,c,v,n,last_micros`. Both `RedisCandleRepository` (charts-api) and `RunningCandleRepository` read keys `bucket_start,open,high,low,close,volume,tick_count,last_updated_ts`. All field reads return `0.0`/default. Tokens will appear "present" (index ZSET is written correctly) but OHLCV values are always zero. Tests didn't catch this — no cross-service integration test exists. **Severity: CRITICAL**.
+- On `ClickHouseCandleSink` failure, rows are re-queued at buffer head via `buffer.addAll(0, drained)` — O(n) and with a persistently broken ClickHouse (e.g. because of the schema mismatch above) the buffer grows unbounded until OOM. No max-buffer cap, no dead-letter, no exponential backoff. **Severity: HIGH**.
+- `TickListener` acks the offset *before* any sink has durably persisted — aggregator state is in-memory only. On pod restart, all currently-open buckets (and any `ClickHouseCandleSink` buffer not yet flushed) are lost silently. `auto-offset-reset=latest` means no replay. Document/guard — at minimum add a pre-shutdown flush hook that drains the CH buffer and forces a Redis running flush. **Severity: HIGH**.
+- `CandleAggregator.applyToInterval` uses `ConcurrentHashMap.compute` per-key for bucket state but rolls over via `buckets.remove(oldKey)` on the same map — a second tick thread (concurrency=3 listener threads) landing on the same `(token, interval)` during rollover can race between `currentEpochByTokenInterval.put` and `buckets.compute`. In practice the Kafka single-partition-per-token assumption mitigates this, but assumption isn't enforced (no partitioner check, no assertion). If partition strategy changes, silent data corruption. **Severity: MEDIUM**.
+- `BucketState.getHigh()` returns 0 when `tickCount==0`; `getLow()` likewise. Fine for display but misleading if copied into CH where `0` is a real price. The writer path can't hit this today because it never flushes empty buckets, but defensive. **Severity: LOW**.
+- `CandleMetrics` gauges `redisFlushLagSeconds` / `clickHouseFlushLagSeconds` use `AtomicReference<Double>` — no decay window; a one-off slow flush sticks forever until the next flush succeeds. **Severity: LOW**.
+- No graceful shutdown hook to drain `ClickHouseCandleSink.buffer` before pod terminates. 30s Spring shutdown grace is declared but nothing explicitly calls `flush()` at phase-close. **Severity: MEDIUM**.
+- No Redis pipelining on closed-candle writes — `writeClosedCandle` issues 3+ round-trips (`putAll`, `expire hash`, `zadd`, `expire index`) per candle. Use `executePipelined`. **Severity: MEDIUM**.
+- `tickCount` stored as `int`; 2^31 ticks per bucket is safe but no overflow guard. **Severity: LOW**.
+- Default server port `8086` clashes with `charts-api` default (also 8086). Co-deploy impossible without override. **Severity: MEDIUM**.
+- Test coverage: only `BucketStateTest` + `CandleAggregatorTest` — no test at all for `RedisCandleSink`, `ClickHouseCandleSink`, `TickListener` (no `EmbeddedKafka`), no schema contract test against V2_1 DDL. **Severity: HIGH**.
+- Hard-coded password default `mde_dev_password` in `application.yml` — low-risk since it's only a default but flag for staging-specific override. **Severity: LOW**.
+
+### 3. `bb3f8ff` — charts-api v2 source switch + running-candles + UDF — RED
+
+**What's good**
+
+- `CandleSourceResolver` decision table is explicit and tested.
+- `source` query param defaults to `auto` — preserves wire compat for existing `/v1/candles/{token}` callers.
+- Proper timer metric `mde_charts_api_candle_fetch_seconds{source,interval,outcome}` with percentiles.
+- `PriceChartsController` wire-shape matches data-price-charts-api UDF contract (verified from DTO shape).
+- `ClickHouseConfig` gets explicit socket / connect / query timeouts — same pattern the commit message calls out as the historical hang fix.
+
+**Concerns**
+
+- 🔴 **BLOCKER**: `HistoricalCandleRepository.SELECT_COLS` references `open_state, high_state, low_state, close_state, volume_state, trade_count_state, oi_state, vwap` — NONE of these columns exist in V2_1 schema (they were the old aggregation-state names). V2 columns are `open, high, low, close, volume, tick_count` with no `oi`/`vwap`. **Every ClickHouse-path query will throw** `UNKNOWN_IDENTIFIER`. The commit's PR says "ClickHouse path: unchanged" — that's the bug: it was NOT updated to match the v2 schema. **Severity: CRITICAL**.
+- Javadoc on `RedisCandleRepository` claims the resolver "falls through to ClickHouse transparently" on empty Redis — `CandleQueryService.getCandles` does NOT implement that fallback. Empty Redis result = empty response. **Severity: HIGH**.
+- `PmlIdCache.refresh()` bulk-loads up to 250k instruments on a single-threaded scheduler — no retry, no jitter; refresh hang blocks next cycle because `scheduleAtFixedRate` serializes. Failing first load = entire UDF endpoint returns empty for up to 15 min. **Severity: MEDIUM**.
+- `PmlIdCache.fetchSingle` has no negative-cache — a burst of unknown `pmlId` values hammers instrument-master on every request. **Severity: MEDIUM**.
+- `PriceChartsController.priceCharts` hard-codes 5000 limit regardless of interval. For `MINUTE` over a long range, clipped silently — caller has no way to know. **Severity: LOW**.
+- No validation that `fromDate <= toDate` — bad input produces an empty negative window and silently returns `no_data`. **Severity: LOW**.
+- Schema mismatch audit: v2 `candles_1m` has no `vwap` column; DTO still exposes `vwap`, repository tries to read it. When fix goes in, needs to drop/null those fields. **Severity: HIGH**.
+- No integration test for the Redis read path, the UDF endpoint, or the source resolver against a real Redis/ClickHouse. Only unit tests exist; none of them would catch the three blockers above. **Severity: HIGH**.
+
+### 4. `22e3db6` — reactive MDC WebFilter — YELLOW
+
+**What's good**
+
+- `@ConditionalOnWebApplication(REACTIVE)` correctly gates the auto-config so it doesn't fight the servlet filter on MVC stacks.
+- `AutoConfiguration.imports` registration is the right Boot 3 pattern.
+- Response header echo-back and UUID minting fallback are standard.
+- Three unit tests for the filter itself.
+
+**Concerns**
+
+- MDC is populated synchronously and cleared in the `finally` of `filter(...)` — so MDC is wiped **before** `chain.filter(exchange)` actually subscribes/executes downstream operators. Only the filter's own `log.info("request …")` sees MDC. Any controller or service log further down the chain will **not** have the correlation id. Javadoc admits this as a "thread-hop" limitation but it is actually a lifecycle bug. Real fix needs Reactor-Context propagation with `contextWrite` / `Hooks.enableAutomaticContextPropagation`. **Severity: MEDIUM** (observability is degraded — not broken, the header still round-trips).
+- Filter emits one INFO line per request — for high-throughput reactive services this will dominate logs. Consider DEBUG. **Severity: LOW**.
+- No sampling, no rate-limit. **Severity: LOW**.
+
+### 5. `a9863de` — charts-api Redis auto-config exclusion — YELLOW
+
+**What's good**
+
+- Correctly diagnoses the bean-wiring collision caused by two qualified `RedisConnectionFactory` beans + auto-config looking for a `@Primary`.
+- Excludes the three relevant auto-configs cleanly.
+- Commit message documents the reproducer and the live verification curls.
+
+**Concerns**
+
+- Excluding `RedisRepositoriesAutoConfiguration` also disables Spring Data Redis repositories anywhere in the app — fine today (none used) but a silent footgun if someone adds a `@RedisHash` in future. Add a comment / unit test that asserts no `@RedisHash` classes exist. **Severity: LOW**.
+- The root cause (two non-`@Primary` factories) is still unfixed — marking one `@Primary` or using a `@ConfigurationCondition` to only exclude when both beans are present is more resilient. **Severity: LOW**.
+- Pure YAML change with no test — the three curls in the commit message are the only verification. **Severity: LOW**.
+
+### 6. `1e4312a` — sequential flow charts — INFO
+
+Documentation-only change. Adds decision-diamond / start-end-pill sequential flow diagrams for tick-write + chart-read + im-daily-sync. No code surface affected; no concerns.
+
+### 7. `dbab118` — k6 candles bake-off script — INFO
+
+`scripts/k6/candles-bakeoff.js` — load-generator for §9 of the Candles v2 design page. Not on the hot path; runs outside the service binaries. No production impact.
+
+---
+
+## Top 10 highest-priority action items
+
+- [ ] 🔴 **[BLOCKER #1 — candle-writer]** Fix `ClickHouseCandleSink.INSERT_SQL` to match V2_1 schema: `(instrument_token, exchange, segment, bucket_start, open, high, low, close, volume, tick_count, updated_at)`. Drop `pml_id` + `last_trade_micros`, or add those columns to the schema — pick one consistent contract. Add a schema-contract test.
+- [ ] 🔴 **[BLOCKER #2 — candle-writer + charts-api]** Align Redis hash field names end-to-end. Pick a single naming convention (`o,h,l,c,v,t,n` *or* `open,high,low,close,volume,bucket_start,tick_count`) and apply to both `RedisCandleSink.toHash` AND the readers (`RedisCandleRepository.materialize`, `RunningCandleRepository.get`). Add a cross-service integration test.
+- [ ] 🔴 **[BLOCKER #3 — charts-api]** Update `HistoricalCandleRepository.SELECT_COLS` to match V2_1 AggregatingMergeTree column names (`open, high, low, close, volume, tick_count` via `argMinMerge(open)` etc.) and drop `oi_state` / `vwap`. Update `CandleDto` to no longer expose `vwap` / `open_interest` or make them permanently null.
+- [ ] Add a schema-contract / e2e integration test that spins up Redis + ClickHouse (testcontainers), writes via candle-writer, reads via charts-api, and asserts OHLCV values match — this single test would have caught all three blockers.
+- [ ] Add a ClickHouse migration runner to candle-writer (or a bootstrap init-container) so V2_1/V2_2 DDL is applied deterministically — do not leave it as "manual". Guard deploys by ordering DDL before service roll-out.
+- [ ] Cap `ClickHouseCandleSink.buffer` (config knob, e.g. 100k rows) + add exponential backoff + a dead-letter metric to prevent OOM when ClickHouse is down.
+- [ ] Add a graceful-shutdown hook in candle-writer that calls `ClickHouseCandleSink.flush()` and `RedisCandleSink.flushRunning()` during `SmartLifecycle.stop()` so the 30s grace actually drains buffers.
+- [ ] Change default `server.port` for candle-writer (currently 8086, collides with charts-api) — deployment envs will silently clash.
+- [ ] Fix reactive MDC WebFilter to propagate MDC via Reactor Context (`contextWrite(Context.of(...))` + hook-driven MDC bridge) so controller/service logs actually carry the correlation id. Current implementation only tags the filter's own one line.
+- [ ] Implement the "Redis empty → ClickHouse fallback" behaviour that `RedisCandleRepository` javadoc promises, OR remove the javadoc claim. `CandleSourceResolver.AUTO` currently only routes by time window, not by empty-result fallback.
+
+---
+
+*This report is review-only. No code changes were made.*

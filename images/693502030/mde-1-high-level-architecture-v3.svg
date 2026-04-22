@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="30 -10 1440 1268" width="1440" height="1268">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#1971c2"/>
+</marker>
+<marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#2f9e44"/>
+</marker>
+<marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#e8590c"/>
+</marker>
+<marker id="arrow-yellow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#e67700"/>
+</marker>
+</defs>
+<rect x="30" y="-10" width="1440" height="1268" fill="#ffffff"/>
+<rect x="410" y="110" width="680" height="103" rx="6" ry="6" fill="#fff3bf" stroke="#e67700" stroke-width="2" opacity="0.85"/>
+<rect x="420" y="268" width="660" height="98" rx="6" ry="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="170" y="446" width="360" height="111" rx="6" ry="6" fill="#d0ebff" stroke="#1971c2" stroke-width="2" opacity="0.85"/>
+<rect x="770" y="446" width="360" height="111" rx="6" ry="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="112" y="642" width="300" height="112" rx="6" ry="6" fill="#d0ebff" stroke="#1971c2" stroke-width="2" opacity="0.85"/>
+<rect x="437" y="642" width="300" height="98" rx="6" ry="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="762" y="642" width="300" height="98" rx="6" ry="6" fill="#ffe8cc" stroke="#e8590c" stroke-width="2" opacity="0.85"/>
+<rect x="1087" y="642" width="300" height="98" rx="6" ry="6" fill="#fff3bf" stroke="#e67700" stroke-width="2" opacity="0.85"/>
+<rect x="142" y="819" width="240" height="61" rx="6" ry="6" fill="#eebefa" stroke="#9c36b5" stroke-width="2" opacity="0.85"/>
+<rect x="467" y="819" width="240" height="45" rx="6" ry="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="792" y="819" width="240" height="45" rx="6" ry="6" fill="#ffe8cc" stroke="#e8590c" stroke-width="2" opacity="0.85"/>
+<rect x="1117" y="819" width="240" height="45" rx="6" ry="6" fill="#fff3bf" stroke="#e67700" stroke-width="2" opacity="0.85"/>
+<rect x="60" y="920" width="1380" height="112" rx="6" ry="6" fill="#fff9db" stroke="#f08c00" stroke-width="2" opacity="0.85"/>
+<rect x="110" y="1102" width="240" height="126" rx="6" ry="6" fill="#d0ebff" stroke="#1971c2" stroke-width="1" opacity="0.85"/>
+<rect x="370" y="1102" width="240" height="126" rx="6" ry="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="1" opacity="0.85"/>
+<rect x="630" y="1102" width="240" height="126" rx="6" ry="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="1" opacity="0.85"/>
+<rect x="890" y="1102" width="240" height="126" rx="6" ry="6" fill="#d0ebff" stroke="#1971c2" stroke-width="1" opacity="0.85"/>
+<rect x="1150" y="1102" width="240" height="126" rx="6" ry="6" fill="#d0bfff" stroke="#7048e8" stroke-width="1" opacity="0.85"/>
+<line x1="750" y1="386" x2="350" y2="436" stroke="#1971c2" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="750" y1="386" x2="950" y2="436" stroke="#2f9e44" stroke-width="2" marker-end="url(#arrow-green)"/>
+<line x1="350" y1="577" x2="262" y2="632" stroke="#1971c2" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="950" y1="577" x2="262" y2="632" stroke="#2f9e44" stroke-width="2" marker-end="url(#arrow-green)"/>
+<line x1="950" y1="577" x2="587" y2="632" stroke="#2f9e44" stroke-width="1" marker-end="url(#arrow-green)"/>
+<line x1="950" y1="577" x2="912" y2="632" stroke="#2f9e44" stroke-width="1" marker-end="url(#arrow-green)"/>
+<line x1="950" y1="577" x2="1237" y2="632" stroke="#2f9e44" stroke-width="1" marker-end="url(#arrow-green)"/>
+<line x1="262" y1="774" x2="262" y2="809" stroke="#1971c2" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="587" y1="774" x2="587" y2="809" stroke="#2f9e44" stroke-width="1" marker-end="url(#arrow-green)"/>
+<line x1="912" y1="774" x2="912" y2="809" stroke="#e8590c" stroke-width="1" marker-end="url(#arrow-orange)"/>
+<line x1="1237" y1="774" x2="1237" y2="809" stroke="#e67700" stroke-width="1" marker-end="url(#arrow-yellow)"/>
+<text x="380" y="48.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="28" fill="#1e1e1e">Market Data Engine — High Level Architecture (v3)</text>
+<text x="520" y="73.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#868e96">Merged feed architecture | Kafka-based delivery | 2 Redis clusters</text>
+<text x="426" y="140.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#e67700">EXCHANGE FEEDS  (Merged — Best of Both)</text>
+<text x="426" y="157.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#e67700"></text>
+<text x="426" y="175.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#e67700">NSE Direct + Omnenest  →  Single pipeline</text>
+<text x="426" y="192.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#e67700">Dedup by (instrument, timestamp):  whichever arrives first wins</text>
+<text x="500" y="229.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#868e96">↓  UDP Multicast (6 streams × 8192 byte buffer)  +  Omnenest RS protocol</text>
+<text x="600" y="248.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#c92a2a">(External circuit breaker — not our service)</text>
+<text x="436" y="297.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#7048e8">FEED HANDLER  (~4K TPS in  →  ~2K after dedup)</text>
+<text x="436" y="313.25" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#7048e8"></text>
+<text x="436" y="329.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#7048e8">Receive → Decode → Cross-Source Dedup → Denormalize → Duplicate Detector</text>
+<text x="436" y="345.75" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#7048e8">Sequence Gap Detection  |  Processor routing by packet code</text>
+<text x="186" y="473.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#1971c2">PUBLISHER</text>
+<text x="186" y="489.25" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#1971c2"></text>
+<text x="186" y="505.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#1971c2">Writes to Redis Cluster 1 (Feed)</text>
+<text x="186" y="521.75" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#1971c2">Hash snapshots + Lua atomic updates</text>
+<text x="186" y="538.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#1971c2">(52wk H/L, OHLC compare-and-set)</text>
+<text x="786" y="473.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#2f9e44">PRODUCER</text>
+<text x="786" y="489.25" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#2f9e44"></text>
+<text x="786" y="505.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#2f9e44">Writes to Kafka  (acks=all, idempotent)</text>
+<text x="786" y="521.75" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#2f9e44">6 segment topics — durable stream</text>
+<text x="786" y="538.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#2f9e44">Consumed by Broadcast + 3 Writers</text>
+<text x="128" y="667.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1971c2">BROADCAST SERVICE</text>
+<text x="128" y="680.75" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1971c2"></text>
+<text x="128" y="694.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1971c2">Kafka pull for live ticks</text>
+<text x="128" y="708.25" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1971c2">Redis snapshot on connect</text>
+<text x="128" y="722.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1971c2">→ Protobuf → WebSocket</text>
+<text x="128" y="735.75" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#1971c2">→ End Users</text>
+<text x="453" y="667.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#2f9e44">CHARTS DATA WRITER</text>
+<text x="453" y="680.75" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#2f9e44"></text>
+<text x="453" y="694.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#2f9e44">Kafka → TimescaleDB ticks</text>
+<text x="453" y="708.25" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#2f9e44">+ TimescaleDB candles_1m</text>
+<text x="453" y="722.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#2f9e44">(5m/15m/1h/1d auto-generated)</text>
+<text x="778" y="667.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e8590c">FNO DATA WRITER</text>
+<text x="778" y="680.75" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e8590c"></text>
+<text x="778" y="694.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e8590c">Kafka → Black-Scholes Greeks</text>
+<text x="778" y="708.25" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e8590c">→ Option chain in Redis 2</text>
+<text x="778" y="722.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e8590c">→ PCR, Max Pain, ATM Straddle</text>
+<text x="1103" y="667.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e67700">MARKET MOVERS WRITER</text>
+<text x="1103" y="680.75" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e67700"></text>
+<text x="1103" y="694.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e67700">Kafka → Ranking computation</text>
+<text x="1103" y="708.25" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e67700">→ Redis 2 sorted sets</text>
+<text x="1103" y="722.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#e67700">Gainers, losers, volume, value</text>
+<text x="158" y="846.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#9c36b5">Users</text>
+<text x="158" y="862.25" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13" fill="#9c36b5">(Phone / Web)</text>
+<text x="483" y="847.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#2f9e44">Charts API</text>
+<text x="808" y="847.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#e8590c">FNO Dashboard API</text>
+<text x="1133" y="847.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="14" fill="#e67700">Market Movers API</text>
+<text x="76" y="950.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#f08c00">TEMPORAL PLATFORM  (Generic Job Framework + Web Dashboard)</text>
+<text x="76" y="965.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#f08c00"></text>
+<text x="76" y="980.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#f08c00">Instrument Master Sync (6 PM)  |  Corporate Actions (8 PM)  |  Pre-Market Loading (7:35 AM)  |  EOD Reconciliation (post-close)</text>
+<text x="76" y="995.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#f08c00">Expiry Day Cleanup (Thu 3:30 PM)  |  Candle Archival (weekly)  |  NAV Update (11 PM)  |  Historical Data Migration (one-time)</text>
+<text x="76" y="1010.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#f08c00">+ Any custom workflow created by any team via Temporal Dashboard (search / retry / cancel / inspect history)</text>
+<text x="690" y="1090.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="18" fill="#1e1e1e">DATA STORES</text>
+<text x="126" y="1124.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">Redis Cluster 1  (FEED)</text>
+<text x="126" y="1136.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2"></text>
+<text x="126" y="1149.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">Live tick snapshots</text>
+<text x="126" y="1161.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">FEED_PP, OHLC, PC</text>
+<text x="126" y="1174.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">CKT, 52-week H/L, TRD_DAY</text>
+<text x="126" y="1186.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2"></text>
+<text x="126" y="1199.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">Written by Publisher</text>
+<text x="126" y="1211.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">Read by Periscope, Broadcast</text>
+<text x="386" y="1124.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Redis Cluster 2  (API)</text>
+<text x="386" y="1136.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44"></text>
+<text x="386" y="1149.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Current-day candles</text>
+<text x="386" y="1161.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">FNO option chain + insights</text>
+<text x="386" y="1174.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Market movers sorted sets</text>
+<text x="386" y="1186.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44"></text>
+<text x="386" y="1199.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Written by 3 Writers</text>
+<text x="386" y="1211.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Read by 3 APIs</text>
+<text x="646" y="1124.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Kafka</text>
+<text x="646" y="1136.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44"></text>
+<text x="646" y="1149.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Durable tick stream</text>
+<text x="646" y="1161.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">6 segment topics</text>
+<text x="646" y="1174.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">3-7 day retention</text>
+<text x="646" y="1186.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44"></text>
+<text x="646" y="1199.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Written by Producer</text>
+<text x="646" y="1211.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#2f9e44">Read by Broadcast + Writers</text>
+<text x="906" y="1124.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">TimescaleDB</text>
+<text x="906" y="1136.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2"></text>
+<text x="906" y="1149.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">Raw ticks (7d retention)</text>
+<text x="906" y="1161.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">+ candles_1m hypertable</text>
+<text x="906" y="1174.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">+ continuous aggregates</text>
+<text x="906" y="1186.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#1971c2">(5m/15m/1h/1d/1w/1M)</text>
+<text x="1166" y="1124.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#7048e8">PostgreSQL</text>
+<text x="1166" y="1136.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#7048e8"></text>
+<text x="1166" y="1149.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#7048e8">Instrument master, companies, corp actions</text>
+<text x="1166" y="1161.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#7048e8">(SEPARATE instance from TimescaleDB)</text>
+<text x="1166" y="1174.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#7048e8"></text>
+<text x="1166" y="1186.5" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#7048e8">Read on service startup</text>
+<text x="1166" y="1199.0" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#7048e8">→ In-memory ConcurrentHashMap</text>
+</svg>

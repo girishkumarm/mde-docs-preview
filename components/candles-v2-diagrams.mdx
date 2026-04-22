@@ -1,0 +1,37 @@
+---
+title: "MDE Candles v2 — Diagram downloads"
+---
+
+## Diagram downloads
+
+Three Excalidraw source files accompany the Candles v2 design (parent page: [Market Data Engine — Candles v2](#)). They live in the `market-data-engine` repo at `docs/diagrams/` and render in any Excalidraw client.
+
+### How to view / export
+
+1. Open [excalidraw.com](https://excalidraw.com) (or the VS Code Excalidraw plugin).
+2. File → Open → pick the `.excalidraw` file from your local clone of `market-data-engine`.
+3. Export as PNG / SVG from the same menu if you need a static image.
+
+No `git clone` needed if you only want to view — grab the raw file from Bitbucket:
+
+```
+https://bitbucket.org/paytmteam/market-data-engine/raw/develop/docs/diagrams/{filename}
+```
+
+### Files
+
+| # | File | What it shows |
+| --- | --- | --- |
+| 1 | `mde-v2-architecture.excalidraw` | End-to-end MDE v2 component diagram: feed → `candle-writer` → Redis / ClickHouse → `charts-api` → PML UI. Dual-sink writer, running-candles cache, source-switch logic. |
+| 2 | `mde-v2-flow.excalidraw` | Request / data flow: tick ingestion, running-candle updates, 1m close-out, the three `charts-api` read surfaces. |
+| 3 | `mde-v2-flowcharts.excalidraw` | Decision flowcharts: source selection, fault-tolerant writer logic, rollback paths. |
+
+### Repo paths
+
+- `market-data-engine/docs/diagrams/mde-v2-architecture.excalidraw`
+- `market-data-engine/docs/diagrams/mde-v2-flow.excalidraw`
+- `market-data-engine/docs/diagrams/mde-v2-flowcharts.excalidraw`
+
+### Note on Confluence attachments
+
+These are source files, not PNG exports. They are **not attached to this Confluence page** — Confluence attachment upload needs a personal API token which was not available at authoring time. If you would like native attachments (so you can download without touching the repo), ping `girish3.kumar@paytm.com` and a follow-up will upload them via the REST v1 `/content/{id}/child/attachment` endpoint.

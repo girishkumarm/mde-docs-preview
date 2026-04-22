@@ -1,0 +1,944 @@
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="541cef20-0926-46a4-9744-186c543c9fb6"><ac:rich-text-body>
+<p><strong>Paytm Money Pro | v1.0 | April 2026</strong></p>
+<p>Parent: <ac:link><ri:page ri:space-key="PM" ri:content-title="Operations &amp; Migration" /></ac:link> (Confluence ID: 683376743)</p>
+<p>This document is the detailed, end-to-end migration plan for replacing 25+ legacy PML pricing services with the Market Data Engine (MDE).</p>
+</ac:rich-text-body></ac:structured-macro>
+
+<ac:structured-macro ac:name="toc" ac:schema-version="1" ac:macro-id="9b50d100-f98b-4ee7-8c26-caaeaf5af533"><ac:parameter ac:name="maxLevel">3</ac:parameter></ac:structured-macro>
+
+<h2>1. Executive Summary</h2>
+
+<p>The Price Engine migration replaces <strong>25 legacy PML services</strong> spread across 118 repositories with the <strong>Market Data Engine (MDE)</strong> &mdash; a unified, 14-service Gradle monorepo built on Java 21, Spring Boot 3.2, Kafka, Redis, TimescaleDB/ClickHouse, and Temporal.</p>
+
+<p><strong>Current state:</strong> All 14 MDE stories (Epic PM3-140083) are code-complete with 200+ passing tests. The system has been proven end-to-end in local/integration environments.</p>
+
+<p><strong>Migration approach:</strong> Strangler fig pattern &mdash; 4 phases over 7 weeks, zero-downtime, with feature-flag-controlled rollout.</p>
+
+<p><strong>Additionally:</strong> This document plans 4 new features not in the original scope: Market Depth, Peer Groups, User Price Alerts, and Service-Level Alerts (~31 engineering days).</p>
+
+<p><strong>Key numbers:</strong></p>
+<table>
+<thead><tr><th>Metric</th><th>Current (PML)</th><th>Target (MDE)</th></tr></thead>
+<tbody>
+<tr><td>Services</td><td>25+ standalone JARs</td><td>14 modules in 1 monorepo</td></tr>
+<tr><td>Languages</td><td>Java 8-17, mixed</td><td>Java 21 (unified)</td></tr>
+<tr><td>Data stores</td><td>ES + MySQL + Redis (7 DBs) + S3</td><td>PostgreSQL + TimescaleDB + ClickHouse + Redis (2 clusters) + ES + S3</td></tr>
+<tr><td>Feed source</td><td>CMOTS API + NSE multicast</td><td>NSE Direct UDP (colocation)</td></tr>
+<tr><td>Tick latency</td><td>50-200ms (via CMOTS relay)</td><td>&lt;2ms P50, &lt;10ms P99 (direct feed)</td></tr>
+<tr><td>Candle storage</td><td>ES indices (limited history)</td><td>ClickHouse 10yr + TimescaleDB 90d intraday</td></tr>
+<tr><td>Deployment</td><td>25 separate CI/CD pipelines</td><td>5 deployment groups, 1 pipeline</td></tr>
+</tbody>
+</table>
+
+<h2>2. Current State Inventory</h2>
+
+<h3>2.1 Current PML Pricing Services (25 repos)</h3>
+
+<p>These are the repos directly involved in market data, pricing, and related functionality:</p>
+
+<table>
+<thead><tr><th>#</th><th>Repo</th><th>Role</th><th>Data Store</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>pml-core-tick-data-service</code></td><td>Real-time tick WebSocket distribution</td><td>Redis DB 0</td><td><strong>Replace</strong> &rarr; Broadcast Service</td></tr>
+<tr><td>2</td><td><code>pml-core-tick-producer</code></td><td>Tick ingestion from CMOTS</td><td>Redis DB 0</td><td><strong>Replace</strong> &rarr; Feed Handler</td></tr>
+<tr><td>3</td><td><code>data-tick-listener</code></td><td>Tick consumption pipeline</td><td>Redis</td><td><strong>Replace</strong> &rarr; Publisher</td></tr>
+<tr><td>4</td><td><code>data-price-charts-api</code></td><td>Chart data REST API (intraday + EOD)</td><td>ES <code>live_data_*</code>, Redis</td><td><strong>Replace</strong> &rarr; Charts API</td></tr>
+<tr><td>5</td><td><code>data-portfolio-charts-api</code></td><td>Portfolio chart overlays</td><td>ES</td><td><strong>Replace</strong> &rarr; Charts API</td></tr>
+<tr><td>6</td><td><code>scrip-master</code></td><td>Instrument master raw data</td><td>MySQL bodatadb</td><td><strong>Replace</strong> &rarr; Instrument Master</td></tr>
+<tr><td>7</td><td><code>scrip-master-service</code></td><td>Instrument master REST API</td><td>MySQL bodatadb</td><td><strong>Replace</strong> &rarr; Instrument Master</td></tr>
+<tr><td>8</td><td><code>data-company-app</code></td><td>Company fundamentals, financials</td><td>MySQL bodatadb, ES</td><td><strong>Replace</strong> &rarr; Company Fundamentals (future)</td></tr>
+<tr><td>9</td><td><code>data-consumer</code></td><td>CMOTS data aggregation (12 processors)</td><td>MySQL bodatadb, Redis, ES</td><td><strong>Replace</strong> &rarr; Temporal workflows</td></tr>
+<tr><td>10</td><td><code>data-consumer-service</code></td><td>Consumer support service</td><td>MySQL bodatadb</td><td><strong>Replace</strong> &rarr; Temporal workflows</td></tr>
+<tr><td>11</td><td><code>data-screener-consumer</code></td><td>Screener data pipeline</td><td>ES <code>instruments_screener</code></td><td><strong>Replace</strong> &rarr; Discovery &amp; Search (future)</td></tr>
+<tr><td>12</td><td><code>data-search</code></td><td>Full-text search API</td><td>ES</td><td><strong>Replace</strong> &rarr; Discovery &amp; Search (future)</td></tr>
+<tr><td>13</td><td><code>data-internal-apis</code></td><td>Internal pricing endpoints</td><td>Redis, ES</td><td><strong>Replace</strong> &rarr; MDE internal APIs</td></tr>
+<tr><td>14</td><td><code>pml-core-market-mover-collector</code></td><td>Market movers data collection</td><td>Redis DB 6</td><td><strong>Replace</strong> &rarr; Market Movers Writer</td></tr>
+<tr><td>15</td><td><code>pml-core-market-movers-service</code></td><td>Market movers REST API</td><td>Redis DB 6</td><td><strong>Replace</strong> &rarr; Market Movers Writer</td></tr>
+<tr><td>16</td><td><code>pml-core-badge-service</code></td><td>Badge computations (52w high, circuits)</td><td>Redis</td><td><strong>Replace</strong> &rarr; Publisher</td></tr>
+<tr><td>17</td><td><code>data-corporate-action-pull-push</code></td><td>Corporate action processing</td><td>MySQL bodatadb</td><td><strong>Replace</strong> &rarr; Corporate Action Processor (future)</td></tr>
+<tr><td>18</td><td><code>data-holdings</code></td><td>Holdings price enrichment</td><td>Redis</td><td><strong>Migrate</strong> &rarr; reads from MDE Redis</td></tr>
+<tr><td>19</td><td><code>data-websocket-pull-api</code></td><td>WebSocket data pull fallback</td><td>Redis</td><td><strong>Replace</strong> &rarr; Broadcast Service</td></tr>
+<tr><td>20</td><td><code>pml-open-data-service</code></td><td>Open data API (LTP for portfolio)</td><td>Redis</td><td><strong>Replace</strong> &rarr; MDE snapshot API</td></tr>
+<tr><td>21</td><td><code>subscription-data-producer</code></td><td>Subscription-based data feeds</td><td>Redis, Kafka</td><td><strong>Replace</strong> &rarr; Broadcast Service</td></tr>
+<tr><td>22</td><td><code>eq-marketmovers-app</code></td><td>Equity market movers (legacy)</td><td>Redis</td><td><strong>Replace</strong> &rarr; Market Movers Writer</td></tr>
+<tr><td>23</td><td><code>eq-mo-data-service</code></td><td>Equity market order data</td><td>Redis</td><td><strong>Replace</strong> &rarr; Publisher</td></tr>
+<tr><td>24</td><td><code>eq-fms-data-sync-consumer</code></td><td>FMS data sync</td><td>MySQL</td><td><strong>Replace</strong> &rarr; Temporal workflows</td></tr>
+<tr><td>25</td><td><code>data-bullfinch-output-consumer</code></td><td>Bullfinch P&amp;L data consumer</td><td>Kafka</td><td><strong>Keep</strong> &rarr; Portfolio Engine scope</td></tr>
+</tbody>
+</table>
+
+<h3>2.2 Current Data Stores</h3>
+
+<h4>Elasticsearch (20+ indices)</h4>
+
+<table>
+<thead><tr><th>Index Pattern</th><th>Content</th><th>Size (est.)</th><th>Migration Target</th></tr></thead>
+<tbody>
+<tr><td><code>live_data_nse_*</code></td><td>Real-time NSE tick data</td><td>~2GB/day</td><td>Redis C1 (snapshot)</td></tr>
+<tr><td><code>live_data_bse_*</code></td><td>Real-time BSE tick data</td><td>~500MB/day</td><td>Redis C1 (snapshot)</td></tr>
+<tr><td><code>intraday_candle_*</code></td><td>Intraday OHLCV candles (1m, 5m, 15m)</td><td>~50GB (90 days)</td><td>TimescaleDB (1m) + ClickHouse (5m, 15m)</td></tr>
+<tr><td><code>eod_candle_*</code></td><td>Daily/weekly/monthly candles</td><td>~20GB (10 years)</td><td>ClickHouse (daily, weekly, monthly)</td></tr>
+<tr><td><code>instruments_screener</code></td><td>Combined price + fundamental data (80+ fields)</td><td>~2GB</td><td>Elasticsearch (same concept, new index)</td></tr>
+<tr><td><code>company_*</code></td><td>Company fundamentals, financials</td><td>~5GB</td><td>PostgreSQL <code>company_fundamentals</code></td></tr>
+<tr><td><code>shareholding_*</code></td><td>Shareholding patterns (quarterly)</td><td>~1GB</td><td>PostgreSQL <code>shareholding_patterns</code></td></tr>
+<tr><td><code>news_*</code></td><td>Market news articles</td><td>~10GB</td><td>PostgreSQL <code>news_articles</code> + ES <code>news_feed</code></td></tr>
+<tr><td><code>scrip_master_*</code></td><td>Instrument master data</td><td>~500MB</td><td>PostgreSQL <code>instrument_master</code></td></tr>
+<tr><td><code>corporate_actions_*</code></td><td>Corporate action history</td><td>~200MB</td><td>PostgreSQL <code>corporate_actions</code></td></tr>
+<tr><td><code>market_movers_*</code></td><td>Historical movers snapshots</td><td>~5GB</td><td>Redis C2 (live) + ClickHouse (historical)</td></tr>
+<tr><td><code>badge_*</code></td><td>Badge/alert data</td><td>~500MB</td><td>PostgreSQL <code>alert_rules</code></td></tr>
+</tbody>
+</table>
+
+<p><strong>Total Elasticsearch data to migrate: ~95GB</strong></p>
+
+<h4>MySQL (bodatadb)</h4>
+
+<table>
+<thead><tr><th>Table/Group</th><th>Content</th><th>Rows (est.)</th><th>Migration Target</th></tr></thead>
+<tbody>
+<tr><td><code>scrip_master</code> + related</td><td>Instrument definitions, exchanges</td><td>~200K</td><td>PostgreSQL <code>instrument_master</code></td></tr>
+<tr><td><code>cmots_*</code> (12 tables)</td><td>CMOTS processor data (technicals, pivots, fundamentals)</td><td>~5M</td><td>PostgreSQL (fundamentals, shareholding, analyst)</td></tr>
+<tr><td><code>corporate_actions</code></td><td>Corporate action history</td><td>~50K</td><td>PostgreSQL <code>corporate_actions</code></td></tr>
+<tr><td><code>data_sync_status</code></td><td>CMOTS job run status</td><td>~100K</td><td>Temporal workflow history (auto)</td></tr>
+<tr><td><code>bhavcopy_*</code></td><td>Daily bhavcopy archives</td><td>~10M</td><td>ClickHouse (daily candles)</td></tr>
+</tbody>
+</table>
+
+<p><strong>Total MySQL data to migrate: ~15M rows</strong></p>
+
+<h4>Redis (7 databases)</h4>
+
+<table>
+<thead><tr><th>DB</th><th>Content</th><th>Keys (est.)</th><th>Migration Target</th></tr></thead>
+<tbody>
+<tr><td>DB 0</td><td>Live tick data (LTP, OHLC, volume)</td><td>~100K</td><td>Redis C1: <code>FEED_PP_*</code>, <code>MGR_*_OHLC</code></td></tr>
+<tr><td>DB 2</td><td>Circuit limits, market status</td><td>~10K</td><td>Redis C1: <code>MGR_*_LC_UC</code></td></tr>
+<tr><td>DB 3</td><td>Option chain data</td><td>~80K</td><td>Redis C2: option chain hashes</td></tr>
+<tr><td>DB 6</td><td>Market movers (gainers, losers, volume)</td><td>~1K</td><td>Redis C2: ZSET movers</td></tr>
+<tr><td>DB 8</td><td>52-week high/low</td><td>~10K</td><td>Redis C1: <code>MGR_*_52_WK_HL</code></td></tr>
+<tr><td>DB 11</td><td>Pre-computed badge data</td><td>~10K</td><td>Redis C1: <code>TRD_DAY</code></td></tr>
+<tr><td>DB 14</td><td>Open interest data</td><td>~50K</td><td>Redis C2: FNO chain data</td></tr>
+</tbody>
+</table>
+
+<p><strong>Migration:</strong> 7 separate Redis databases &rarr; 2 dedicated Redis ElastiCache clusters:</p>
+<ul>
+<li><strong>C1 (Feed, port 6380):</strong> Real-time snapshot data written by Publisher</li>
+<li><strong>C2 (API, port 6381):</strong> Read-optimized data for API/WebSocket pods</li>
+</ul>
+
+<h4>S3 Buckets</h4>
+
+<table>
+<thead><tr><th>Bucket</th><th>Content</th><th>Migration</th></tr></thead>
+<tbody>
+<tr><td><code>prod-scrip-master</code></td><td>Daily scrip master CSVs from exchanges</td><td>&rarr; Same pattern, new bucket <code>mde-instrument-master</code></td></tr>
+<tr><td><code>prod-pm-scrip-master-raw-data</code></td><td>Raw exchange data files</td><td>&rarr; <code>mde-raw-exchange-data</code></td></tr>
+<tr><td><code>prod-pml-core-scrip-master</code></td><td>Processed scrip master snapshots</td><td>&rarr; <code>mde-instrument-snapshots</code></td></tr>
+</tbody>
+</table>
+
+<h4>CMOTS Processors (12 scheduled jobs)</h4>
+
+<p>These are <code>@Scheduled</code> cron jobs inside <code>data-consumer</code> that pull data from CMOTS API:</p>
+
+<table>
+<thead><tr><th>#</th><th>Processor</th><th>Schedule</th><th>Data</th><th>MDE Replacement</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>InstrumentMasterProcessor</td><td>Daily 6:00 AM</td><td>Instrument list from CMOTS</td><td>Temporal: <code>InstrumentMasterSyncWorkflow</code></td></tr>
+<tr><td>2</td><td>PivotProcessor</td><td>Daily 7:00 AM</td><td>Pivot points (support/resistance)</td><td>Temporal: <code>TechnicalDataSyncWorkflow</code></td></tr>
+<tr><td>3</td><td>CorporateActionProcessor</td><td>Daily 8:00 PM</td><td>Splits, dividends, bonus</td><td>Temporal: <code>CorporateActionWorkflow</code></td></tr>
+<tr><td>4</td><td>TechnicalIndicatorProcessor</td><td>Daily 9:00 PM</td><td>RSI, MACD, Bollinger, ADX</td><td>Temporal: <code>TechnicalDataSyncWorkflow</code></td></tr>
+<tr><td>5</td><td>BhavcopyProcessor</td><td>Daily 6:30 PM</td><td>EOD OHLCV from exchanges</td><td>Temporal: <code>EODReconciliationWorkflow</code></td></tr>
+<tr><td>6</td><td>NAVProcessor</td><td>Daily 11:00 PM</td><td>Mutual fund NAVs from AMFI</td><td>Temporal: <code>NAVUpdateWorkflow</code></td></tr>
+<tr><td>7</td><td>QuarterlyResultsProcessor</td><td>Quarterly</td><td>Revenue, PAT, EPS</td><td>Temporal: <code>FundamentalsSyncWorkflow</code> (future)</td></tr>
+<tr><td>8</td><td>ShareholdingProcessor</td><td>Quarterly</td><td>Promoter/FII/DII %</td><td>Temporal: <code>FundamentalsSyncWorkflow</code> (future)</td></tr>
+<tr><td>9</td><td>AnalystRecommendationProcessor</td><td>Weekly</td><td>Target prices, ratings</td><td>Temporal: <code>FundamentalsSyncWorkflow</code> (future)</td></tr>
+<tr><td>10</td><td>InstitutionalActivityProcessor</td><td>Daily 7:00 PM</td><td>FII/DII buy/sell</td><td>Temporal: <code>MarketIntelligenceWorkflow</code> (future)</td></tr>
+<tr><td>11</td><td>NewsProcessor</td><td>Every 15 min</td><td>Market news articles</td><td>Temporal: <code>NewsFeedWorkflow</code> (future)</td></tr>
+<tr><td>12</td><td>IPOProcessor</td><td>Daily 8:00 AM</td><td>IPO data (open, upcoming, closed)</td><td>Temporal: <code>IPODataSyncWorkflow</code> (future)</td></tr>
+</tbody>
+</table>
+
+<h3>2.3 Current APIs Consumed by UI</h3>
+
+<p>The <code>equity-web-app</code> (React) consumes these pricing APIs:</p>
+
+<table>
+<thead><tr><th>API Category</th><th>Current Endpoint</th><th>Service</th><th>Usage</th></tr></thead>
+<tbody>
+<tr><td>Live prices</td><td><code>wss://*/ws/tick</code></td><td>pml-core-tick-data-service</td><td>SharedWorker WebSocket, binary frames</td></tr>
+<tr><td>Chart intraday</td><td><code>GET /api/chart/sym/{symbol}/intra/{interval}</code></td><td>data-price-charts-api</td><td>TradingView chart widget</td></tr>
+<tr><td>Chart EOD</td><td><code>GET /api/chart/sym/{symbol}/eod/{interval}</code></td><td>data-price-charts-api</td><td>TradingView chart widget</td></tr>
+<tr><td>Instrument search</td><td><code>GET /api/scrip-master/search?q={query}</code></td><td>scrip-master-service</td><td>Search bar autocomplete</td></tr>
+<tr><td>Instrument detail</td><td><code>GET /api/scrip-master/{scripId}</code></td><td>scrip-master-service</td><td>Stock detail page</td></tr>
+<tr><td>Market movers</td><td><code>GET /api/market-movers/{index}</code></td><td>pml-core-market-movers-service</td><td>Home screen movers widget</td></tr>
+<tr><td>Company info</td><td><code>GET /api/company/{isin}</code></td><td>data-company-app</td><td>Stock detail fundamentals tab</td></tr>
+<tr><td>Screener</td><td><code>POST /api/screener/filter</code></td><td>data-screener-consumer</td><td>Screener page</td></tr>
+<tr><td>News</td><td><code>GET /api/news?isin={isin}</code></td><td>data-search</td><td>Stock detail news tab</td></tr>
+<tr><td>Open data (LTP)</td><td><code>GET /api/open-data/{scripId}</code></td><td>pml-open-data-service</td><td>Portfolio/holdings LTP enrichment</td></tr>
+<tr><td>Option chain</td><td><code>GET /api/fno/option-chain/{symbol}</code></td><td>data-internal-apis</td><td>F&amp;O option chain page</td></tr>
+<tr><td>Badge data</td><td><code>GET /api/badge/{scripId}</code></td><td>pml-core-badge-service</td><td>Stock card badges (52w high, circuit)</td></tr>
+</tbody>
+</table>
+
+<h2>3. Target State &mdash; MDE Architecture</h2>
+
+<h3>3.1 Built Components (14 Stories &mdash; All Complete)</h3>
+
+<table>
+<thead><tr><th>Story</th><th>MDE Module</th><th>Replaces</th><th>Key Tech</th></tr></thead>
+<tbody>
+<tr><td>1 &mdash; Platform Foundation</td><td><code>shared/common</code> + <code>shared/proto</code></td><td>&mdash;</td><td>Gradle monorepo, protobuf, Temporal framework</td></tr>
+<tr><td>2 &mdash; Instrument Master</td><td><code>services/instrument-master</code></td><td>scrip-master, scrip-master-service</td><td>Temporal sync, PostgreSQL, REST API</td></tr>
+<tr><td>3 &mdash; Feed Handler</td><td><code>services/feed-handler</code></td><td>pml-core-tick-producer</td><td>NSE Direct UDP, 7 virtual-thread receivers</td></tr>
+<tr><td>4 &mdash; Publisher</td><td><code>services/publisher</code></td><td>data-tick-listener, pml-core-badge-service</td><td>Redis C1 writer (FEED_PP, OHLC, PC, LC_UC, 52WK, TRD_DAY)</td></tr>
+<tr><td>5 &mdash; Pre-market Scheduler</td><td><code>services/premarket-scheduler</code></td><td>data-consumer (BOD jobs)</td><td>Redis warm-up, instrument cache preload</td></tr>
+<tr><td>6 &mdash; Broadcast Service</td><td><code>services/broadcast-service</code></td><td>pml-core-tick-data-service, data-websocket-pull-api</td><td>WebSocket <code>/ws/feed</code>, protobuf binary frames, API key auth</td></tr>
+<tr><td>7 &mdash; Charts Data Writer</td><td><code>services/charts-writer</code></td><td>data-consumer (candle pipeline)</td><td>1-min candles &rarr; TimescaleDB, event-time aggregation</td></tr>
+<tr><td>8 &mdash; Charts Historical Writer</td><td><code>services/charts-historical-writer</code></td><td>ES <code>eod_candle_*</code> indices</td><td>ClickHouse JDBC, V1/V2/V3 DDL, batch upsert</td></tr>
+<tr><td>9 &mdash; Charts API</td><td><code>services/charts-api</code></td><td>data-price-charts-api</td><td>Dual datasource (TimescaleDB + ClickHouse), Redis C2 cache</td></tr>
+<tr><td>10 &mdash; FNO Data Writer + API</td><td><code>services/fno-data-writer</code></td><td>data-internal-apis (option chain)</td><td>BSM + Black-76 pricers, IV solver, OI ZSET</td></tr>
+<tr><td>11 &mdash; Market Movers Writer + API</td><td><code>services/market-movers-writer</code></td><td>pml-core-market-mover-collector, pml-core-market-movers-service, eq-marketmovers-app</td><td>ZSET ranking, Caffeine cache, REST API</td></tr>
+<tr><td>12/13 &mdash; Recon Service</td><td><code>services/recon-service</code></td><td>&mdash; (new capability)</td><td>EOD bhavcopy comparison, mismatch reporting</td></tr>
+<tr><td>14 &mdash; Incident Manager</td><td><code>services/incident-manager</code></td><td>&mdash; (new capability)</td><td>Anomaly detection, Kafka consumers, REST API</td></tr>
+</tbody>
+</table>
+
+<h3>3.2 Remaining Components (Not Yet Built)</h3>
+
+<p>These design-doc components are <strong>not yet implemented</strong> and are required before full decommission:</p>
+
+<table>
+<thead><tr><th>Component</th><th>Design Doc Section</th><th>Effort (est.)</th><th>Dependency</th></tr></thead>
+<tbody>
+<tr><td>Bad Tick Detector</td><td>5.4</td><td>5 days</td><td>Feed Handler (done)</td></tr>
+<tr><td>Corporate Action Processor</td><td>5.5</td><td>8 days</td><td>Instrument Master (done), Temporal (done)</td></tr>
+<tr><td>Alert Engine</td><td>5.8</td><td>12 days</td><td>Publisher (done), PostgreSQL schema (done)</td></tr>
+<tr><td>Company Fundamentals Service</td><td>5.15</td><td>10 days</td><td>CMOTS integration, PostgreSQL</td></tr>
+<tr><td>Discovery &amp; Search Service</td><td>5.16</td><td>12 days</td><td>Elasticsearch, Instrument Master</td></tr>
+<tr><td>Self-Healing Supervisor</td><td>5.13</td><td>5 days</td><td>All core services</td></tr>
+</tbody>
+</table>
+
+<p><strong>Total remaining design-doc components: ~52 days</strong></p>
+
+<h2>4. Data Migration Plan</h2>
+
+<h3>4.1 Elasticsearch &rarr; New Storage</h3>
+
+<p>This is the largest data migration. Historical candle data must move from ES to TimescaleDB/ClickHouse.</p>
+
+<h4>4.1.1 Intraday Candles (ES &rarr; TimescaleDB)</h4>
+
+<table>
+<thead><tr><th>Detail</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Source</td><td>ES <code>intraday_candle_*</code> indices</td></tr>
+<tr><td>Target</td><td>TimescaleDB <code>candles_1m</code> hypertable</td></tr>
+<tr><td>Data volume</td><td>~50GB (90 days &times; ~5K instruments &times; 375 candles/day)</td></tr>
+<tr><td>Migration strategy</td><td>Bulk export from ES &rarr; CSV &rarr; TimescaleDB <code>COPY</code></td></tr>
+<tr><td>Timeline</td><td>1 day (export) + 1 day (import) + 1 day (validation) = <strong>3 days</strong></td></tr>
+<tr><td>Validation</td><td>Row count match, random sample price comparison (1% of rows)</td></tr>
+</tbody>
+</table>
+
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="7405f350-cac8-4645-ab26-4a3c64df6260"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- TimescaleDB target table (already exists from Story 7)
+-- candles_1m(timestamp, instrument_token, open, high, low, close, volume, vwap)
+-- Hypertable with 1-day chunks, compression after 7 days]]></ac:plain-text-body></ac:structured-macro>
+
+<p><strong>Migration script outline:</strong></p>
+<ol>
+<li>ES scroll query: <code>GET /intraday_candle_*/_search?scroll=5m</code> with batch size 10,000</li>
+<li>Transform ES <code>_source</code> &rarr; CSV with columns matching TimescaleDB schema</li>
+<li><code>\COPY candles_1m FROM '/tmp/candles_batch_N.csv' WITH CSV HEADER</code></li>
+<li>Validate: <code>SELECT COUNT(*), MIN(timestamp), MAX(timestamp) FROM candles_1m</code></li>
+</ol>
+
+<h4>4.1.2 EOD Candles (ES &rarr; ClickHouse)</h4>
+
+<table>
+<thead><tr><th>Detail</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Source</td><td>ES <code>eod_candle_*</code> indices</td></tr>
+<tr><td>Target</td><td>ClickHouse <code>candles_daily</code>, <code>candles_weekly</code>, <code>candles_monthly</code></td></tr>
+<tr><td>Data volume</td><td>~20GB (10 years &times; ~5K instruments &times; 250 trading days/year)</td></tr>
+<tr><td>Migration strategy</td><td>ES bulk export &rarr; CSV &rarr; ClickHouse <code>INSERT ... FORMAT CSVWithNames</code></td></tr>
+<tr><td>Timeline</td><td>1 day (export) + 1 day (import) + 1 day (validation) = <strong>3 days</strong></td></tr>
+<tr><td>Validation</td><td>Row count, OHLCV checksum on random 500 instruments</td></tr>
+</tbody>
+</table>
+
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="c3a468e4-6d87-4653-bb6e-4f27566c46e3"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- ClickHouse target tables (already exist from Story 8)
+-- candles_daily(date, instrument_token, open, high, low, close, volume)
+-- Materialized views auto-aggregate to weekly/monthly]]></ac:plain-text-body></ac:structured-macro>
+
+<h4>4.1.3 Screener Data (ES &rarr; ES, new index)</h4>
+
+<table>
+<thead><tr><th>Detail</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Source</td><td>ES <code>instruments_screener</code> (current, 80+ fields)</td></tr>
+<tr><td>Target</td><td>ES <code>instruments_screener_v2</code> (new mapping, same concept)</td></tr>
+<tr><td>Data volume</td><td>~2GB</td></tr>
+<tr><td>Migration strategy</td><td>Reindex with field mapping transformation</td></tr>
+<tr><td>Timeline</td><td><strong>1 day</strong> (reindex + validate)</td></tr>
+<tr><td>Note</td><td>The screener index is rebuilt daily from live data. Once MDE is running, the new index populates automatically. Only need to ensure no downtime during switchover.</td></tr>
+</tbody>
+</table>
+
+<h4>4.1.4 Company/News/Other (ES &rarr; PostgreSQL)</h4>
+
+<table>
+<thead><tr><th>Source Index</th><th>Target Table</th><th>Rows</th><th>Strategy</th></tr></thead>
+<tbody>
+<tr><td><code>company_*</code></td><td><code>company_fundamentals</code></td><td>~50K</td><td>ES export &rarr; PostgreSQL <code>COPY</code></td></tr>
+<tr><td><code>shareholding_*</code></td><td><code>shareholding_patterns</code></td><td>~20K</td><td>ES export &rarr; PostgreSQL <code>COPY</code></td></tr>
+<tr><td><code>news_*</code></td><td><code>news_articles</code></td><td>~500K</td><td>ES export &rarr; PostgreSQL <code>COPY</code></td></tr>
+<tr><td><code>corporate_actions_*</code></td><td><code>corporate_actions</code></td><td>~50K</td><td>ES export &rarr; PostgreSQL <code>COPY</code></td></tr>
+</tbody>
+</table>
+
+<p><strong>Timeline: 2 days</strong> (all four can be parallelized)</p>
+
+<h3>4.2 MySQL bodatadb &rarr; PostgreSQL</h3>
+
+<table>
+<thead><tr><th>Source Table</th><th>Target Table</th><th>Rows</th><th>Strategy</th></tr></thead>
+<tbody>
+<tr><td><code>scrip_master</code> + related</td><td><code>instrument_master</code></td><td>~200K</td><td><code>pg_dump</code>-style migration with column mapping</td></tr>
+<tr><td><code>cmots_technical_*</code></td><td>Not migrated (recomputed)</td><td>&mdash;</td><td>Technical indicators recomputed from candle data</td></tr>
+<tr><td><code>cmots_fundamental_*</code></td><td><code>company_fundamentals</code></td><td>~50K</td><td>SQL export &rarr; transform &rarr; PostgreSQL import</td></tr>
+<tr><td><code>cmots_shareholding</code></td><td><code>shareholding_patterns</code></td><td>~20K</td><td>Direct migration</td></tr>
+<tr><td><code>bhavcopy_*</code></td><td><code>candles_daily</code> (ClickHouse)</td><td>~10M</td><td>SQL export &rarr; ClickHouse bulk insert</td></tr>
+<tr><td><code>corporate_actions</code></td><td><code>corporate_actions</code></td><td>~50K</td><td>Direct migration</td></tr>
+<tr><td><code>data_sync_status</code></td><td>Not migrated</td><td>&mdash;</td><td>Replaced by Temporal workflow history</td></tr>
+</tbody>
+</table>
+
+<p><strong>Key transformation:</strong> MySQL <code>scrip_master</code> uses <code>SM_SCRIP_CODE</code> (numeric) as primary key. MDE uses composite token <code>{EXCHANGE}:{SYMBOL}:{TYPE}</code> as <code>instrument_token</code> (varchar). A mapping table is needed during migration.</p>
+
+<p><strong>Timeline: 3 days</strong> (schema mapping + export + import + validation)</p>
+
+<h3>4.3 Redis Multi-DB &rarr; Redis 2-Cluster</h3>
+
+<table>
+<thead><tr><th>Current</th><th>New</th><th>Migration</th></tr></thead>
+<tbody>
+<tr><td>DB 0: Live ticks (LTP, OHLC, vol)</td><td>C1: <code>FEED_PP_{token}</code> (protobuf binary)</td><td><strong>No migration needed</strong> &mdash; populated live by Publisher</td></tr>
+<tr><td>DB 2: Circuit limits</td><td>C1: <code>MGR_{seg}_{pmlId}_LC_UC</code></td><td><strong>No migration needed</strong> &mdash; populated by Publisher</td></tr>
+<tr><td>DB 3: Option chain</td><td>C2: Chain hashes</td><td><strong>No migration needed</strong> &mdash; populated by FNO Data Writer</td></tr>
+<tr><td>DB 6: Market movers</td><td>C2: ZSET <code>movers:{index}:*</code></td><td><strong>No migration needed</strong> &mdash; populated by Market Movers Writer</td></tr>
+<tr><td>DB 8: 52-week high/low</td><td>C1: <code>MGR_{seg}_{pmlId}_52_WK_HL</code></td><td><strong>Migrate historical 52w values</strong> for first-day accuracy</td></tr>
+<tr><td>DB 11: Badge/pre-computed</td><td>C1: <code>TRD_DAY</code></td><td><strong>No migration needed</strong> &mdash; recomputed daily</td></tr>
+<tr><td>DB 14: Open interest</td><td>C2: FNO chain data</td><td><strong>No migration needed</strong> &mdash; populated by FNO Data Writer</td></tr>
+</tbody>
+</table>
+
+<p><strong>Only DB 8 (52-week high/low) needs migration</strong> &mdash; without it, the first day after cutover would show incorrect 52w values until a full trading year passes.</p>
+
+<p><strong>52w migration strategy:</strong></p>
+<ol>
+<li>Export all 52w high/low values from Redis DB 8: <code>SCAN 0 MATCH 52w:* COUNT 1000</code></li>
+<li>Transform key format: <code>52w:{scripId}</code> &rarr; <code>MGR_{seg}_{pmlId}_52_WK_HL</code></li>
+<li>Bulk <code>SET</code> into Redis C1</li>
+</ol>
+
+<p><strong>Timeline: 1 day</strong></p>
+
+<h3>4.4 CMOTS Processors &rarr; Temporal Workflows</h3>
+
+<p>The 12 <code>@Scheduled</code> cron jobs in <code>data-consumer</code> are replaced by Temporal workflows:</p>
+
+<table>
+<thead><tr><th>Current Cron</th><th>MDE Temporal Workflow</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>InstrumentMasterProcessor</td><td><code>InstrumentMasterSyncWorkflow</code></td><td><strong>Built</strong> (Story 2)</td></tr>
+<tr><td>BhavcopyProcessor</td><td><code>EODReconciliationWorkflow</code></td><td><strong>Built</strong> (Story 12/13)</td></tr>
+<tr><td>NAVProcessor</td><td><code>NAVUpdateWorkflow</code></td><td><strong>Not built</strong> (design-doc only)</td></tr>
+<tr><td>CorporateActionProcessor</td><td><code>CorporateActionWorkflow</code></td><td><strong>Not built</strong></td></tr>
+<tr><td>TechnicalIndicatorProcessor</td><td><code>TechnicalDataSyncWorkflow</code></td><td><strong>Not built</strong></td></tr>
+<tr><td>PivotProcessor</td><td><code>TechnicalDataSyncWorkflow</code></td><td><strong>Not built</strong></td></tr>
+<tr><td>QuarterlyResultsProcessor</td><td><code>FundamentalsSyncWorkflow</code></td><td><strong>Not built</strong></td></tr>
+<tr><td>ShareholdingProcessor</td><td><code>FundamentalsSyncWorkflow</code></td><td><strong>Not built</strong></td></tr>
+<tr><td>AnalystRecommendationProcessor</td><td><code>FundamentalsSyncWorkflow</code></td><td><strong>Not built</strong></td></tr>
+<tr><td>InstitutionalActivityProcessor</td><td><code>MarketIntelligenceWorkflow</code></td><td><strong>Not built</strong></td></tr>
+<tr><td>NewsProcessor</td><td><code>NewsFeedWorkflow</code></td><td><strong>Not built</strong></td></tr>
+<tr><td>IPOProcessor</td><td><code>IPODataSyncWorkflow</code></td><td><strong>Not built</strong></td></tr>
+</tbody>
+</table>
+
+<p><strong>Key difference:</strong> Temporal workflows are durable (automatic retry on failure), observable (Temporal UI shows status), and version-controlled. The current cron jobs silently fail and require manual monitoring.</p>
+
+<p><strong>Timeline: Included in &quot;Remaining Components&quot; estimate (Section 3.2)</strong></p>
+
+<h3>4.5 Historical Candle Data &mdash; Volume Estimates</h3>
+
+<table>
+<thead><tr><th>Data Category</th><th>Source</th><th>Volume</th><th>Target</th><th>Import Method</th><th>Time</th></tr></thead>
+<tbody>
+<tr><td>1-min candles (90 days)</td><td>ES <code>intraday_candle_*</code></td><td>50 GB</td><td>TimescaleDB</td><td><code>COPY</code> from CSV</td><td>4 hours</td></tr>
+<tr><td>5-min candles (90 days)</td><td>ES <code>intraday_candle_*</code></td><td>10 GB</td><td>ClickHouse</td><td>Bulk INSERT</td><td>1 hour</td></tr>
+<tr><td>15-min candles (90 days)</td><td>ES <code>intraday_candle_*</code></td><td>3 GB</td><td>ClickHouse</td><td>Bulk INSERT</td><td>30 min</td></tr>
+<tr><td>Daily candles (10 years)</td><td>ES <code>eod_candle_*</code></td><td>15 GB</td><td>ClickHouse</td><td>Bulk INSERT</td><td>2 hours</td></tr>
+<tr><td>Weekly candles (10 years)</td><td>ES <code>eod_candle_*</code></td><td>3 GB</td><td>ClickHouse MV</td><td>Auto-aggregated from daily</td><td>&mdash;</td></tr>
+<tr><td>Monthly candles (10 years)</td><td>ES <code>eod_candle_*</code></td><td>1 GB</td><td>ClickHouse MV</td><td>Auto-aggregated from daily</td><td>&mdash;</td></tr>
+</tbody>
+</table>
+
+<p><strong>Total migration time for candle data: ~8 hours</strong> (can run overnight)</p>
+
+<h2>5. API Migration Mapping</h2>
+
+<h3>5.1 REST API Mapping (Old &rarr; New)</h3>
+
+<table>
+<thead><tr><th>#</th><th>Feature</th><th>Current PML Endpoint</th><th>New MDE Endpoint</th><th>Breaking Changes</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>Live snapshot</strong></td><td><code>GET /api/open-data/{scripId}</code></td><td><code>GET /v1/snapshots/{token}</code></td><td>Token format changed: numeric scripId &rarr; <code>NSE:RELIANCE:EQ</code></td></tr>
+<tr><td>2</td><td><strong>Chart intraday</strong></td><td><code>GET /api/chart/sym/{symbol}/intra/{interval}</code></td><td><code>GET /v1/candles/{token}?interval=1m&amp;from=...&amp;to=...</code></td><td>Path structure changed, interval as query param</td></tr>
+<tr><td>3</td><td><strong>Chart EOD</strong></td><td><code>GET /api/chart/sym/{symbol}/eod/{interval}</code></td><td><code>GET /v1/candles/{token}?interval=1d&amp;from=...&amp;to=...</code></td><td>Unified endpoint (intraday + EOD same URL)</td></tr>
+<tr><td>4</td><td><strong>Instrument search</strong></td><td><code>GET /api/scrip-master/search?q={query}</code></td><td><code>GET /v1/search?q={query}&amp;type={type}</code></td><td>Added <code>type</code> filter, token format</td></tr>
+<tr><td>5</td><td><strong>Instrument detail</strong></td><td><code>GET /api/scrip-master/{scripId}</code></td><td><code>GET /v1/instruments/{token}</code></td><td>Token format, enriched response with sector/indices</td></tr>
+<tr><td>6</td><td><strong>Market movers</strong></td><td><code>GET /api/market-movers/{index}</code></td><td><code>GET /v1/movers/{index}?type=gainers</code></td><td>Added <code>type</code> param (gainers/losers/volume)</td></tr>
+<tr><td>7</td><td><strong>Company info</strong></td><td><code>GET /api/company/{isin}</code></td><td><code>GET /v1/companies/{isin}</code></td><td>Richer response (financials + ratios + technical)</td></tr>
+<tr><td>8</td><td><strong>Analysts</strong></td><td>N/A (not available)</td><td><code>GET /v1/companies/{isin}/analysts</code></td><td><strong>New endpoint</strong></td></tr>
+<tr><td>9</td><td><strong>Screener</strong></td><td><code>POST /api/screener/filter</code></td><td><code>POST /v1/screener</code></td><td>Same concept, new filter syntax</td></tr>
+<tr><td>10</td><td><strong>News</strong></td><td><code>GET /api/news?isin={isin}</code></td><td><code>GET /v1/news?isin={isin}&amp;category={cat}</code></td><td>Added category filter, sentiment field</td></tr>
+<tr><td>11</td><td><strong>Option chain</strong></td><td><code>GET /api/fno/option-chain/{symbol}</code></td><td><code>GET /v1/option-chain/{underlying}?expiry={date}</code></td><td>Greeks included, explicit expiry param</td></tr>
+<tr><td>12</td><td><strong>Badge data</strong></td><td><code>GET /api/badge/{scripId}</code></td><td><code>GET /v1/snapshots/{token}</code></td><td>Merged into snapshot (52w, circuit in same response)</td></tr>
+<tr><td>13</td><td><strong>Expert picks</strong></td><td>N/A</td><td><code>GET /v1/expert-picks</code></td><td><strong>New endpoint</strong></td></tr>
+<tr><td>14</td><td><strong>IPO data</strong></td><td>N/A</td><td><code>GET /v1/ipo?status={status}</code></td><td><strong>New endpoint</strong></td></tr>
+<tr><td>15</td><td><strong>Bhav copy</strong></td><td>N/A (internal only)</td><td><code>GET /v1/bhav-copy/{date}</code></td><td><strong>New endpoint</strong> (public)</td></tr>
+<tr><td>16</td><td><strong>Market depth</strong></td><td>N/A</td><td><code>GET /v1/depth/{token}</code></td><td><strong>New endpoint</strong> (see Section 7.1)</td></tr>
+<tr><td>17</td><td><strong>Peer group</strong></td><td>N/A</td><td><code>GET /v1/peers/{isin}</code></td><td><strong>New endpoint</strong> (see Section 7.2)</td></tr>
+<tr><td>18</td><td><strong>Price alerts</strong></td><td>N/A</td><td><code>POST /v1/alerts</code>, <code>GET /v1/alerts</code></td><td><strong>New endpoint</strong> (see Section 7.3)</td></tr>
+</tbody>
+</table>
+
+<h3>5.2 WebSocket Protocol Changes</h3>
+
+<table>
+<thead><tr><th>Aspect</th><th>Current (PML)</th><th>New (MDE)</th></tr></thead>
+<tbody>
+<tr><td>Endpoint</td><td><code>wss://*/ws/tick</code></td><td><code>wss://*/ws/v1/feed</code></td></tr>
+<tr><td>Auth</td><td>Cookie-based session</td><td>API key (<code>x-api-key</code> header)</td></tr>
+<tr><td>Frame format</td><td>JSON text frames</td><td>Protobuf binary frames</td></tr>
+<tr><td>Subscribe</td><td><code>{&quot;action&quot;:&quot;subscribe&quot;,&quot;tokens&quot;:[123,456]}</code></td><td>JSON control frame: <code>{&quot;type&quot;:&quot;SUBSCRIBE&quot;,&quot;tokens&quot;:[&quot;NSE:RELIANCE:EQ&quot;]}</code></td></tr>
+<tr><td>Unsubscribe</td><td><code>{&quot;action&quot;:&quot;unsubscribe&quot;,&quot;tokens&quot;:[123]}</code></td><td>JSON control frame: <code>{&quot;type&quot;:&quot;UNSUBSCRIBE&quot;,&quot;tokens&quot;:[&quot;NSE:RELIANCE:EQ&quot;]}</code></td></tr>
+<tr><td>Tick data</td><td>JSON: <code>{&quot;t&quot;:123,&quot;ltp&quot;:2450.30,&quot;v&quot;:5200000}</code></td><td>Protobuf binary: <code>Tick { token, ltp, open, high, low, close, volume, ... }</code></td></tr>
+<tr><td>Throttle</td><td>Variable (server-side)</td><td>1 tick/sec per instrument (configurable)</td></tr>
+<tr><td>Client pattern</td><td>SharedWorker + multiple tabs</td><td>Same pattern supported (binary decode in worker)</td></tr>
+<tr><td>Reconnection</td><td>Manual (app handles)</td><td>Server sends heartbeat, client reconnects on miss</td></tr>
+</tbody>
+</table>
+
+<p><strong>Key breaking change:</strong> Binary protobuf frames require frontend to include a protobuf decoder (e.g., <code>protobufjs</code>). This is more bandwidth-efficient but requires UI code changes.</p>
+
+<h3>5.3 Kafka Topic Mapping</h3>
+
+<table>
+<thead><tr><th>Current Topic</th><th>New Topic</th><th>Content Change</th></tr></thead>
+<tbody>
+<tr><td><code>live-tick-*</code></td><td><code>mde-feed-equity</code></td><td>Protobuf <code>Tick</code> (was JSON)</td></tr>
+<tr><td><code>fno-tick-*</code></td><td><code>mde-feed-fno</code></td><td>Protobuf <code>Tick</code> (was JSON)</td></tr>
+<tr><td>N/A</td><td><code>mde-feed-index</code></td><td><strong>New</strong> &mdash; index ticks separated</td></tr>
+<tr><td>N/A</td><td><code>mde-candle-1m</code></td><td><strong>New</strong> &mdash; 1-min candle events</td></tr>
+<tr><td>N/A</td><td><code>mde-instrument-master-events</code></td><td><strong>New</strong> &mdash; instrument CRUD events</td></tr>
+<tr><td>N/A</td><td><code>mde-feed-anomalies</code></td><td><strong>New</strong> &mdash; anomaly detection events</td></tr>
+<tr><td>N/A</td><td><code>mde-recon-reports</code></td><td><strong>New</strong> &mdash; reconciliation results</td></tr>
+<tr><td><code>cmots-notification</code></td><td>Removed</td><td>Replaced by Temporal workflow status</td></tr>
+</tbody>
+</table>
+
+<h2>6. UI Impact Analysis</h2>
+
+<h3>6.1 Frontend Changes Required</h3>
+
+<p>The <code>equity-web-app</code> (React) requires the following changes:</p>
+
+<table>
+<thead><tr><th>#</th><th>Change</th><th>Scope</th><th>Effort</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>WebSocket client rewrite</strong></td><td>SharedWorker + tick decoder</td><td>5 days</td><td>P0 &mdash; blocks live prices</td></tr>
+<tr><td>2</td><td><strong>API URL migration</strong></td><td>All API constants/hooks</td><td>3 days</td><td>P0 &mdash; blocks all data</td></tr>
+<tr><td>3</td><td><strong>Token format migration</strong></td><td>scripId (numeric) &rarr; instrument_token (string)</td><td>3 days</td><td>P0 &mdash; breaks all lookups</td></tr>
+<tr><td>4</td><td><strong>Chart component update</strong></td><td>TradingView data adapter</td><td>2 days</td><td>P0 &mdash; blocks charts</td></tr>
+<tr><td>5</td><td><strong>Protobuf decoder integration</strong></td><td>npm <code>protobufjs</code> + proto files</td><td>1 day</td><td>P0 &mdash; blocks WebSocket</td></tr>
+<tr><td>6</td><td><strong>Option chain page update</strong></td><td>New response format with Greeks</td><td>2 days</td><td>P1</td></tr>
+<tr><td>7</td><td><strong>Market movers widget update</strong></td><td>New API params + response</td><td>1 day</td><td>P1</td></tr>
+<tr><td>8</td><td><strong>Screener page update</strong></td><td>New filter syntax</td><td>2 days</td><td>P1</td></tr>
+<tr><td>9</td><td><strong>News tab update</strong></td><td>New response with sentiment/category</td><td>1 day</td><td>P2</td></tr>
+<tr><td>10</td><td><strong>Badge removal + snapshot merge</strong></td><td>Badge data now in snapshot</td><td>1 day</td><td>P2</td></tr>
+</tbody>
+</table>
+
+<p><strong>Total frontend effort: ~21 days</strong> (can be parallelized across 2-3 frontend developers)</p>
+
+<h3>6.2 Feature Flag Strategy</h3>
+
+<p>Feature flags control the gradual rollout:</p>
+
+<table>
+<thead><tr><th>Flag</th><th>Controls</th><th>Rollout Plan</th></tr></thead>
+<tbody>
+<tr><td><code>mde.websocket.enabled</code></td><td>New WebSocket endpoint</td><td>10% &rarr; 50% &rarr; 100% over 2 weeks</td></tr>
+<tr><td><code>mde.charts.enabled</code></td><td>New Charts API</td><td>Internal &rarr; 50% &rarr; 100% over 1 week</td></tr>
+<tr><td><code>mde.search.enabled</code></td><td>New Search/Screener API</td><td>Internal &rarr; 100% (after validation)</td></tr>
+<tr><td><code>mde.movers.enabled</code></td><td>New Market Movers API</td><td>Internal &rarr; 100% (low risk)</td></tr>
+<tr><td><code>mde.optionchain.enabled</code></td><td>New Option Chain API</td><td>Internal &rarr; 50% &rarr; 100% over 1 week</td></tr>
+</tbody>
+</table>
+
+<p><strong>Implementation:</strong> LaunchDarkly or custom Redis-based feature flag service. The frontend checks the flag and routes to either old or new API.</p>
+
+<h3>6.3 New UI Components (from new features)</h3>
+
+<table>
+<thead><tr><th>Feature</th><th>UI Component</th><th>Design Needed</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td>Market Depth</td><td>5-level bid/ask ladder</td><td>Yes &mdash; depth visualization widget</td><td>3 days</td></tr>
+<tr><td>Peer Groups</td><td>Peer comparison table + chart</td><td>Yes &mdash; sector comparison view</td><td>4 days</td></tr>
+<tr><td>Price Alerts</td><td>Alert creation form + list</td><td>Yes &mdash; alert management page</td><td>5 days</td></tr>
+<tr><td>Push notifications</td><td>Alert notification cards</td><td>Yes &mdash; notification center</td><td>3 days</td></tr>
+</tbody>
+</table>
+
+<p><strong>Total new UI component effort: ~15 days</strong></p>
+
+<h2>7. New Feature Plans</h2>
+
+<p>These features were identified as missing from the original Price Engine design and are planned (not implemented).</p>
+
+<h3>7.1 Market Depth (Level 2 Order Book)</h3>
+
+<p><strong>What it does:</strong> Shows the top 5 bid/ask price levels with quantities for any instrument. Gives traders insight into supply/demand at each price level.</p>
+
+<p><strong>Current state:</strong> PML does NOT expose market depth to the UI. The data exists in the exchange feed but is discarded after best bid/ask extraction.</p>
+
+<p><strong>MDE state:</strong> Feed Handler already decodes <code>BCastHeader</code> with full MBP (Market By Price) depth data. Publisher currently writes only best bid/ask to Redis. The depth data is available in the <code>Tick</code> protobuf but not stored.</p>
+
+<p><strong>Design:</strong></p>
+
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="baed2cd0-8ce3-44bb-b30c-6b45215e3a7a"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[Feed Handler -> Tick proto (already includes depth[5]) -> Publisher
+                                                          |
+                                                   Redis C2: DEPTH_{seg}:{pmlId}
+                                                   Value: protobuf DepthSnapshot {
+                                                       bid[5] { price, qty, orders }
+                                                       ask[5] { price, qty, orders }
+                                                       timestamp
+                                                   }
+                                                   TTL: none (overwritten each tick)
+                                                          |
+                                                   REST: GET /v1/depth/{token}
+                                                   WebSocket: included in tick frame (optional subscribe flag)]]></ac:plain-text-body></ac:structured-macro>
+
+<p><strong>Implementation plan:</strong></p>
+<ol>
+<li><strong>Publisher change</strong> (1 day): Add <code>DepthWriter</code> component &mdash; extracts depth from <code>Tick</code> proto, writes to Redis C2 as <code>DEPTH_{seg}:{pmlId}</code> key with protobuf-serialized <code>DepthSnapshot</code> value</li>
+<li><strong>REST endpoint</strong> (0.5 day): <code>GET /v1/depth/{token}</code> &mdash; reads from Redis C2, returns JSON</li>
+<li><strong>WebSocket extension</strong> (1 day): New subscribe mode <code>SUBSCRIBE_WITH_DEPTH</code> &mdash; tick frames include depth levels</li>
+<li><strong>Frontend</strong> (2 days): Depth ladder widget (bid/ask visualization with color-coded quantity bars)</li>
+</ol>
+
+<p><strong>Effort: 4.5 days</strong> | <strong>Dependencies:</strong> Publisher (done), Broadcast Service (done)</p>
+
+<h3>7.2 Peer Groups (Sector Comparison)</h3>
+
+<p><strong>What it does:</strong> For any stock, shows a comparison table of key metrics (P/E, ROE, market cap, revenue growth, etc.) against its industry/sector peers. Essential for investment decision-making.</p>
+
+<p><strong>Current state:</strong> PML has no peer comparison feature. Users must manually search for companies in the same sector.</p>
+
+<p><strong>Design:</strong></p>
+
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="6675d09f-d6ea-48ad-867d-2bffa4e2200c"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[                   Instrument Master (sector, industry data)
+                              |
+                   PostgreSQL: peer_groups table
+                   +---------------------------------------------+
+                   | isin | sector | industry | indices | ...     |
+                   +---------------------------------------------+
+                              |
+                   Peer Resolution Service
+                   1. Find all instruments in same industry
+                   2. Filter by market cap tier (large/mid/small)
+                   3. Enrich with fundamentals from company_fundamentals
+                   4. Enrich with live price data from Redis snapshot
+                              |
+                   REST: GET /v1/peers/{isin}?limit=10
+                   Response: {
+                       target: { isin, symbol, metrics... },
+                       peers: [{ isin, symbol, metrics... }, ...],
+                       industryAvg: { pe, roe, debtEquity, ... }
+                   }]]></ac:plain-text-body></ac:structured-macro>
+
+<p><strong>Implementation plan:</strong></p>
+<ol>
+<li><strong>Schema migration</strong> (0.5 day): Add <code>sector</code>, <code>industry</code>, <code>market_cap_tier</code> columns to <code>instrument_master</code> if not present; Flyway V3 migration</li>
+<li><strong>CMOTS integration</strong> (2 days): Temporal workflow to fetch sector/industry classification from CMOTS API, populate <code>instrument_master</code></li>
+<li><strong>Peer resolution logic</strong> (2 days): Service that finds peers (same industry + similar market cap), computes industry averages</li>
+<li><strong>REST endpoint</strong> (1 day): <code>GET /v1/peers/{isin}</code> with Caffeine cache (5-min TTL, refreshed on fundamentals update)</li>
+<li><strong>Frontend</strong> (2.5 days): Peer comparison table component, bar charts for metric comparison</li>
+</ol>
+
+<p><strong>Effort: 8 days</strong> | <strong>Dependencies:</strong> Company Fundamentals Service (not yet built), Instrument Master (done)</p>
+
+<h3>7.3 User Price Alerts</h3>
+
+<p><strong>What it does:</strong> Users set price conditions (e.g., &quot;alert me when RELIANCE crosses ₹2500&quot;) and receive push notifications when triggered.</p>
+
+<p><strong>Current state:</strong> PML has no price alert feature. Users must manually check prices.</p>
+
+<p><strong>Design:</strong></p>
+
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="c05a2fe6-1deb-4bc5-9d03-8e460624927f"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[                   User API
+                   POST /v1/alerts { instrumentToken, type, value }
+                   GET  /v1/alerts (list user's alerts)
+                   DELETE /v1/alerts/{id}
+                              |
+                   PostgreSQL: alert_rules (already in schema)
+                   Redis C2: alerts:instrument:{token} -> Set<AlertRule>
+                   Redis C2: alerts:user:{userId} -> Set<alertId>
+                              |
+                   Alert Evaluation Engine (runs inside Publisher pipeline)
+                   On each tick:
+                   1. Check if instrument has active alerts (Redis lookup, O(1))
+                   2. If yes, evaluate each alert condition
+                   3. If triggered: update status, publish to Kafka, send push
+                              |
+                   Kafka: mde-alerts-triggered
+                              |
+                   Push Notification Service (external -- FCM/APNs)]]></ac:plain-text-body></ac:structured-macro>
+
+<p><strong>Alert types supported:</strong></p>
+<ul>
+<li><code>PRICE_ABOVE</code> / <code>PRICE_BELOW</code> &mdash; absolute price crossing</li>
+<li><code>PERCENT_CHANGE</code> &mdash; % change from previous close exceeds threshold</li>
+<li><code>VOLUME_SPIKE</code> &mdash; volume exceeds N&times; average</li>
+<li><code>CIRCUIT_HIT</code> &mdash; upper or lower circuit hit</li>
+<li><code>52W_HIGH</code> / <code>52W_LOW</code> &mdash; new 52-week high or low</li>
+</ul>
+
+<p><strong>Scale considerations:</strong></p>
+<ul>
+<li>Target: 1M active alerts across all users</li>
+<li>Redis <code>alerts:instrument:{token}</code> keeps alerts indexed by instrument for O(1) lookup during tick processing</li>
+<li>Most instruments will have 0 alerts; popular stocks (RELIANCE, TCS, NIFTY) might have 10K+ alerts each</li>
+<li>Alert evaluation per tick: ~0.1ms even for 10K alerts (simple numeric comparison)</li>
+</ul>
+
+<p><strong>Implementation plan:</strong></p>
+<ol>
+<li><strong>Alert CRUD API</strong> (2 days): REST endpoints, PostgreSQL persistence, Redis index sync</li>
+<li><strong>Alert evaluation engine</strong> (3 days): Plugs into Publisher tick pipeline, evaluates all alert types</li>
+<li><strong>Kafka publisher</strong> (1 day): Publishes triggered alerts to <code>mde-alerts-triggered</code></li>
+<li><strong>Push notification integration</strong> (2 days): Consumes from Kafka, calls FCM/APNs</li>
+<li><strong>Rate limiting</strong> (1 day): Max 50 alerts per user, max 10 alerts per instrument per user, cooldown period</li>
+<li><strong>Frontend</strong> (3 days): Alert creation form (on stock detail page), alerts list page, notification center</li>
+</ol>
+
+<p><strong>Effort: 12 days</strong> | <strong>Dependencies:</strong> Publisher (done), PostgreSQL schema (done)</p>
+
+<h3>7.4 Service-Level Alerts (System Monitoring)</h3>
+
+<p><strong>What it does:</strong> Automatic, system-wide alerts for market anomalies that ops/traders should know about &mdash; NOT user-configured.</p>
+
+<p><strong>Current state:</strong> PML has basic Grafana alerting on metrics but no semantic market event alerts.</p>
+
+<p><strong>Design:</strong></p>
+
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="cf81bf8f-c68f-4605-91fb-b37f69f3ea30"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[                   Publisher (tick pipeline)
+                              |
+                   Service Alert Detectors (run inside Publisher)
+                   +-- CircuitHitDetector -- instrument hits upper/lower circuit
+                   +-- VolumeAnomalyDetector -- volume > 5x 20-day avg in 1 min
+                   +-- IndexLevelBreachDetector -- NIFTY/SENSEX crosses round numbers
+                   +-- FeedGapDetector -- no ticks for instrument > 30s during market hours
+                   +-- FlashCrashDetector -- >5% drop in <60s across 10+ instruments
+                              |
+                   Kafka: mde-feed-anomalies (already exists, Story 14)
+                              |
+                   Incident Manager (already built, Story 14)
+                   -> Classifies severity (INFO/WARNING/CRITICAL)
+                   -> Stores in PostgreSQL incidents table
+                   -> Routes to Slack/PagerDuty based on severity]]></ac:plain-text-body></ac:structured-macro>
+
+<p><strong>Implementation plan:</strong></p>
+<ol>
+<li><strong>Detector implementations</strong> (3 days): 5 detector classes plugged into Publisher&rsquo;s tick dispatch pipeline</li>
+<li><strong>Anomaly event schema</strong> (0.5 day): Protobuf <code>AnomalyEvent { type, instrument, severity, details, timestamp }</code></li>
+<li><strong>Incident Manager integration</strong> (1 day): Consume anomaly events, classify, store, route</li>
+<li><strong>Grafana dashboard</strong> (1 day): Anomaly frequency, severity distribution, response time</li>
+<li><strong>Slack/PagerDuty routing</strong> (1 day): Webhook integration for CRITICAL alerts</li>
+</ol>
+
+<p><strong>Effort: 6.5 days</strong> | <strong>Dependencies:</strong> Publisher (done), Incident Manager (done)</p>
+
+<h3>7.5 Feature Implementation Order</h3>
+
+<table>
+<thead><tr><th>Order</th><th>Feature</th><th>Effort</th><th>Rationale</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Market Depth</td><td>4.5 days</td><td>Easiest &mdash; data already in pipeline, just needs storage + API</td></tr>
+<tr><td>2</td><td>Service-Level Alerts</td><td>6.5 days</td><td>Builds on existing Incident Manager, improves ops readiness</td></tr>
+<tr><td>3</td><td>Peer Groups</td><td>8 days</td><td>Depends on Company Fundamentals Service (must be built first)</td></tr>
+<tr><td>4</td><td>User Price Alerts</td><td>12 days</td><td>Most complex, needs push notification infra</td></tr>
+</tbody>
+</table>
+
+<p><strong>Total new features: ~31 days</strong> (sequential) or <strong>~20 days</strong> (with 2 developers in parallel)</p>
+
+<h2>8. Migration Phases &amp; Timeline</h2>
+
+<h3>Overview Timeline</h3>
+
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="a395bc42-0c13-46e1-bc85-dc23d84680d4"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[Week 1-2:    Phase 1 -- Shadow Mode (parallel run)
+Week 3-4:    Phase 2 -- Internal Consumers (candles, option chain)
+Week 5-6:    Phase 3 -- Live Prices (WebSocket to clients)
+Week 7:      Phase 4 -- Decommission legacy services
+Week 8-9:    Phase 5a -- Remaining design-doc components
+Week 10-13:  Phase 5b -- New features (depth, alerts, peers)]]></ac:plain-text-body></ac:structured-macro>
+
+<h3>Phase 1: Shadow Mode (Weeks 1-2)</h3>
+
+<p><strong>Goal:</strong> Verify MDE produces correct data by running in parallel with PML.</p>
+
+<table>
+<thead><tr><th>Task</th><th>Owner</th><th>Days</th></tr></thead>
+<tbody>
+<tr><td>Deploy MDE to staging EKS cluster</td><td>DevOps</td><td>2</td></tr>
+<tr><td>Connect Feed Handler to NSE Direct UDP (staging feed)</td><td>Backend</td><td>1</td></tr>
+<tr><td>Run Publisher + write to Redis C1 (shadow)</td><td>Backend</td><td>1</td></tr>
+<tr><td>Build comparison tool: MDE Redis vs PML Redis (sample 1000 instruments every 5 sec)</td><td>Backend</td><td>3</td></tr>
+<tr><td>Run comparison for 5 trading days, fix discrepancies</td><td>Backend</td><td>5</td></tr>
+<tr><td>Migrate historical candle data (ES &rarr; TimescaleDB/ClickHouse)</td><td>Data Eng</td><td>3</td></tr>
+<tr><td>Migrate 52-week high/low from Redis DB 8</td><td>Data Eng</td><td>1</td></tr>
+<tr><td>Migrate MySQL bodatadb &rarr; PostgreSQL (instrument master, fundamentals)</td><td>Data Eng</td><td>3</td></tr>
+</tbody>
+</table>
+
+<p><strong>Exit criteria:</strong> &lt;0.01% price discrepancy between MDE and PML over 5 trading days.</p>
+
+<h3>Phase 2: Internal Consumers (Weeks 3-4)</h3>
+
+<p><strong>Goal:</strong> Switch internal (non-user-facing) consumers to MDE.</p>
+
+<table>
+<thead><tr><th>Task</th><th>Owner</th><th>Days</th></tr></thead>
+<tbody>
+<tr><td>Switch Charts API to serve from MDE (TimescaleDB + ClickHouse)</td><td>Backend</td><td>2</td></tr>
+<tr><td>Frontend: Update chart component to use new Charts API</td><td>Frontend</td><td>2</td></tr>
+<tr><td>Switch Option Chain page to MDE FNO Data Writer API</td><td>Backend</td><td>1</td></tr>
+<tr><td>Frontend: Update option chain component</td><td>Frontend</td><td>2</td></tr>
+<tr><td>Switch Market Movers to MDE Market Movers Writer API</td><td>Backend</td><td>1</td></tr>
+<tr><td>Frontend: Update movers widget</td><td>Frontend</td><td>1</td></tr>
+<tr><td>Run for 5 trading days under real load</td><td>QA</td><td>5</td></tr>
+</tbody>
+</table>
+
+<p><strong>Exit criteria:</strong> All internal consumers working on MDE, no regression in functionality.</p>
+
+<h3>Phase 3: Live Prices (Weeks 5-6)</h3>
+
+<p><strong>Goal:</strong> MDE serves live prices to end users via WebSocket.</p>
+
+<table>
+<thead><tr><th>Task</th><th>Owner</th><th>Days</th></tr></thead>
+<tbody>
+<tr><td>Frontend: WebSocket client rewrite (protobuf + new endpoint)</td><td>Frontend</td><td>5</td></tr>
+<tr><td>Frontend: Token format migration (scripId &rarr; instrument_token)</td><td>Frontend</td><td>3</td></tr>
+<tr><td>Frontend: API URL migration (all remaining endpoints)</td><td>Frontend</td><td>3</td></tr>
+<tr><td>Feature flag setup (LaunchDarkly or Redis-based)</td><td>Backend</td><td>1</td></tr>
+<tr><td>Rollout: 10% of users &rarr; monitor for 2 days</td><td>Ops</td><td>2</td></tr>
+<tr><td>Rollout: 50% of users &rarr; monitor for 2 days</td><td>Ops</td><td>2</td></tr>
+<tr><td>Rollout: 100% of users</td><td>Ops</td><td>1</td></tr>
+</tbody>
+</table>
+
+<p><strong>Exit criteria:</strong> 100% of users on MDE WebSocket, error rate &lt;0.01%, latency P99 &lt;50ms.</p>
+
+<h3>Phase 4: Decommission (Week 7)</h3>
+
+<p><strong>Goal:</strong> Shut down legacy PML pricing services.</p>
+
+<table>
+<thead><tr><th>Task</th><th>Owner</th><th>Days</th></tr></thead>
+<tbody>
+<tr><td>Verify no traffic to old endpoints (check ALB access logs)</td><td>Ops</td><td>1</td></tr>
+<tr><td>Scale down old services to 0 replicas (keep images for rollback)</td><td>DevOps</td><td>1</td></tr>
+<tr><td>Monitor for 3 trading days with old services at 0</td><td>Ops</td><td>3</td></tr>
+<tr><td>Delete old EKS deployments, ALB rules, Route53 entries</td><td>DevOps</td><td>1</td></tr>
+<tr><td>Archive old ES indices (snapshot to S3)</td><td>Data Eng</td><td>1</td></tr>
+</tbody>
+</table>
+
+<p><strong>Exit criteria:</strong> All 25 legacy services decommissioned, MDE sole source of truth.</p>
+
+<h3>Phase 5a: Remaining Design-Doc Components (Weeks 8-9)</h3>
+
+<table>
+<thead><tr><th>Component</th><th>Effort</th><th>Dependency</th></tr></thead>
+<tbody>
+<tr><td>Bad Tick Detector</td><td>5 days</td><td>None (plugs into Publisher)</td></tr>
+<tr><td>Corporate Action Processor</td><td>8 days</td><td>Temporal (done)</td></tr>
+<tr><td>Company Fundamentals Service</td><td>10 days</td><td>CMOTS integration</td></tr>
+<tr><td>Self-Healing Supervisor</td><td>5 days</td><td>All core services</td></tr>
+</tbody>
+</table>
+
+<h3>Phase 5b: New Features (Weeks 10-13)</h3>
+
+<table>
+<thead><tr><th>Feature</th><th>Effort</th><th>Dependency</th></tr></thead>
+<tbody>
+<tr><td>Market Depth</td><td>4.5 days</td><td>Publisher (done)</td></tr>
+<tr><td>Service-Level Alerts</td><td>6.5 days</td><td>Publisher + Incident Manager (done)</td></tr>
+<tr><td>Peer Groups</td><td>8 days</td><td>Company Fundamentals (Phase 5a)</td></tr>
+<tr><td>User Price Alerts</td><td>12 days</td><td>Publisher (done)</td></tr>
+</tbody>
+</table>
+
+<h3>Total Timeline Summary</h3>
+
+<table>
+<thead><tr><th>Phase</th><th>Duration</th><th>Cumulative</th></tr></thead>
+<tbody>
+<tr><td>Phase 1: Shadow Mode</td><td>2 weeks</td><td>Week 2</td></tr>
+<tr><td>Phase 2: Internal Consumers</td><td>2 weeks</td><td>Week 4</td></tr>
+<tr><td>Phase 3: Live Prices</td><td>2 weeks</td><td>Week 6</td></tr>
+<tr><td>Phase 4: Decommission</td><td>1 week</td><td>Week 7</td></tr>
+<tr><td>Phase 5a: Remaining Components</td><td>2 weeks</td><td>Week 9</td></tr>
+<tr><td>Phase 5b: New Features</td><td>4 weeks</td><td>Week 13</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>13 weeks</strong></td><td></td></tr>
+</tbody>
+</table>
+
+<h2>9. Risk Matrix</h2>
+
+<table>
+<thead><tr><th>#</th><th>Risk</th><th>Impact</th><th>Likelihood</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><strong>Feed data mismatch</strong> &mdash; MDE prices differ from PML</td><td>HIGH</td><td>MEDIUM</td><td>Shadow mode comparison for 5 days, automated reconciliation</td></tr>
+<tr><td>2</td><td><strong>Historical candle data loss</strong> during ES&rarr;ClickHouse migration</td><td>HIGH</td><td>LOW</td><td>Validate row counts + random sample checksums; keep ES snapshots on S3 for 90 days</td></tr>
+<tr><td>3</td><td><strong>WebSocket protocol change breaks mobile app</strong></td><td>HIGH</td><td>MEDIUM</td><td>Feature flag rollout (10%&rarr;50%&rarr;100%), keep old endpoint running during Phase 3</td></tr>
+<tr><td>4</td><td><strong>Token format migration (scripId &rarr; instrument_token)</strong> breaks internal services</td><td>HIGH</td><td>MEDIUM</td><td>Build mapping service that translates old&rarr;new during transition; deprecate old format after 4 weeks</td></tr>
+<tr><td>5</td><td><strong>CMOTS API unavailability</strong> during Temporal workflow migration</td><td>MEDIUM</td><td>LOW</td><td>CMOTS has 99.5% uptime; Temporal retries handle transient failures</td></tr>
+<tr><td>6</td><td><strong>Redis C1/C2 capacity</strong> insufficient for 90K instruments</td><td>MEDIUM</td><td>LOW</td><td>Load test with 90K instruments before Phase 1; ElastiCache auto-scaling</td></tr>
+<tr><td>7</td><td><strong>Frontend team bandwidth</strong> &mdash; 21 days of frontend work</td><td>MEDIUM</td><td>HIGH</td><td>Start frontend changes in Phase 1 (parallel with shadow mode); dedicate 2 frontend devs</td></tr>
+<tr><td>8</td><td><strong>52-week high/low accuracy</strong> on Day 1 after cutover</td><td>LOW</td><td>HIGH</td><td>Migrate historical 52w values from Redis DB 8 (Section 4.3)</td></tr>
+<tr><td>9</td><td><strong>Binary protobuf in WebSocket</strong> &mdash; debugging harder than JSON</td><td>LOW</td><td>MEDIUM</td><td>Ship protobuf debug tools; keep JSON fallback endpoint for 4 weeks</td></tr>
+<tr><td>10</td><td><strong>Corporate actions during migration</strong> (stock split mid-Phase 3)</td><td>MEDIUM</td><td>LOW</td><td>Dual-write: process corp actions in both PML and MDE during Phase 2-3</td></tr>
+</tbody>
+</table>
+
+<h2>10. Rollback Strategy</h2>
+
+<p>Each phase has an independent rollback plan:</p>
+
+<table>
+<thead><tr><th>Phase</th><th>Rollback Trigger</th><th>Rollback Action</th><th>RTO</th></tr></thead>
+<tbody>
+<tr><td>Phase 1 (Shadow)</td><td>&gt;0.1% price discrepancy</td><td>Stop MDE shadow, investigate</td><td>0 min (PML unaffected)</td></tr>
+<tr><td>Phase 2 (Internal)</td><td>API errors &gt;1% or latency &gt;200ms</td><td>Feature flag &rarr; switch back to old APIs</td><td>&lt;5 min</td></tr>
+<tr><td>Phase 3 (Live Prices)</td><td>WebSocket errors &gt;0.1% or price issues</td><td>Feature flag &rarr; route to old WebSocket</td><td>&lt;5 min</td></tr>
+<tr><td>Phase 4 (Decommission)</td><td>Any critical issue within 3 days</td><td>Scale old services back to previous replica count</td><td>&lt;15 min</td></tr>
+<tr><td>Phase 5 (New Features)</td><td>Feature bugs</td><td>Disable feature flag</td><td>&lt;1 min</td></tr>
+</tbody>
+</table>
+
+<p><strong>Key principle:</strong> Old services are kept at 0 replicas (not deleted) for 4 weeks after Phase 4. Docker images remain in ECR for 90 days. ES index snapshots on S3 for 90 days.</p>
+
+<h2>11. Repos to Decommission</h2>
+
+<h3>Phase 4 Decommission (7 repos &mdash; from original design doc)</h3>
+
+<table>
+<thead><tr><th>#</th><th>Repo</th><th>Replaced By</th><th>Decommission Week</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>data-company-app</code></td><td>Company Fundamentals Service</td><td>Week 7</td></tr>
+<tr><td>2</td><td><code>data-consumer</code></td><td>Temporal workflows</td><td>Week 7</td></tr>
+<tr><td>3</td><td><code>data-screener-consumer</code></td><td>Discovery &amp; Search Service</td><td>Week 7</td></tr>
+<tr><td>4</td><td><code>data-search</code></td><td>Discovery &amp; Search Service</td><td>Week 7</td></tr>
+<tr><td>5</td><td><code>pml-core-market-mover-collector</code></td><td>Market Movers Writer</td><td>Week 7</td></tr>
+<tr><td>6</td><td><code>pml-core-market-movers-service</code></td><td>Market Movers Writer</td><td>Week 7</td></tr>
+<tr><td>7</td><td><code>pml-core-badge-service</code></td><td>Publisher</td><td>Week 7</td></tr>
+</tbody>
+</table>
+
+<h3>Additional Repos to Decommission (18 more &mdash; identified in this analysis)</h3>
+
+<table>
+<thead><tr><th>#</th><th>Repo</th><th>Replaced By</th><th>Decommission Week</th></tr></thead>
+<tbody>
+<tr><td>8</td><td><code>pml-core-tick-data-service</code></td><td>Broadcast Service</td><td>Week 7</td></tr>
+<tr><td>9</td><td><code>pml-core-tick-producer</code></td><td>Feed Handler</td><td>Week 7</td></tr>
+<tr><td>10</td><td><code>data-tick-listener</code></td><td>Publisher</td><td>Week 7</td></tr>
+<tr><td>11</td><td><code>data-price-charts-api</code></td><td>Charts API</td><td>Week 7</td></tr>
+<tr><td>12</td><td><code>data-portfolio-charts-api</code></td><td>Charts API</td><td>Week 7</td></tr>
+<tr><td>13</td><td><code>scrip-master</code></td><td>Instrument Master</td><td>Week 7</td></tr>
+<tr><td>14</td><td><code>scrip-master-service</code></td><td>Instrument Master</td><td>Week 7</td></tr>
+<tr><td>15</td><td><code>data-consumer-service</code></td><td>Temporal workflows</td><td>Week 7</td></tr>
+<tr><td>16</td><td><code>data-internal-apis</code></td><td>MDE REST APIs</td><td>Week 7</td></tr>
+<tr><td>17</td><td><code>data-corporate-action-pull-push</code></td><td>Corporate Action Processor</td><td>Week 9</td></tr>
+<tr><td>18</td><td><code>data-websocket-pull-api</code></td><td>Broadcast Service</td><td>Week 7</td></tr>
+<tr><td>19</td><td><code>pml-open-data-service</code></td><td>MDE Snapshot API</td><td>Week 7</td></tr>
+<tr><td>20</td><td><code>subscription-data-producer</code></td><td>Broadcast Service</td><td>Week 7</td></tr>
+<tr><td>21</td><td><code>eq-marketmovers-app</code></td><td>Market Movers Writer</td><td>Week 7</td></tr>
+<tr><td>22</td><td><code>eq-mo-data-service</code></td><td>Publisher</td><td>Week 7</td></tr>
+<tr><td>23</td><td><code>eq-fms-data-sync-consumer</code></td><td>Temporal workflows</td><td>Week 7</td></tr>
+<tr><td>24</td><td><code>data-holdings</code></td><td>Migrated to read from MDE Redis</td><td>Week 9 (modified, not decommissioned)</td></tr>
+<tr><td>25</td><td><code>data-bullfinch-output-consumer</code></td><td>Portfolio Engine scope</td><td>Not decommissioned (different owner)</td></tr>
+</tbody>
+</table>
+
+<p><strong>Total decommissioned: 23 repos</strong> (+ 1 modified, + 1 kept for Portfolio Engine)</p>
+
+<h2>Appendix A: Instrument Token Mapping</h2>
+
+<p>The biggest breaking change is the token format:</p>
+
+<table>
+<thead><tr><th>Current (PML)</th><th>New (MDE)</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>Numeric scripId (<code>256265</code>)</td><td>String token (<code>NSE:RELIANCE:EQ</code>)</td><td>RELIANCE equity</td></tr>
+<tr><td>Numeric scripId (<code>11536386</code>)</td><td>String token (<code>NSE:RELIANCE:FUT:2026-04-24</code>)</td><td>RELIANCE futures</td></tr>
+<tr><td>Numeric scripId (<code>11536642</code>)</td><td>String token (<code>NSE:RELIANCE:CE:2026-04-24:2500</code>)</td><td>RELIANCE call option</td></tr>
+</tbody>
+</table>
+
+<p><strong>Migration approach:</strong> Build a bidirectional mapping service:</p>
+<ul>
+<li><code>GET /v1/internal/token-map?scripId=256265</code> &rarr; <code>NSE:RELIANCE:EQ</code></li>
+<li><code>GET /v1/internal/token-map?token=NSE:RELIANCE:EQ</code> &rarr; <code>256265</code></li>
+</ul>
+
+<p>This mapping service is used during the transition period (Phase 2-4). After full migration, the scripId mapping is deprecated.</p>
+
+<h2>Appendix B: CMOTS API Endpoints Used</h2>
+
+<p>For reference, these are the CMOTS API endpoints currently called by <code>data-consumer</code>:</p>
+
+<table>
+<thead><tr><th>#</th><th>Endpoint</th><th>Data</th><th>Frequency</th><th>MDE Replacement</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>GET /api/ScripMaster</code></td><td>Instrument list</td><td>Daily 6 AM</td><td>Temporal: InstrumentMasterSync</td></tr>
+<tr><td>2</td><td><code>GET /api/PivotData</code></td><td>Pivot points</td><td>Daily 7 AM</td><td>Temporal: TechnicalDataSync</td></tr>
+<tr><td>3</td><td><code>GET /api/CorporateAction</code></td><td>Corp actions</td><td>Daily 8 PM</td><td>Temporal: CorporateAction</td></tr>
+<tr><td>4</td><td><code>GET /api/TechIndicator</code></td><td>RSI, MACD, etc.</td><td>Daily 9 PM</td><td>Temporal: TechnicalDataSync</td></tr>
+<tr><td>5</td><td><code>GET /api/BhavCopy</code></td><td>EOD OHLCV</td><td>Daily 6:30 PM</td><td>Temporal: EODReconciliation</td></tr>
+<tr><td>6</td><td><code>GET /api/NAVData</code></td><td>MF NAVs</td><td>Daily 11 PM</td><td>Temporal: NAVUpdate</td></tr>
+<tr><td>7</td><td><code>GET /api/QuarterlyResults</code></td><td>Financials</td><td>Quarterly</td><td>Temporal: FundamentalsSync</td></tr>
+<tr><td>8</td><td><code>GET /api/Shareholding</code></td><td>Promoter/FII/DII</td><td>Quarterly</td><td>Temporal: FundamentalsSync</td></tr>
+<tr><td>9</td><td><code>GET /api/AnalystReco</code></td><td>Target prices</td><td>Weekly</td><td>Temporal: FundamentalsSync</td></tr>
+<tr><td>10</td><td><code>GET /api/FIIDIIData</code></td><td>Institutional flows</td><td>Daily 7 PM</td><td>Temporal: MarketIntelligence</td></tr>
+<tr><td>11</td><td><code>GET /api/News</code></td><td>Market news</td><td>Every 15 min</td><td>Temporal: NewsFeed</td></tr>
+<tr><td>12</td><td><code>GET /api/IPOData</code></td><td>IPO listings</td><td>Daily 8 AM</td><td>Temporal: IPODataSync</td></tr>
+</tbody>
+</table>
+
+<p><strong>Base URLs:</strong></p>
+<ul>
+<li>UAT: <code>http://paytmapiuat.cmots.com/api</code></li>
+<li>Production: <code>http://paytmapi.cmots.com/api</code></li>
+</ul>
+
+<p><strong>Authentication:</strong> API key passed as query parameter (<code>?key=$CMOTS_API_KEY</code>). Key is stored in AWS Secrets Manager.</p>

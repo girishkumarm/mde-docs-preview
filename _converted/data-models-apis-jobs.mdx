@@ -1,0 +1,279 @@
+---
+title: "Market Data Engine — Data Models, APIs & Scheduled Jobs"
+---
+
+<Info>
+**Version 3.2 — April 2026.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+</Info>
+
+## 7. Scheduled Jobs (Pre-Market Data Loading)
+
+All jobs annotated `@TradeDay` — execute only on trading days (checked against `TRD_DAY` Redis key). A `ConditionalSchedulingAspect` AOP intercept enforces this.
+
+### Data Cache Schedulers
+
+| Job | Cron (IST) | Purpose |
+| --- | --- | --- |
+| `dataCleanUp()` | `0 35 7 * * *` (7:35 AM) | Clear Redis keys + local cache |
+| `updateScripMasterData()` | `0 35 7 * * *` (7:35 AM) | Load security master from S3 (all segments) |
+| `updateCktLimitData()` | `0 40 7 * * *` (7:40 AM) | Load circuit limit data |
+| `update52WkHiLowData()` | `0 40 7 * * *` (7:40 AM) | Load 52-week high/low |
+| `updateOhlcData()` | `0 40 7 * * *` (7:40 AM) | Initialize OHLC cache |
+| `updateEqPCloseData()` | `0 40 7 * * *` (7:40 AM) | Equity previous close |
+| `updateDrvPCloseData()` | `0 40 7 * * *` (7:40 AM) | Derivative previous close |
+| `updateTradeData()` | `0 45 7 * * *` (7:45 AM) | Initialize trade structure |
+| `updateIndexData()` | `0 45 7 * * *` (7:45 AM) | Initialize index structure |
+
+**Execution order matters:** dataCleanUp → scripMaster → ckt/OHLC/pclose/52wk → trade/index.
+
+### Scheduler Status Monitor
+
+Runs on two cron schedules, checks each job against its completion deadline:
+
+| Job Name | Must Complete By (IST) |
+| --- | --- |
+| `SM` (Scrip Master) | 06:57 |
+| `CKT_INFO` | 07:07 |
+| `YEARLY_HIGH_LOW` | 07:07 |
+| `OHLC` | 07:07 |
+| `TRD_DATA` | 07:12 |
+| `INDEX_STRUCT` | 07:12 |
+| `PCLOSE` | 09:02 |
+
+If any job is overdue → P0 Slack alert (`SCHEDULER_STATUS_OVERDUE_ALERT`). If all pass → INFO Slack alert (`SCHEDULER_STATUS_DONE_ALERT`). If `TRD_DAY` Redis key is absent → P0 alert (`TRD_DAY_STATUS_UNAVAILABLE`).
+
+---
+
+## 8. Reconciliation System
+
+### What Is Reconciled
+
+**Only previous close** is reconciled. The service compares its Redis-stored values against the official exchange bhav copy.
+
+### Flow
+
+```
+pcloseRecon() — triggered by PC_RECON_PRE_MKT_CRON
+    ↓
+reconProcessor.publishMismatchPclose()
+    ↓
+1. Read all securityId → PcloseDto from Redis (all MGR_{exchSeg}_PC keys)
+2. Download bhav copies from S3:
+     - nse-cm-bhavcopy-{date}
+     - bse-cm-bhavcopy-{date}
+     - nse-fo-bhavcopy-{date}
+     - bse-fo-bhavcopy-{date}
+3. Parse bhav copy CSVs → extract previousClose per securityId
+4. Compare field by field
+    ↓
+Generate CSV mismatch report
+Upload to S3: post-processing-recon-report/{date}/PCLOSE/pre_{timestamp}.csv
+    ↓
+If critical mismatches → P0 Slack alert (RECON_CRITICAL_ALERT)
+```
+
+**Recon CSV format:** `scripId, symbol, exchange, segment, field, ourValue, targetValue, timestamp`
+
+**Feature flags:**
+
+- `enable.recon.with.exchange=true` — validate against exchange bhav copy
+- `enable.recon.write.to.local=false` — write CSV locally for debugging
+
+---
+
+## 9. Temporal Platform (Generic Job Framework)
+
+<Info>
+**This is a platform capability, not just Market Data Engine internal tooling.** Any team should be able to create, schedule, and monitor jobs through a Temporal dashboard.
+</Info>
+
+### What We're Building
+
+A generic Temporal-based job execution framework with:
+
+1. **Temporal Server** — self-hosted or Temporal Cloud
+2. **Worker Pool** — Java 21 workers that execute workflows and activities
+3. **Admin Dashboard** — Temporal Web UI for:
+
+- Viewing all workflows (running, completed, failed, timed out)
+- Searching workflows by type, status, date range
+- Inspecting workflow history (every activity, input, output, retry)
+- Manually triggering, pausing, resuming, terminating workflows
+- Viewing worker health and task queue depth
+
+1. **SDK + Templates** — reusable patterns for creating new jobs:
+
+- Scheduled workflows (cron)
+- Event-driven workflows (Kafka trigger)
+- One-time workflows (ad-hoc)
+- Parent-child workflow composition
+
+### Market Data Engine Workflows
+
+| Workflow | Schedule | Task Queue | Timeout |
+| --- | --- | --- | --- |
+| `HistoricalDataMigrationWorkflow` | **One-time (Phase 0)** | `market-data-migration` | 24 hours |
+| `InstrumentMasterSyncWorkflow` | Daily 6:00 PM | `market-data-sync` | 1 hour |
+| `CorporateActionWorkflow` | Daily 8:00 PM + event-driven | `market-data-sync` | 30 min |
+| `PreMarketDataLoadWorkflow` | Daily 7:35 AM | `market-data-ops` | 30 min |
+| `EODReconciliationWorkflow` | Daily post-close | `market-data-recon` | 1 hour |
+| `CandleArchivalWorkflow` | Weekly | `market-data-archival` | 4 hours |
+| `NAVUpdateWorkflow` | Daily 11:00 PM | `market-data-sync` | 30 min |
+| `ExpiryCleanupWorkflow` | Expiry days (Thu) post-close | `market-data-ops` | 5 min |
+
+### Creating a New Job (any team)
+
+```java
+// 1. Define the workflow interface
+@WorkflowInterface
+public interface MyCustomWorkflow {
+    @WorkflowMethod
+    void execute(MyInput input);
+}
+
+// 2. Implement the workflow
+public class MyCustomWorkflowImpl implements MyCustomWorkflow {
+    private final MyActivity activity = Workflow.newActivityStub(MyActivity.class,
+        ActivityOptions.newBuilder()
+            .setStartToCloseTimeout(Duration.ofMinutes(5))
+            .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(3).build())
+            .build());
+
+    @Override
+    public void execute(MyInput input) {
+        activity.step1(input);
+        activity.step2(input);
+    }
+}
+
+// 3. Register in the worker
+worker.registerWorkflowImplementationTypes(MyCustomWorkflowImpl.class);
+worker.registerActivitiesImplementations(new MyActivityImpl());
+
+// 4. Schedule via cron (or trigger ad-hoc via dashboard)
+WorkflowOptions options = WorkflowOptions.newBuilder()
+    .setTaskQueue("my-team-queue")
+    .setCronSchedule("0 9 * * *")  // daily 9 AM
+    .build();
+```
+
+### Dashboard Features
+
+- **Workflow list:** Filter by namespace, type, status, date range
+- **Workflow detail:** Full event history — every activity execution, retries, failures
+- **Search:** By workflow ID, run ID, or custom search attributes
+- **Bulk operations:** Terminate/cancel/signal multiple workflows
+- **Metrics:** Workflow latency, failure rate, retry rate per workflow type
+- **Alerts:** Webhook integration for workflow failures → Slack
+
+---
+
+## 10. Domain Model — Enums
+
+### Exchange
+
+```java
+NSE, BSE
+```
+
+### ExchangeSegment
+
+| Enum | Code | Exchange | Segment |
+| --- | --- | --- | --- |
+| `NSE_I` | 0 | NSE | INDEX |
+| `NSE_E` | 1 | NSE | EQUITY |
+| `NSE_D` | 2 | NSE | DERIVATIVE |
+| `BSE_I` | 0 | BSE | INDEX |
+| `BSE_E` | 4 | BSE | EQUITY |
+| `BSE_D` | 8 | BSE | DERIVATIVE |
+
+### PacketType
+
+| Enum | Code |
+| --- | --- |
+| `TRADE_STRUCT` | 1 |
+| `MBP_ROW` | 2 |
+| `OHLC` | 3 |
+| `INDEX_STRUCT` | 5 |
+| `TOP_BID_ASK` | 6 |
+| `MARKET_STATUS` | 29 |
+| `PRICE_TICKER` | 30 |
+| `PCLOSE` | 32 |
+| `CKT_INFO` | 33 |
+| `YEARLY_HIGH_LOW` | 36 |
+| `HEARTBEAT` | 99 |
+
+### MarketStatus
+
+| Enum | Float Value |
+| --- | --- |
+| `PRE_OPEN_START` | 1.0 |
+| `PRE_OPEN_END` | 2.0 |
+| `OPEN` | 3.0 |
+| `CLOSE` | 4.0 |
+| `POST_CLOSE_START` | 5.0 |
+| `POST_CLOSE_END` | 6.0 |
+
+### ScripType
+
+| Enum | Segment |
+| --- | --- |
+| `ES` | EQUITY |
+| `ETF` | EQUITY |
+| `REIT` | EQUITY |
+| `INVIT` | EQUITY |
+| `BOND` | EQUITY |
+| `INDEX` | INDEX |
+| `FUTURE` | DERIVATIVE |
+| `OPTION` | DERIVATIVE |
+
+### AlertType
+
+| Enum | Priority | Meaning |
+| --- | --- | --- |
+| `TRD_DAY_STATUS_UNAVAILABLE` | P0 | Trading day status missing |
+| `RECON_CRITICAL_ALERT` | P0 | Critical pclose mismatch |
+| `SCHEDULER_STATUS_OVERDUE_ALERT` | P0 | Scheduler job not completed by deadline |
+| `SCHEDULER_STATUS_DONE_ALERT` | INFO | All scheduler jobs completed |
+
+---
+
+## 10.1 Key Architectural Decisions
+
+This section tracks the defining decisions behind the v3.x design. Decisions 1–8 were captured in v3.0. Decisions 9 and 10 are from v3.1. Decisions 11 and 12 are new in v3.2.
+
+### Decision 9 — TimescaleDB for all time-series (replaces MongoDB + Elasticsearch + Charts Data Collector)
+
+- **Single DB for ticks + candles at all intervals.** Raw ticks, 1-minute candles, and all higher-interval candles live in one database, one schema, one backup domain.
+- **Continuous aggregates eliminate a manual rollup service.** The v3 Charts Data Collector — which aggregated 1m into 5m/15m/1h in application code — is gone. TimescaleDB auto-refreshes every interval from `candles_1m`.
+- **PostgreSQL-based — team already knows SQL.** No new query language, no bespoke operational playbook, standard Postgres tooling for backup/PITR/monitoring.
+- **Used by Robinhood, Coinbase for similar workloads.** Proven at tick-rate scale in retail brokerage and crypto.
+- **Separate instance from Instrument Master PG (workload isolation).** Time-series ingest and large scans do not compete with instrument-master OLTP traffic. Independent sizing, upgrade, and backup policies.
+
+### Decision 10 — Historical data migration via Temporal workflow
+
+- **One-time Temporal workflow reads MongoDB historical candles → writes TimescaleDB.** Executed in Phase 0 of the migration (see §13).
+- **Reads Elasticsearch historical data → writes TimescaleDB.** Same workflow, separate activity per source.
+- **Validates row counts and spot-checks sample instruments.** Per-day row counts must match source; sample OHLCV rows across liquid and illiquid instruments are byte-compared.
+- **Keep MongoDB + ES in read-only mode for 30 days as safety net.** Charts API can temporarily fall back to the old stores if TimescaleDB reads reveal a data bug.
+- **Cut over after validation passes.** Charts API begins serving historical intervals from TimescaleDB only after validation activities complete successfully.
+- **Flyway-style versioned migrations with idempotent design.** Each activity can be re-run safely — `ON CONFLICT (instrument_token, bucket) DO UPDATE` on candle writes; retention and compression policies are declared once and are idempotent.
+
+### Decision 11 — AI-Powered Incident Manager from Day 1 (platform-wide, not post-launch)
+
+- **Build it before launch, not after.** A platform with this many services, this much real-time data, and this latency budget cannot be operated reliably without proactive incident detection. Adding it post-launch means months of preventable user-visible incidents.
+- **Platform-wide capability, not MDE-only.** All Pro services (Trade Engine, Portfolio Engine, Ledger Engine, Market Data Engine) emit signals into the same Incident Manager; correlation engine works across services. One source of truth for "is the platform healthy?"
+- **Use an LLM as the debugger.** Rule-based alerting produces noise; LLMs read logs/metrics/traces holistically and produce root-cause hypotheses with evidence. Models good enough for this exist today (Claude Sonnet 4.5 used in production at multiple companies for similar use cases).
+- **Auto-remediate the obvious; escalate the novel.** Reversible, well-understood actions (rollout undo, pod restart, feature-flag toggle, scale up consumers) execute automatically when LLM confidence is high. Anything destructive or ambiguous goes to humans with full context preassembled.
+- **Reduce MTTR from hours to minutes.** Today: incidents reported by users → operator scrambles to gather context → fix slowly. With Incident Manager: detected in seconds, context assembled, LLM analysis pre-staged, fix proposed before a human is on the call.
+
+### Decision 12 — Zero-Error User Experience via Graceful Degradation
+
+- **Users should NEVER see an error.** This is a hard product rule, not a goal. Error popups and "Something went wrong" screens damage trust irreversibly. The system must always render *something* useful.
+- **Layered fallback for every user-facing data path.** Primary (live) → Cached (Redis Cluster 2) → Stale (TimescaleDB) → Final (skeleton/empty UI). Each downgrade is silent at the UI; staleness is shown as a subtle freshness indicator, never as an error.
+- **Stale-while-revalidate by default.** APIs always return within 50 ms with whatever they have; background tasks refresh upstream. The user never blocks on a slow service.
+- **Circuit breakers on every downstream call.** Resilience4j-wrapped, per-service thresholds. Open circuits short-circuit to fallback instead of cascading failure.
+- **Silent feature flags, auto-managed by Incident Manager.** When a backend component is degraded, the affected widgets are HIDDEN from the UI — not error-banner'd, not greyed out. The page renders normally with one fewer widget.
+- **Convert all 5xx to 200 OK with `data: null, stale: true`.** The frontend treats null data as a loading state, never as an error. HTTP failure surface area at the client is reduced to "use last known good".
+
+---

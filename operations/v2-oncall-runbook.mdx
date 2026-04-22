@@ -1,0 +1,328 @@
+---
+title: "Market Data Engine — v2 Oncall Runbook"
+---
+
+# Market Data Engine — v2 Oncall Runbook
+
+> **v2 — shipped (2026-04-20)** — the v2 candle path that this runbook covers is merged to `main` in the market-data-engine repo. Shipped commits on `main`:
+>
+> - `35560c0` — v2 ClickHouse schema (ReplacingMergeTree + MV rollups) + TimescaleDB drop
+> - `cf966ec` — charts-historical-writer V2_1 migration
+> - `22b566c` — candle-writer (new v2 dual-sink service)
+> - `bb3f8ff` — charts-api v2 endpoints (`POST /v1/price-charts`, `/v1/running-candles`, `source=` switch)
+> - `a9863de` — charts-api Redis auto-config excludes fix
+> - `22e3db6` — shared/common reactive MDC `WebFilter`
+> - `1e4312a` — sequential flow charts
+> - `dbab118` — k6 candles bake-off script
+>
+> Production deploy gated by readiness checklist (Confluence **698056921**) — known open blockers may still apply.
+
+> Paged at 3am? Start here. This runbook covers the 12 MDE v2 services — what they do, how to probe them, how to triage the 5 new v2 alerts, and how to roll back if the new pipeline misbehaves.
+
+**Scope**: v2 services only (Candle Writer, Charts API, Charts Historical, Feed Handlers, Symbol Service, Scheduler, etc.). v1 writers remain on `main` for rollback — see Section 5.
+
+---
+
+## 1. Service inventory + health probes
+
+All services expose `GET /actuator/health/liveness` on the management port and `/actuator/prometheus` for metrics. Local dev ports are listed; for staging swap host for the service's internal k8s DNS (e.g. `mde-candle-writer.internal.ap-south-1.staging.pml.paytm`).
+
+| # | Service | App port | Mgmt port | Liveness URL (local) | Prom scrape |
+| --- | --- | --- | --- | --- | --- |
+| 1 | mde-feed-handler-nse-eq | 8081 | 9081 | `http://localhost:9081/actuator/health/liveness` | `/actuator/prometheus` |
+| 2 | mde-feed-handler-nse-fo | 8082 | 9082 | `http://localhost:9082/actuator/health/liveness` | `/actuator/prometheus` |
+| 3 | mde-feed-handler-bse-eq | 8083 | 9083 | `http://localhost:9083/actuator/health/liveness` | `/actuator/prometheus` |
+| 4 | mde-feed-handler-mcx-fo | 8084 | 9084 | `http://localhost:9084/actuator/health/liveness` | `/actuator/prometheus` |
+| 5 | mde-symbol-service | 8085 | 9085 | `http://localhost:9085/actuator/health/liveness` | `/actuator/prometheus` |
+| 6 | mde-candle-writer | 8086 | 9086 | `http://localhost:9086/actuator/health/liveness` | `/actuator/prometheus` |
+| 7 | mde-charts-api | 8087 | 9087 | `http://localhost:9087/actuator/health/liveness` | `/actuator/prometheus` |
+| 8 | mde-charts-historical-writer | 8188 | 9188 | `http://localhost:9188/actuator/health/liveness` | `/actuator/prometheus` |
+| 9 | mde-scheduler | 8089 | 9089 | `http://localhost:9089/actuator/health/liveness` | `/actuator/prometheus` |
+| 10 | mde-instrument-master | 8092 | 9092 | `http://localhost:9092/actuator/health/liveness` | `/actuator/prometheus` |
+| 11 | mde-replay-service | 8095 | 9095 | `http://localhost:9095/actuator/health/liveness` | `/actuator/prometheus` |
+| 12 | mde-quote-api | 8091 | 9091 | `http://localhost:9091/actuator/health/liveness` | `/actuator/prometheus` |
+
+**If dead — ask these 3 questions per service:**
+
+1. **Feed handlers (9081–9084)** — (a) Is the upstream exchange multicast/TCP feed reachable? (b) Is Kafka broker up and `mde.ticks.<segment>` topic accepting writes? (c) Did the process OOM? Check `dmesg`/pod events.
+2. **mde-symbol-service (9085)** — (a) Is PostgreSQL `instrument_master` DB reachable? (b) Was the 6am instrument dump refreshed? (c) Is Redis cache responsive (`redis-cli PING`)?
+3. **mde-candle-writer (9086)** — (a) Is it consuming `mde.ticks.*` (check consumer group lag)? (b) Is Redis flush lag < 5s? (c) Is ClickHouse `candles_1m` MV catching up? (image from commit `22b566c`)
+4. **mde-charts-api (9087)** — (a) Is `MDE_CHARTS_API_DEFAULT_SOURCE` set correctly (redis/clickhouse)? (b) Are Redis and CH both healthy? (c) Any source-error spike in Prom? (image from commits `bb3f8ff` + `a9863de`)
+5. **mde-charts-historical-writer (9188)** — (a) Is the Temporal schedule `charts-historical-backfill` active? (b) Is the S3 archival bucket writable? (c) ClickHouse batch insert latency normal? (V2_1 migration in `cf966ec`)
+6. **mde-scheduler (9089)** — (a) Is Temporal server reachable at `172.18.0.11:7233`? (b) Are the cron schedules registered (`temporal schedule list`)? (c) Workflow history not truncated?
+7. **mde-instrument-master (9092)** — (a) Is the exchange EOD contract file fetched? (b) PG `instrument_master_raw` has today's partition? (c) Did Kafka publish `mde.instrument.refresh`?
+8. **mde-replay-service (9095)** — (a) Is the Kafka replay topic authorised? (b) Is S3 tick archive mounted? (c) Replay worker pool saturated?
+9. **mde-quote-api (9091)** — (a) Is Redis `QUOTE:*` responsive? (b) Is the feed-handler snapshot stream delivering updates? (c) Circuit breaker open on downstream?
+
+---
+
+## 2. Fast health sweep
+
+Paste this once to confirm which services are alive. `200` = healthy, anything else = dig in.
+
+```bash
+# Local
+for port in 9081 9082 9083 9084 9085 9086 9087 9188 9089 9092 9095 9091; do
+  code=$(curl -s -o /dev/null -w %{http_code} -m 5 http://localhost:${port}/actuator/health/liveness)
+  printf "%-5s %s
+" "${port}:" "${code}"
+done
+
+# Staging (swap hostname per service)
+for svc in feed-handler-nse-eq feed-handler-nse-fo feed-handler-bse-eq feed-handler-mcx-fo \
+           symbol-service candle-writer charts-api charts-historical-writer \
+           scheduler instrument-master replay-service quote-api; do
+  host="mde-${svc}.internal.ap-south-1.staging.pml.paytm"
+  code=$(curl -s -o /dev/null -w %{http_code} -m 5 https://${host}/actuator/health/liveness)
+  printf "%-35s %s
+" "${svc}:" "${code}"
+done
+```
+
+Expected in healthy state: **all 12 return** `200`.
+
+---
+
+## 3. Alerts + response
+
+Each of the 5 alerts below is defined in Prometheus rules shipped with v2 (source: Confluence 697008500 §4.4). No other v2-specific alerts exist yet — if you are paged on something else, it is a v1 alert (legacy charts-writer, symbol-svc) and unrelated.
+
+### 3.1 `MdeCandleWriterRedisLagHigh`
+
+**PromQL**: `redis_flush_lag_seconds > 5 for 2m`
+
+**Plain English**: The candle-writer accepts ticks from Kafka and flushes aggregated 1-minute candles into Redis every ~1s. Lag > 5s means Redis flushes are backing up, so running-candle reads from charts-api are stale.
+
+**Triage**:
+
+1. Check candle-writer pod CPU + GC — `kubectl top pod -l app=mde-candle-writer`. If CPU maxed, Kafka throughput exceeds the writer's capacity.
+2. Check Redis cluster: `redis-cli -h $REDIS_HOST CLUSTER INFO` and `INFO stats`. Slow commands or evictions will stall flushes.
+3. Check Kafka lag on group `mde-candle-writer-v2`: `kafka-consumer-groups.sh --bootstrap-server $KAFKA_BROKERS --group mde-candle-writer-v2 --describe`.
+
+**Mitigation**:
+
+- If writer saturated: `kubectl scale deploy/mde-candle-writer --replicas=+2`.
+- If Redis unhealthy: failover to read-replica writes via `MDE_CANDLE_REDIS_FAILOVER=true` and page Redis on-call.
+- If not recovering in 10 min: execute rollback in Section 5.
+
+---
+
+### 3.2 `MdeCandleWriterClickHouseLagHigh`
+
+**PromQL**: `clickhouse_flush_lag_seconds > 120 for 5m`
+
+**Plain English**: Candle-writer also persists 1m candles to ClickHouse in 60s batches for the historical store. Lag > 2min means batches are stuck or CH is rejecting inserts. Charts-api historical reads will be stale.
+
+**Triage**:
+
+1. Check ClickHouse ingest latency: `clickhouse-client --host $CH_HOST -q "SELECT max(event_time) FROM candles_1m"` — compare to `now()`.
+2. Check CH MergeTree pending parts: `SELECT table, count() FROM system.parts WHERE active AND table='candles_1m' GROUP BY table`. If > 300, merges are lagging.
+3. Tail candle-writer logs for CH timeout / batch-reject errors: `kubectl logs -l app=mde-candle-writer --tail=200 | grep -i clickhouse`.
+
+**Mitigation**:
+
+- Increase batch flush: `MDE_CANDLE_CH_BATCH_INTERVAL_MS=30000` (more frequent, smaller batches).
+- If CH is the bottleneck: page data-platform on-call; candles stay in Redis so live charts are unaffected — this is a historical-read issue only.
+- Temporarily force charts-api to Redis: `MDE_CHARTS_API_DEFAULT_SOURCE=redis` (see Section 5).
+
+---
+
+### 3.3 `MdeRunningCandlesStale`
+
+**PromQL**: `time() - last_redis_flush_ts > 10 for 1m`
+
+**Plain English**: No Redis flush has happened in the last 10s during market hours. Candle-writer is either crashed, not consuming Kafka, or Redis is unreachable. Customers see frozen live charts.
+
+**Triage**:
+
+1. Is candle-writer pod `Running`? `kubectl get pod -l app=mde-candle-writer -o wide`. If `CrashLoopBackOff`, grab logs: `kubectl logs -l app=mde-candle-writer --previous --tail=100`.
+2. Kafka consumer group lag and liveness: `kafka-consumer-groups.sh --bootstrap-server $KAFKA_BROKERS --group mde-candle-writer-v2 --describe` — check `CONSUMER-ID` column is populated.
+3. Redis reachable from the pod? `kubectl exec deploy/mde-candle-writer -- redis-cli -h $REDIS_HOST PING`.
+
+**Mitigation**:
+
+- Restart: `kubectl rollout restart deploy/mde-candle-writer` — usually recovers within 30s.
+- If markets are open and no recovery in 3min: execute rollback in Section 5 (revive v1 charts-writer).
+
+---
+
+### 3.4 `MdeRedisCandleMemoryHigh`
+
+**PromQL**: `redis_memory_used_bytes / redis_memory_max_bytes > 0.80 for 10m`
+
+**Plain English**: Redis is > 80% full. TTL on `CANDLE:*` keys is 48h; if memory creeps up it's likely (a) TTLs not being applied, (b) symbol universe grew, or (c) a bad deploy double-wrote candles.
+
+**Triage**:
+
+1. Check key count trend: `redis-cli -h $REDIS_HOST --scan --pattern 'CANDLE:*' | wc -l` vs yesterday's baseline (expect ~symbol_count × intervals × 2 days).
+2. Sample TTLs: `redis-cli -h $REDIS_HOST --scan --pattern 'CANDLE:*' | head -10 | xargs -I{} redis-cli -h $REDIS_HOST TTL {}` — any `-1` means no TTL set (bug).
+3. Check Redis maxmemory policy: `redis-cli -h $REDIS_HOST CONFIG GET maxmemory-policy` — should be `volatile-lru`.
+
+**Mitigation**:
+
+- If TTLs missing: patch candle-writer (likely a recent regression) and backfill: `redis-cli -h $REDIS_HOST --scan --pattern 'CANDLE:*' | xargs -I{} redis-cli -h $REDIS_HOST EXPIRE {} 172800`.
+- If symbol universe grew and it's legitimate: request Redis memory bump from platform-ops.
+- If > 90%: emergency evict stale keys by pattern; do not let Redis OOM (writer will crash).
+
+---
+
+### 3.5 `MdeChartsApiSourceErrorSpike`
+
+**PromQL**: `rate(mde_charts_api_source_errors_total[1m]) > 5`
+
+**Plain English**: Charts-api is throwing errors when reading from its configured source (Redis or ClickHouse). Customers see chart load failures.
+
+**Triage**:
+
+1. Which source? Check `MDE_CHARTS_API_DEFAULT_SOURCE` env on the pod and grep logs for `source=redis|clickhouse error=`.
+2. Is the source itself up? Run `redis-cli PING` / `clickhouse-client -q "SELECT 1"`.
+3. Is it a specific endpoint? `kubectl logs -l app=mde-charts-api --tail=500 | grep ERROR | awk '{print $NF}' | sort | uniq -c` — group errors by URI.
+
+**Mitigation**:
+
+- If Redis is flaky: `MDE_CHARTS_API_DEFAULT_SOURCE=clickhouse` and `kubectl rollout restart deploy/mde-charts-api`.
+- If ClickHouse is flaky: `MDE_CHARTS_API_DEFAULT_SOURCE=redis` (limits reads to last 48h but keeps customers served).
+- If both degraded: page data-platform + Redis on-call, then execute Section 5 rollback to v1.
+
+---
+
+## 4. Common commands
+
+### Redis
+
+```bash
+# Probe candle keys
+redis-cli -h $REDIS_HOST --scan --pattern 'CANDLE:*' | head -20
+
+# Inspect a sample hash (running candle)
+redis-cli -h $REDIS_HOST HGETALL 'CANDLE:NSE_EQ:RELIANCE:1m:running'
+
+# Check TTL
+redis-cli -h $REDIS_HOST TTL 'CANDLE:NSE_EQ:RELIANCE:1m:2025-04-20T09:15'
+
+# Memory snapshot
+redis-cli -h $REDIS_HOST INFO memory | grep -E 'used_memory_human|maxmemory_human'
+```
+
+### ClickHouse
+
+```bash
+# Row count for today
+clickhouse-client --host $CH_HOST -q \
+  "SELECT count() FROM candles_1m WHERE event_date = today()"
+
+# Materialized-view lag (seconds behind now)
+clickhouse-client --host $CH_HOST -q \
+  "SELECT now() - max(event_time) AS lag_s FROM candles_1m"
+
+# Inspect pending parts
+clickhouse-client --host $CH_HOST -q \
+  "SELECT table, count() FROM system.parts WHERE active GROUP BY table ORDER BY 2 DESC"
+```
+
+### Kafka
+
+```bash
+# Consumer-group lag for candle-writer
+kafka-consumer-groups.sh --bootstrap-server $KAFKA_BROKERS \
+  --group mde-candle-writer-v2 --describe
+
+# All MDE consumer groups
+kafka-consumer-groups.sh --bootstrap-server $KAFKA_BROKERS --list | grep ^mde-
+
+# Peek at a topic
+kafka-console-consumer.sh --bootstrap-server $KAFKA_BROKERS \
+  --topic mde.ticks.nse-eq --max-messages 5 --from-beginning
+```
+
+### Temporal
+
+```bash
+# List schedules (local dev)
+temporal schedule list -n default --address 172.18.0.11:7233
+
+# List schedules (staging — use port-forward first)
+kubectl -n temporal port-forward svc/temporal-frontend 7233:7233 &
+temporal schedule list -n default --address 127.0.0.1:7233
+
+# Describe one schedule
+temporal schedule describe --schedule-id charts-historical-backfill \
+  -n default --address 172.18.0.11:7233
+
+# Recent workflow executions
+temporal workflow list -n default --address 172.18.0.11:7233 --limit 20
+```
+
+### App logs
+
+```bash
+# Local (dev-suite harness writes to /tmp/svc-<name>.log)
+tail -f /tmp/svc-mde-candle-writer.log
+tail -f /tmp/svc-mde-charts-api.log
+
+# Staging
+kubectl logs -l app=mde-candle-writer --tail=200 -f
+kubectl logs -l app=mde-charts-api --tail=200 --previous   # previous crash
+```
+
+---
+
+## 5. Rollback recipe
+
+v1 writers (`charts-writer`, `charts-historical-writer-v1`) were intentionally left on `main` branch for exactly this purpose. v2 can be disabled without a redeploy.
+
+### Tier 1 — soft switch (seconds)
+
+Force charts-api to read from the known-good source:
+
+```bash
+# If Redis is misbehaving — force ClickHouse reads
+kubectl set env deploy/mde-charts-api MDE_CHARTS_API_DEFAULT_SOURCE=clickhouse
+kubectl rollout status deploy/mde-charts-api
+
+# If ClickHouse is misbehaving — force Redis reads
+kubectl set env deploy/mde-charts-api MDE_CHARTS_API_DEFAULT_SOURCE=redis
+kubectl rollout status deploy/mde-charts-api
+```
+
+### Tier 2 — disable v2 writers, revive v1 (5–10 min)
+
+```bash
+# 1. Stop v2 candle-writer (stops double-writing)
+kubectl scale deploy/mde-candle-writer --replicas=0
+
+# 2. Revive v1 writers (still on main image)
+kubectl scale deploy/mde-charts-writer-v1 --replicas=3
+kubectl scale deploy/mde-charts-historical-writer-v1 --replicas=2
+
+# 3. Wait for v1 writers to catch up Kafka offsets
+kafka-consumer-groups.sh --bootstrap-server $KAFKA_BROKERS \
+  --group mde-charts-writer-v1 --describe
+
+# 4. Point charts-api at v1 data path
+kubectl set env deploy/mde-charts-api MDE_CHARTS_API_DATA_PATH=v1
+kubectl rollout restart deploy/mde-charts-api
+```
+
+### Tier 3 — ArgoCD rollback (last resort)
+
+1. Open ArgoCD → app `mde-candle-writer` → **History and Rollback**.
+2. Pick the previous successful sync (image SHA from last known-good deploy). v2 baseline SHAs are in the shipped-SHAs callout at the top of this page.
+3. Click **Rollback** → **Sync**.
+4. Repeat for `mde-charts-api` if needed.
+5. Notify `#mde-oncall` with Jira incident ID and the restored SHA.
+
+---
+
+## 6. Contacts
+
+- **Primary oncall**: [girish3.kumar@paytm.com](mailto:girish3.kumar@paytm.com)
+- **Slack**: `#mde-oncall` (primary), `#pml-platform` (cross-team)
+- **Escalation**: `platform-ops-oncall` (PagerDuty rotation)
+- **Data platform (ClickHouse)**: `#data-platform-oncall`
+- **Redis / infra**: `platform-ops-oncall`
+- **Jira project**: PM3 (label `mde-incident` for postmortem tracking)
+
+---
+
+*Last updated: 2026-04-20. Maintained by MDE team. Referenced alerts sourced from Confluence page 697008500 §4.4. Shipped v2 SHAs: see callout at top.*

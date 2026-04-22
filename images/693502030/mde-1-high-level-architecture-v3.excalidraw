@@ -1,0 +1,690 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "claude-code",
+  "elements": [
+    {
+      "type": "text",
+      "id": "t1",
+      "x": 380,
+      "y": 20,
+      "text": "Market Data Engine \u2014 High Level Architecture (v3)",
+      "fontSize": 28,
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "type": "text",
+      "id": "t2",
+      "x": 520,
+      "y": 60,
+      "text": "Merged feed architecture | Kafka-based delivery | 2 Redis clusters",
+      "fontSize": 13,
+      "strokeColor": "#868e96"
+    },
+    {
+      "type": "rectangle",
+      "id": "r3",
+      "x": 410,
+      "y": 110,
+      "width": 680,
+      "height": 103,
+      "backgroundColor": "#fff3bf",
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t4",
+      "x": 426,
+      "y": 126,
+      "text": "EXCHANGE FEEDS  (Merged \u2014 Best of Both)\n\nNSE Direct + Omnenest  \u2192  Single pipeline\nDedup by (instrument, timestamp):  whichever arrives first wins",
+      "fontSize": 14,
+      "strokeColor": "#e67700"
+    },
+    {
+      "type": "text",
+      "id": "t5",
+      "x": 500,
+      "y": 218,
+      "text": "\u2193  UDP Multicast (6 streams \u00d7 8192 byte buffer)  +  Omnenest RS protocol",
+      "fontSize": 11,
+      "strokeColor": "#868e96"
+    },
+    {
+      "type": "text",
+      "id": "t6",
+      "x": 600,
+      "y": 238,
+      "text": "(External circuit breaker \u2014 not our service)",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "rectangle",
+      "id": "r7",
+      "x": 420,
+      "y": 268,
+      "width": 660,
+      "height": 98,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t8",
+      "x": 436,
+      "y": 284,
+      "text": "FEED HANDLER  (~4K TPS in  \u2192  ~2K after dedup)\n\nReceive \u2192 Decode \u2192 Cross-Source Dedup \u2192 Denormalize \u2192 Duplicate Detector\nSequence Gap Detection  |  Processor routing by packet code",
+      "fontSize": 13,
+      "strokeColor": "#7048e8"
+    },
+    {
+      "type": "arrow",
+      "id": "a9",
+      "x": 750,
+      "y": 386,
+      "width": -400,
+      "height": 50,
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -400,
+          50
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a10",
+      "x": 750,
+      "y": 386,
+      "width": 200,
+      "height": 50,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          200,
+          50
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r11",
+      "x": 170,
+      "y": 446,
+      "width": 360,
+      "height": 111,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t12",
+      "x": 186,
+      "y": 460,
+      "text": "PUBLISHER\n\nWrites to Redis Cluster 1 (Feed)\nHash snapshots + Lua atomic updates\n(52wk H/L, OHLC compare-and-set)",
+      "fontSize": 13,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "type": "rectangle",
+      "id": "r13",
+      "x": 770,
+      "y": 446,
+      "width": 360,
+      "height": 111,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t14",
+      "x": 786,
+      "y": 460,
+      "text": "PRODUCER\n\nWrites to Kafka  (acks=all, idempotent)\n6 segment topics \u2014 durable stream\nConsumed by Broadcast + 3 Writers",
+      "fontSize": 13,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "arrow",
+      "id": "a15",
+      "x": 350,
+      "y": 577,
+      "width": -88,
+      "height": 55,
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -88,
+          55
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a16",
+      "x": 950,
+      "y": 577,
+      "width": -688,
+      "height": 55,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -688,
+          55
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a17",
+      "x": 950,
+      "y": 577,
+      "width": -363,
+      "height": 55,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -363,
+          55
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a18",
+      "x": 950,
+      "y": 577,
+      "width": -38,
+      "height": 55,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -38,
+          55
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a19",
+      "x": 950,
+      "y": 577,
+      "width": 287,
+      "height": 55,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          287,
+          55
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r20",
+      "x": 112,
+      "y": 642,
+      "width": 300,
+      "height": 112,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t21",
+      "x": 128,
+      "y": 656,
+      "text": "BROADCAST SERVICE\n\nKafka pull for live ticks\nRedis snapshot on connect\n\u2192 Protobuf \u2192 WebSocket\n\u2192 End Users",
+      "fontSize": 11,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "type": "rectangle",
+      "id": "r22",
+      "x": 437,
+      "y": 642,
+      "width": 300,
+      "height": 98,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t23",
+      "x": 453,
+      "y": 656,
+      "text": "CHARTS DATA WRITER\n\nKafka \u2192 TimescaleDB ticks\n+ TimescaleDB candles_1m\n(5m/15m/1h/1d auto-generated)",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r24",
+      "x": 762,
+      "y": 642,
+      "width": 300,
+      "height": 98,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t25",
+      "x": 778,
+      "y": 656,
+      "text": "FNO DATA WRITER\n\nKafka \u2192 Black-Scholes Greeks\n\u2192 Option chain in Redis 2\n\u2192 PCR, Max Pain, ATM Straddle",
+      "fontSize": 11,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "rectangle",
+      "id": "r26",
+      "x": 1087,
+      "y": 642,
+      "width": 300,
+      "height": 98,
+      "backgroundColor": "#fff3bf",
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t27",
+      "x": 1103,
+      "y": 656,
+      "text": "MARKET MOVERS WRITER\n\nKafka \u2192 Ranking computation\n\u2192 Redis 2 sorted sets\nGainers, losers, volume, value",
+      "fontSize": 11,
+      "strokeColor": "#e67700"
+    },
+    {
+      "type": "arrow",
+      "id": "a28",
+      "x": 262,
+      "y": 774,
+      "width": 0,
+      "height": 35,
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a29",
+      "x": 587,
+      "y": 774,
+      "width": 0,
+      "height": 35,
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a30",
+      "x": 912,
+      "y": 774,
+      "width": 0,
+      "height": 35,
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a31",
+      "x": 1237,
+      "y": 774,
+      "width": 0,
+      "height": 35,
+      "strokeColor": "#e67700",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r32",
+      "x": 142,
+      "y": 819,
+      "width": 240,
+      "height": 61,
+      "backgroundColor": "#eebefa",
+      "strokeColor": "#9c36b5",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t33",
+      "x": 158,
+      "y": 833,
+      "text": "Users\n(Phone / Web)",
+      "fontSize": 13,
+      "strokeColor": "#9c36b5"
+    },
+    {
+      "type": "rectangle",
+      "id": "r34",
+      "x": 467,
+      "y": 819,
+      "width": 240,
+      "height": 45,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t35",
+      "x": 483,
+      "y": 833,
+      "text": "Charts API",
+      "fontSize": 14,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r36",
+      "x": 792,
+      "y": 819,
+      "width": 240,
+      "height": 45,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t37",
+      "x": 808,
+      "y": 833,
+      "text": "FNO Dashboard API",
+      "fontSize": 14,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "rectangle",
+      "id": "r38",
+      "x": 1117,
+      "y": 819,
+      "width": 240,
+      "height": 45,
+      "backgroundColor": "#fff3bf",
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t39",
+      "x": 1133,
+      "y": 833,
+      "text": "Market Movers API",
+      "fontSize": 14,
+      "strokeColor": "#e67700"
+    },
+    {
+      "type": "rectangle",
+      "id": "r40",
+      "x": 60,
+      "y": 920,
+      "width": 1380,
+      "height": 112,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#f08c00",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t41",
+      "x": 76,
+      "y": 938,
+      "text": "TEMPORAL PLATFORM  (Generic Job Framework + Web Dashboard)\n\nInstrument Master Sync (6 PM)  |  Corporate Actions (8 PM)  |  Pre-Market Loading (7:35 AM)  |  EOD Reconciliation (post-close)\nExpiry Day Cleanup (Thu 3:30 PM)  |  Candle Archival (weekly)  |  NAV Update (11 PM)  |  Historical Data Migration (one-time)\n+ Any custom workflow created by any team via Temporal Dashboard (search / retry / cancel / inspect history)",
+      "fontSize": 12,
+      "strokeColor": "#f08c00"
+    },
+    {
+      "type": "text",
+      "id": "t42",
+      "x": 690,
+      "y": 1072,
+      "text": "DATA STORES",
+      "fontSize": 18,
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "type": "rectangle",
+      "id": "r43",
+      "x": 110,
+      "y": 1102,
+      "width": 240,
+      "height": 126,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t44",
+      "x": 126,
+      "y": 1114,
+      "text": "Redis Cluster 1  (FEED)\n\nLive tick snapshots\nFEED_PP, OHLC, PC\nCKT, 52-week H/L, TRD_DAY\n\nWritten by Publisher\nRead by Periscope, Broadcast",
+      "fontSize": 10,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "type": "rectangle",
+      "id": "r45",
+      "x": 370,
+      "y": 1102,
+      "width": 240,
+      "height": 126,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t46",
+      "x": 386,
+      "y": 1114,
+      "text": "Redis Cluster 2  (API)\n\nCurrent-day candles\nFNO option chain + insights\nMarket movers sorted sets\n\nWritten by 3 Writers\nRead by 3 APIs",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r47",
+      "x": 630,
+      "y": 1102,
+      "width": 240,
+      "height": 126,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t48",
+      "x": 646,
+      "y": 1114,
+      "text": "Kafka\n\nDurable tick stream\n6 segment topics\n3-7 day retention\n\nWritten by Producer\nRead by Broadcast + Writers",
+      "fontSize": 10,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r49",
+      "x": 890,
+      "y": 1102,
+      "width": 240,
+      "height": 126,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t50",
+      "x": 906,
+      "y": 1114,
+      "text": "TimescaleDB\n\nRaw ticks (7d retention)\n+ candles_1m hypertable\n+ continuous aggregates\n(5m/15m/1h/1d/1w/1M)",
+      "fontSize": 10,
+      "strokeColor": "#1971c2"
+    },
+    {
+      "type": "rectangle",
+      "id": "r51",
+      "x": 1150,
+      "y": 1102,
+      "width": 240,
+      "height": 126,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t52",
+      "x": 1166,
+      "y": 1114,
+      "text": "PostgreSQL\n\nInstrument master, companies, corp actions\n(SEPARATE instance from TimescaleDB)\n\nRead on service startup\n\u2192 In-memory ConcurrentHashMap",
+      "fontSize": 10,
+      "strokeColor": "#7048e8"
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  }
+}

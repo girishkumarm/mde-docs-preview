@@ -1,0 +1,613 @@
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="8f160e34-7000-4d16-be5e-164b9f438b1e"><ac:rich-text-body><p><strong>Version 3.2 &mdash; April 2026.</strong> Adds platform-wide resilience and AI-powered incident management. New &sect;6.20 Resilience &amp; Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New &sect;6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 &amp; 12) in &sect;10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.</p></ac:rich-text-body></ac:structured-macro>
+<h2>6. Component Deep Dives &mdash; Part 1 (Instrument Master &rarr; Charts)</h2>
+<h3>6.1 Instrument Master Service (Scrip Master)</h3>
+<p><strong>What it does:</strong> Maintains the authoritative list of all tradeable instruments across ALL segments (equity, ETF, REIT, InvIT, bond, index, futures, options, currency). Exposes a REST API for reading instrument data. Triggers a Temporal workflow for daily sync.</p>
+<p><strong>Why it matters:</strong> Without an up-to-date instrument master, the Feed Handler doesn't know what token <code>26009</code> means. The scrip master tells us it's <code>NSE:RELIANCE:EQ</code>.</p>
+<p><strong>Data sources:</strong></p>
+<ul>
+<li><strong>NSE/BSE CSV files</strong> (7&ndash;8 files per day): security master CSVs per segment</li>
+<li>NSE CM bhavcopy (equity master)</li>
+<li>NSE FO contract file (futures + options)</li>
+<li>NSE CDS contract file (currency derivatives)</li>
+<li>BSE equity master</li>
+<li>BSE FO contract file</li>
+<li>BSE index master</li>
+<li>ETF/REIT/InvIT/Bond master</li>
+<li><strong>CMOTS API</strong> (<code>paytmapi.cmots.com/api</code>): company-level information for each listing</li>
+</ul>
+<p><strong>Database: PostgreSQL (dedicated instance &mdash; separate from the TimescaleDB time-series instance)</strong></p>
+<p>Two tables:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="43b75a8a-c443-4e50-a1d3-8b56377e1c5d"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- Table 1: Instruments (scrips) — covers ALL ScripTypes
+CREATE TABLE instruments (
+    id                  BIGSERIAL PRIMARY KEY,
+    instrument_token    VARCHAR(100) UNIQUE NOT NULL,   -- "NSE:RELIANCE:EQ"
+    exchange            VARCHAR(10) NOT NULL,            -- NSE, BSE
+    segment             VARCHAR(20) NOT NULL,            -- EQUITY, DERIVATIVE, INDEX
+    scrip_type          VARCHAR(20) NOT NULL,            -- ES, ETF, REIT, INVIT, BOND, INDEX, FUTURE, OPTION
+    security_id         INTEGER NOT NULL,                -- Exchange security ID
+    pml_id              BIGINT UNIQUE,                   -- PML internal ID
+    symbol              VARCHAR(50) NOT NULL,
+    isin                VARCHAR(20),
+    bcast_name          VARCHAR(50),                     -- Broadcast name (from scrip master CSV)
+    lot_size            INTEGER DEFAULT 1,
+    tick_size           NUMERIC(10,4) DEFAULT 0.05,
+    expiry_date         DATE,                            -- NULL for equity
+    strike_price        NUMERIC(15,4),                   -- NULL for equity/futures
+    option_type         VARCHAR(2),                      -- CE, PE, NULL
+    underlying_symbol   VARCHAR(50),
+    underlying_scrip_code BIGINT,                        -- Underlying security code for derivatives
+    upper_circuit_limit NUMERIC(15,4),
+    lower_circuit_limit NUMERIC(15,4),
+    listing_date        DATE,
+    face_value          NUMERIC(10,4),
+    status              VARCHAR(20) DEFAULT 'ACTIVE',
+    is_illiquid         BOOLEAN DEFAULT FALSE,
+    indices             TEXT[],                           -- {"NIFTY50","NIFTY100"}
+    created_at          TIMESTAMP DEFAULT NOW(),
+    updated_at          TIMESTAMP DEFAULT NOW()
+);
+
+-- Table 2: Company information (from CMOTS)
+CREATE TABLE companies (
+    id                  BIGSERIAL PRIMARY KEY,
+    co_code             INTEGER UNIQUE NOT NULL,
+    isin                VARCHAR(20),
+    company_name        VARCHAR(200) NOT NULL,
+    sector              VARCHAR(100),
+    industry            VARCHAR(100),
+    market_cap_category VARCHAR(20),                     -- LARGE, MID, SMALL, MICRO
+    face_value          NUMERIC(10,4),
+    paid_up_value       NUMERIC(10,4),
+    issue_type          VARCHAR(50),
+    created_at          TIMESTAMP DEFAULT NOW(),
+    updated_at          TIMESTAMP DEFAULT NOW()
+);
+
+ALTER TABLE instruments ADD COLUMN company_id BIGINT REFERENCES companies(id);
+CREATE INDEX idx_instruments_symbol ON instruments(symbol);
+CREATE INDEX idx_instruments_exchange_segment ON instruments(exchange, segment);
+CREATE INDEX idx_instruments_pml_id ON instruments(pml_id);
+CREATE INDEX idx_instruments_scrip_type ON instruments(scrip_type);
+CREATE INDEX idx_companies_co_code ON companies(co_code);]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>ScripMasterDto (current contract &mdash; matching existing schema):</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="5224d51c-2c7c-448a-b4da-687bf74522be"><ac:parameter ac:name="language">java</ac:parameter><ac:plain-text-body><![CDATA[Long id
+String exchange
+String segment
+String securityId
+String isin
+String instrumentType
+String symbol          // @JsonAlias("bcast_name")]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>In-memory instrument map (no Redis copy):</strong></p>
+<p>Scrip master data lives in PostgreSQL only. Services load instrument map from PostgreSQL into a local in-memory <code>ConcurrentHashMap</code> on startup. No Redis copy needed &mdash; this eliminates the legacy <code>MGR_SM_*</code> JSON blob approach. The in-memory map is keyed by <code>(exchange, securityId)</code> and provides O(1) lookup during tick processing.</p>
+<p><strong>Temporal Workflow: InstrumentMasterSyncWorkflow</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="9211c294-9051-4fdc-bac9-b9792146922d"><ac:plain-text-body><![CDATA[Trigger: Daily at 6:00 PM IST (after market close)
+Timeout: 1 hour
+
+Step 1: Download CSV files from NSE + BSE (7–8 files from S3)
+    S3 buckets: stg-scrip-master, nse-cm-bhavcopy-{date}, bse-cm-bhavcopy-{date},
+                nse-fo-bhavcopy-{date}, bse-fo-bhavcopy-{date},
+                nse-cm-security-{date}, bse-cm-dp-{date},
+                nse-fo-contract-{date}, bse-fo-eqd-dp-{date}
+
+Step 2: Parse all CSVs → unified instrument records (covering ALL ScripTypes)
+
+Step 3: For each instrument with a company mapping, call CMOTS API
+    → GET /api/company/{co_code}
+    → Fetches: company name, sector, industry, financials
+    → Rate-limited: batch requests, 100/sec
+    → Store in companies table (UPSERT by co_code)
+
+Step 4: Diff against current instruments table
+    → NEW instruments (new F&O contracts, IPOs) → INSERT
+    → REMOVED instruments (expired options, delisted) → status = INACTIVE
+    → CHANGED instruments (lot size, circuit limit) → UPDATE
+
+Step 5: Log summary
+    → "Added 500, removed 300, updated 50, companies synced: 5,200"
+
+Step 6: Notify downstream services to reload in-memory instrument maps
+    → Publish event to Kafka topic (instrument-master-updated)
+    → Services listening: Feed Handler, Publisher, all APIs]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>REST API (read-only):</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="d2e47998-531e-4bee-baea-ffd4b09c8799"><ac:plain-text-body><![CDATA[GET /v1/instruments                                → list all (paginated)
+GET /v1/instruments/{instrumentToken}              → single instrument
+GET /v1/instruments?symbol=RELIANCE                → search by symbol
+GET /v1/instruments?exchange=NSE&segment=DERIVATIVE → filter
+GET /v1/instruments?scripType=OPTION&exchange=NSE  → all NSE options
+GET /v1/instruments?index=NIFTY50                  → instruments in an index
+GET /v1/companies/{co_code}                        → company info
+GET /v1/instruments/{token}/company                → company for instrument]]></ac:plain-text-body></ac:structured-macro>
+<hr />
+<h3>6.2 Feed Handler</h3>
+<p><strong>What it does:</strong> Receives raw binary market data from both NSE Direct UDP multicast and Omnenest RS protocol simultaneously, decodes the proprietary PML binary format into structured objects, deduplicates across sources, and routes to the correct processor.</p>
+<p><strong>Implementation:</strong></p>
+<ul>
+<li>One Java 21 virtual thread per UDP stream (6 streams for NSE Direct + 6 streams for Omnenest = 12 threads)</li>
+<li><code>MulticastSocket.receive()</code> &rarr; <code>DatagramPacket</code> (8192 byte buffer)</li>
+<li>Parse <code>BCastHeaderBroadcast</code> (64 bytes) first from every datagram</li>
+<li>Cross-source dedup: <code>ConcurrentHashMap&lt;(instrumentId, timestamp), sourceId&gt;</code> &mdash; first arrival wins</li>
+<li>Route by <code>packetCode</code> to the correct processor</li>
+<li>Set <code>uniqueSequenceId</code> as MDC <code>traceId</code> for every packet</li>
+</ul>
+<p><strong>Binary Protocol &mdash; Outer Header (BCastHeaderBroadcast, 64 bytes):</strong></p>
+<table><tbody>
+<tr><th>Offset</th><th>Length</th><th>Field</th><th>Type</th><th>Purpose</th></tr>
+<tr><td>0</td><td>4</td><td>packetCode</td><td>int</td><td>TransactionType &rarr; routes to processor</td></tr>
+<tr><td>4</td><td>4</td><td>headerLength</td><td>int</td><td>Always 64</td></tr>
+<tr><td>8</td><td>4</td><td>packetLength</td><td>int</td><td>Total packet size</td></tr>
+<tr><td>12</td><td>4</td><td>seqNumber</td><td>int</td><td>Sequence number (gap detection)</td></tr>
+<tr><td>16</td><td>4</td><td>exScripId</td><td>int</td><td>Exchange security ID</td></tr>
+<tr><td>44</td><td>8</td><td>pmlId</td><td>long</td><td>PML internal instrument ID</td></tr>
+<tr><td>52</td><td>8</td><td>uniqueSequenceId</td><td>long</td><td>Distributed tracing ID</td></tr>
+</tbody></table>
+<p><strong>Inner Header (BCastHeader, 11 bytes):</strong></p>
+<table><tbody>
+<tr><th>Offset</th><th>Length</th><th>Field</th><th>Type</th></tr>
+<tr><td>0</td><td>1</td><td>exchSeg</td><td>byte</td></tr>
+<tr><td>1</td><td>4</td><td>scripId</td><td>int</td></tr>
+<tr><td>5</td><td>4</td><td>scripId2</td><td>int</td></tr>
+<tr><td>9</td><td>1</td><td>msgLength</td><td>byte</td></tr>
+<tr><td>10</td><td>1</td><td>msgCode</td><td>byte</td></tr>
+</tbody></table>
+<p><strong>18 transaction codes route to 6 processors:</strong></p>
+<table><tbody>
+<tr><th>Processor</th><th>Transaction Codes</th><th>What it handles</th></tr>
+<tr><td>MbpProcessor</td><td>111002, 112002, 211002, 212002</td><td>Market depth + trade (equity + derivatives)</td></tr>
+<tr><td>CircuitLimitProcessor</td><td>111006, 112006</td><td>NSE circuit limits</td></tr>
+<tr><td>MarketStatusProcessor</td><td>111001, 112001, 211001, 212001</td><td>Market open/close/halt</td></tr>
+<tr><td>IndexProcessor</td><td>111003, 211003</td><td>Index values</td></tr>
+<tr><td>OpenInterestProcessor</td><td>112004, 212004</td><td>Derivative open interest</td></tr>
+<tr><td>HeartbeatProcessor</td><td>111007, 112007, 211007, 212007</td><td>Keep-alive (no Redis write, no publish)</td></tr>
+</tbody></table>
+<ac:structured-macro ac:name="note" ac:schema-version="1" ac:macro-id="fdf82e11-d591-411e-97fb-3f455783c00e"><ac:rich-text-body><p><strong>Note:</strong> BSE circuit limits (211006, 212006) are embedded in MBP packets at byte offsets 264/268 &mdash; handled by MbpProcessor, not CircuitLimitProcessor.</p></ac:rich-text-body></ac:structured-macro>
+<p><strong>Packet Models (incoming binary):</strong></p>
+<table><tbody>
+<tr><th>Model</th><th>Bytes</th><th>MSG_CODE</th><th>Key Fields</th></tr>
+<tr><td>TradeStruct</td><td>37</td><td>1</td><td>LastTradePrice (float), LastTradeQuantity (short), volume (int), AvgTradePrice (float), OpenInterest (int), LastTradeTime (int)</td></tr>
+<tr><td>MBPPacket</td><td>111</td><td>2</td><td>5 price levels &times; MBPRowPacket (buyQty, sellQty, buyOrdNo, sellOrdNo, buyPrice, sellPrice &mdash; 20 bytes each)</td></tr>
+<tr><td>OHLCPacket</td><td>27</td><td>3</td><td>fOpen (float), fClose (float), fHigh (float), fLow (float)</td></tr>
+<tr><td>IndexStruct</td><td>35</td><td>5</td><td>LTP (float), fOpen, fClose, fHigh, fLow (float), LUT (int)</td></tr>
+<tr><td>TopBidAsk</td><td>35</td><td>6</td><td>totalSellQty, totalBuyQty, buyQty, sellQty (int), buyPrice, sellPrice (float)</td></tr>
+<tr><td>MktStatus</td><td>18</td><td>29</td><td>mktType (String), mktStatus (float)</td></tr>
+<tr><td>PriceTicker</td><td>15</td><td>30</td><td>lastTradingPrice (float)</td></tr>
+<tr><td>PClosePacket</td><td>19</td><td>32</td><td>pClose (float), POI &mdash; previous open interest (float)</td></tr>
+<tr><td>CktInfoPacket</td><td>19</td><td>33</td><td>uCkt &mdash; upper circuit (float), lCkt &mdash; lower circuit (float)</td></tr>
+<tr><td>YearlyHighLowPacket</td><td>19</td><td>36</td><td>fHigh (float), fLow (float)</td></tr>
+<tr><td>HeartbeatPacket</td><td>115</td><td>99</td><td>exchCode (short), exchSeg (short), hrtMessage (String)</td></tr>
+</tbody></table>
+<p><strong>Price conversion:</strong> Raw binary prices are integers (multiplied by 100). Decode layer converts: <code>rawPrice / 100.0f</code>. Example: raw 255000 &rarr; 2550.00.</p>
+<hr />
+<h3>6.3 Duplicate Detector</h3>
+<p><strong>What it does:</strong> Filters out unchanged/redundant ticks. Exchanges send periodic MBP refreshes even when nothing changed. Also deduplicates across NSE Direct and Omnenest sources (cross-source dedup).</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="ae85773f-d67c-4520-94e4-8fa48b8b3058"><ac:plain-text-body><![CDATA[Cross-source dedup (first stage — in Feed Handler):
+    key = (instrumentId, timestamp)
+    if localCache.putIfAbsent(key, sourceId) != null:
+        → SKIP (duplicate from second source)
+        → metric: cross_source_dedup_count++
+
+Per-source dedup (second stage — per processor):
+    For each decoded packet:
+        prev = localCache.get(cacheType, key)
+        if prev != null
+           AND tick.ltp == prev.ltp
+           AND tick.volume == prev.volume
+           AND tick.avgTradePrice == prev.avgTradePrice:
+            → SKIP (no further processing)
+            → metric: duplicate_ticks_skipped++
+        else:
+            → Update localCache
+            → Pass to Publisher + Producer
+
+Additional dedup rules:
+    Index packets: Skip if new LTP == cached LTP
+    OI packets: Skip if OI unchanged, or if volume/OHLC are all zero (stale)]]></ac:plain-text-body></ac:structured-macro>
+<p>Impact: Cross-source dedup eliminates ~50% of incoming ticks (duplicates from second source). Per-source dedup eliminates ~30&ndash;40% of remaining ticks. Combined: ~65&ndash;70% reduction.</p>
+<hr />
+<h3>6.4 Bad Tick Detection &mdash; Future Consideration</h3>
+<ac:structured-macro ac:name="note" ac:schema-version="1" ac:macro-id="505275bd-7d07-4677-8656-9d5f95c89ee5"><ac:rich-text-body><p><strong>Note:</strong> The current production system does not implement bad tick detection, and the existing team has confirmed they don't have this capability. This section documents a <strong>potential future enhancement</strong>, not a launch requirement.</p></ac:rich-text-body></ac:structured-macro>
+<p><strong>If implemented in a future phase, detection would work as:</strong></p>
+<ul>
+<li>Compare incoming LTP against a rolling EWMA (exponentially weighted moving average)</li>
+<li>If deviation exceeds a threshold (e.g., 10% for equity, 15% for F&amp;O), flag as suspicious</li>
+<li>Hold the tick, wait for confirmation from subsequent ticks</li>
+<li>Release if confirmed real (e.g., pre-open auction gap), discard if anomaly</li>
+</ul>
+<p><strong>Recommendation:</strong> Defer to Phase 2. The current system operates without it successfully. Focus launch effort on feed reliability and data accuracy through reconciliation instead.</p>
+<hr />
+<h3>6.5 Publisher</h3>
+<p><strong>What it does:</strong> After ticks pass through the processing pipeline, the Publisher writes to Redis Cluster 1 (Feed) as the live snapshot store.</p>
+<p><strong>Processing pattern (every processor follows this):</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="59ab95e7-21e9-413e-a524-c94e7db77129"><ac:parameter ac:name="language">java</ac:parameter><ac:plain-text-body><![CDATA[// 1. Write bytes to local in-memory cache (ConcurrentHashMap)
+localCache.getFeedPpCache(cacheType).put(key, serializedBytes);
+
+// 2. Enqueue for async batched Redis HSET
+redisBatchFactory.getRedisQueueProcessor(cacheType)
+    .addMessageToQueue(new QueueMessage(key, timestamp));]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Output: Redis Hash (snapshot store &mdash; current state) &mdash; written to Redis Cluster 1 (Feed)</strong></p>
+<table><tbody>
+<tr><th>Redis Hash Key Pattern</th><th>Hash Field</th><th>Value Type</th><th>Model</th></tr>
+<tr><td><code>FEED_PP_{exchangeSegment}</code></td><td><code>{scripId}_{exchSegCode}_{msgCode}</code></td><td>binary byte[]</td><td>Raw processed broadcast packet (MbpBroadcast, IndexBroadcast, etc.)</td></tr>
+<tr><td><code>MGR_{exchSeg}_LC_UC</code></td><td><code>securityId</code></td><td>JSON byte[]</td><td><code>CktLimitDto {&quot;upper_ckt&quot;: float, &quot;lower_ckt&quot;: float}</code></td></tr>
+<tr><td><code>MGR_{exchSeg}_52_WK_HL</code></td><td><code>securityId</code></td><td>JSON byte[]</td><td><code>YearlyHighLowDto {&quot;52_wk_high&quot;: float, &quot;52_wk_low&quot;: float}</code></td></tr>
+<tr><td><code>MGR_{exchSeg}_OHLC</code></td><td><code>securityId</code></td><td>JSON byte[]</td><td><code>OhlcDto {&quot;o&quot;: float, &quot;c&quot;: float, &quot;h&quot;: float, &quot;l&quot;: float}</code></td></tr>
+<tr><td><code>MGR_{exchSeg}_PC</code></td><td><code>securityId</code></td><td>JSON byte[]</td><td><code>PcloseDto {&quot;pc&quot;: float, &quot;poi&quot;: float}</code></td></tr>
+<tr><td><code>TRD_DAY</code></td><td>varies</td><td>String</td><td>Trading day status</td></tr>
+</tbody></table>
+<p>Exchange segment codes: <code>NSE_E</code> (1), <code>NSE_D</code> (2), <code>NSE_I</code> (0), <code>BSE_E</code> (4), <code>BSE_D</code> (8), <code>BSE_I</code> (0).</p>
+<p><strong>Batched Redis writes (RedisBatchProcessor):</strong></p>
+<ul>
+<li>One <code>RedisBatchProcessor</code> per <code>CacheType</code> (NSE_E, NSE_D, NSE_I, BSE_E, BSE_D, BSE_I)</li>
+<li>Holds a <code>LinkedBlockingQueue&lt;QueueMessage&gt;</code></li>
+<li>Flush triggers: queue size &gt; <code>redis.max.batch.size</code> OR 10ms poll timeout</li>
+<li>Single <code>HSET</code> for the whole batch via <code>redisDao.putAll(Map&lt;byte[], byte[]&gt;, hashKey)</code></li>
+<li><code>@Retryable(maxAttempts=6, backoff=exponential 500ms&rarr;60s)</code></li>
+<li>Bulk insert page size: <code>redis.bulk.insert.size=1000</code></li>
+</ul>
+<p><strong>Lua Script &mdash; Atomic Compare-and-Set (<code>feed_broadcast_scrip_data.lua</code>):</strong></p>
+<p>For 52-week H/L and OHLC, we need conditional updates (only write if new value beats existing):</p>
+<table><tbody>
+<tr><th>Request Code</th><th>Field</th><th>Byte Offset</th><th>Write Condition</th></tr>
+<tr><td><code>36_H</code></td><td>52-wk high</td><td>11</td><td>new &gt; existing</td></tr>
+<tr><td><code>36_L</code></td><td>52-wk low</td><td>15</td><td>new &lt; existing</td></tr>
+<tr><td><code>3_O</code></td><td>OHLC open</td><td>8</td><td>only if changed</td></tr>
+<tr><td><code>3_H</code></td><td>OHLC high</td><td>16</td><td>new &gt; existing</td></tr>
+<tr><td><code>3_L</code></td><td>OHLC low</td><td>24</td><td>new &lt; existing</td></tr>
+</tbody></table>
+<p><strong>MBP Processing &mdash; Valid Trade Gate:</strong></p>
+<ul>
+<li>Volume &gt; 0 AND market status is <code>OPEN</code> (3.0) or <code>POST_CLOSE_START</code> (5.0)</li>
+<li>After <code>CLOSE</code> (4.0): stop all price updates</li>
+<li>After-market-close (status 6): trade volume cache updates skipped entirely</li>
+</ul>
+<p><strong>Publisher REST APIs (Periscope &mdash; operational endpoints):</strong></p>
+<p>Base URL: <code>/periscope/v1</code></p>
+<table><tbody>
+<tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
+<tr><td>PUT</td><td><code>/reload-redis</code></td><td>Reload all data from local cache &rarr; Redis</td></tr>
+<tr><td>PUT</td><td><code>/reload-local?type={PacketType}</code></td><td>Reload local cache from Redis</td></tr>
+<tr><td>PUT</td><td><code>/redis-copy?from={dbNumber}</code></td><td>Copy data between Redis databases</td></tr>
+<tr><td>PUT</td><td><code>/scrip-master</code></td><td>Trigger scrip master reload from S3</td></tr>
+<tr><td>PUT</td><td><code>/refresh-packets?type={type}</code></td><td>Refresh specific packet type in Redis</td></tr>
+<tr><td>PUT</td><td><code>/circuit-limit</code></td><td>Manual override of circuit limit</td></tr>
+<tr><td>PUT</td><td><code>/f52-week-high-low</code></td><td>Manual override of 52-week H/L</td></tr>
+<tr><td>PUT</td><td><code>/ohlc</code></td><td>Manual override of OHLC</td></tr>
+<tr><td>PUT</td><td><code>/pclose</code></td><td>Manual override of previous close</td></tr>
+<tr><td>PUT</td><td><code>/trade-data</code></td><td>Manual override of trade data</td></tr>
+<tr><td>GET</td><td><code>/price/live?exchange=&amp;segment=&amp;security_id=</code></td><td>Live price from local cache</td></tr>
+<tr><td>GET</td><td><code>/price/live-redis?exchange=&amp;segment=&amp;security_id=</code></td><td>Live price from Redis</td></tr>
+</tbody></table>
+<p>Manual override request body:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="9100574d-3251-47e5-b8de-73ad35a98005"><ac:parameter ac:name="language">js</ac:parameter><ac:plain-text-body><![CDATA[{
+    "scripId": 14366,
+    "exchange": "NSE",
+    "segment": "E",
+    "upperCircuit": 150.50,
+    "lowerCircuit": 120.25
+}]]></ac:plain-text-body></ac:structured-macro>
+<p>Live price response:</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="24d80150-3877-460a-9531-2d95614fd67f"><ac:parameter ac:name="language">js</ac:parameter><ac:plain-text-body><![CDATA[{
+    "ltp": 1234.50,
+    "ltq": 100,
+    "volume": 500000,
+    "atp": 1230.00,
+    "oi": 0,
+    "open": 1200.00,
+    "close": 1210.00,
+    "high": 1240.00,
+    "low": 1195.00
+}]]></ac:plain-text-body></ac:structured-macro>
+<p>S2S API base: <code>/s2s/v1</code> &mdash; for inter-service calls (trigger schedulers, modify data via broadcast info strings).</p>
+<hr />
+<h3>6.5.1 Redis Topology</h3>
+<p>Two separate Redis clusters, each dedicated to a specific access pattern:</p>
+<p><strong>Redis Cluster 1 &mdash; Feed (hot path, low-latency writes)</strong></p>
+<table><tbody>
+<tr><th>Hash Key Pattern</th><th>Writers</th><th>Readers</th></tr>
+<tr><td><code>FEED_PP_{exchangeSegment}</code></td><td>Publisher</td><td>Periscope API, Broadcast Service (snapshot on connect)</td></tr>
+<tr><td><code>MGR_{exchSeg}_OHLC</code></td><td>Publisher</td><td>Periscope API, Broadcast Service (snapshot on connect)</td></tr>
+<tr><td><code>MGR_{exchSeg}_PC</code></td><td>Publisher</td><td>Periscope API, Broadcast Service (snapshot on connect)</td></tr>
+<tr><td><code>MGR_{exchSeg}_LC_UC</code></td><td>Publisher</td><td>Periscope API, Broadcast Service (snapshot on connect)</td></tr>
+<tr><td><code>MGR_{exchSeg}_52_WK_HL</code></td><td>Publisher</td><td>Periscope API, Broadcast Service (snapshot on connect)</td></tr>
+<tr><td><code>TRD_DAY</code></td><td>Publisher</td><td>Periscope API, Temporal jobs, all services</td></tr>
+</tbody></table>
+<p><strong>Redis Cluster 2 &mdash; API (derived data, higher-volume reads)</strong></p>
+<table><tbody>
+<tr><th>Key Pattern</th><th>Writers</th><th>Readers</th></tr>
+<tr><td><code>{pmlId}_{date}</code> (charts candles)</td><td>Charts Data Writer</td><td>Charts API</td></tr>
+<tr><td>FNO option chain hashes</td><td>FNO Data Writer</td><td>FNO Dashboard API</td></tr>
+<tr><td>FNO option insights hashes</td><td>FNO Data Writer</td><td>FNO Dashboard API</td></tr>
+<tr><td><code>mkt_mvs_{category}_{exchange}_{index_id}</code> (sorted sets)</td><td>Market Movers Writer</td><td>Market Movers API</td></tr>
+</tbody></table>
+<p><strong>Configuration rules for both clusters:</strong></p>
+<ul>
+<li><code>maxmemory-policy noeviction</code> &mdash; never silently drop data; fail loudly if memory is full</li>
+<li>Alert at <strong>80% memory usage</strong> &mdash; trigger capacity review</li>
+<li>Use <strong>key prefixes only</strong> (no Redis DB numbers). All data in DB 0 &mdash; required for future Redis Cluster mode migration</li>
+<li>Connection pooling: dedicated pool per service, sized to expected concurrency</li>
+</ul>
+<hr />
+<h3>6.6 Producer</h3>
+<p><strong>What it does:</strong> Publishes processed tick data to Kafka topics for durable, replayable consumption by downstream services (Charts Writer, FNO Writer, Market Movers Writer, Broadcast Service).</p>
+<p><strong>Kafka Topics (matching current system):</strong></p>
+<table><tbody>
+<tr><th>Topic</th><th>Partitions</th><th>Retention</th><th>Consumers</th></tr>
+<tr><td><code>pml-marketfeed-nse-equity-ticks</code></td><td>6</td><td>3 days</td><td>Charts Writer, Market Movers Writer, Broadcast Service</td></tr>
+<tr><td><code>pml-marketfeed-bse-equity-ticks</code></td><td>6</td><td>3 days</td><td>Charts Writer, Market Movers Writer, Broadcast Service</td></tr>
+<tr><td><code>pml-marketfeed-nse-derivative-ticks</code></td><td>9</td><td>3 days</td><td>Charts Writer, FNO Writer, Market Movers Writer, Broadcast Service</td></tr>
+<tr><td><code>pml-marketfeed-bse-derivative-ticks</code></td><td>9</td><td>3 days</td><td>Charts Writer, FNO Writer, Market Movers Writer, Broadcast Service</td></tr>
+<tr><td><code>pml-marketfeed-nse-index-ticks</code></td><td>3</td><td>3 days</td><td>Charts Writer, Broadcast Service</td></tr>
+<tr><td><code>pml-marketfeed-bse-index-ticks</code></td><td>3</td><td>3 days</td><td>Charts Writer, Broadcast Service</td></tr>
+</tbody></table>
+<p><strong>Kafka Producer Configuration:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="bc31163c-883c-4989-b6dc-64261d7b7b3d"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[enable.idempotence=true
+retries=2147483647
+max.in.flight.requests.per.connection=5
+acks=all
+delivery.timeout.ms=120000
+linger.ms=1
+compression.type=lz4
+key.serializer=org.apache.kafka.common.serialization.StringSerializer
+value.serializer=io.confluent.kafka.serializers.KafkaAvroSerializer]]></ac:plain-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="c2a651d2-9746-4805-bdb0-33d863d15e70"><ac:rich-text-body><p><strong>Why idempotent + acks=all:</strong> Market data is financial-grade. A missed tick can cause wrong chart candles, wrong Greeks, wrong movers rankings. <code>acks=all</code> ensures the message is replicated to all ISR replicas before acknowledgment. Idempotent producer ensures exactly-once delivery even during retries. The ~1ms latency increase (vs <code>acks=1</code>) is acceptable &mdash; downstream consumers are not on the hot WebSocket path (that path uses Redis + Kafka pull via Broadcast Service).</p></ac:rich-text-body></ac:structured-macro>
+<hr />
+<h3>6.7 Broadcast Service (WebSocket &rarr; Users)</h3>
+<p><strong>What it does:</strong> Delivers real-time market data to end users over WebSocket connections. Reads from Kafka topics (pull model) for streaming and Redis Cluster 1 (Feed) for instant snapshots on user connect.</p>
+<p><strong>Data source strategy:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="8d595b8f-8aa0-4b38-8a1f-37de83f2ba22"><ac:plain-text-body><![CDATA[Normal operation:
+    → Each Broadcast Service pod consumes from Kafka topic partitions
+    → Receive Avro-encoded tick messages
+    → Decode Avro → encode as Protobuf
+    → Push Protobuf frames over WebSocket to subscribed users
+
+On user connect (instant backfill):
+    → Read current snapshot from Redis Cluster 1 (Feed) HGET for subscribed instruments
+    → Send snapshot as initial Protobuf frame (user sees current price immediately)
+    → Then stream incremental updates from Kafka
+
+On restart / reconnection:
+    → Kafka consumer group rebalances partitions
+    → New pod picks up from last committed offset — no data loss
+    → Users reconnect and get fresh snapshot from Redis + resume Kafka stream]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Why Kafka pull instead of Redis PubSub:</strong></p>
+<ul>
+<li><strong>No subscription management complexity</strong> &mdash; Kafka consumer groups handle partition assignment automatically</li>
+<li><strong>No reference counting</strong> &mdash; no need to track per-channel subscriber counts</li>
+<li><strong>Built-in recovery</strong> &mdash; on pod restart, resume from last committed offset (no missed messages)</li>
+<li><strong>Backpressure</strong> &mdash; if a pod falls behind, it catches up at its own pace (pull model)</li>
+<li><strong>Scalability</strong> &mdash; add more pods, Kafka rebalances partitions. No PSUBSCRIBE pattern explosion.</li>
+</ul>
+<p><strong>Market data processing pipeline:</strong></p>
+<ol>
+<li>Consume Avro message from Kafka topic partition</li>
+<li>Decode Avro &rarr; extract securityId, exchangeSegmentCode, messageCode, payload</li>
+<li>Apply validation (reject trade with LTP=0)</li>
+<li>Apply business rules (market status checks)</li>
+<li>Check staleness flag &mdash; if feed is UNCERTAIN, attach staleness metadata</li>
+<li>Encode as Protobuf message</li>
+<li>Store in BroadcastCache under key <code>{securityId}_{exchSegCode}_{msgCode}</code></li>
+<li>Look up all WebSocket sessions subscribed to this security+segment</li>
+<li>Enqueue Protobuf bytes into each session's message queue</li>
+<li>Publisher threads drain queues and send frames over WebSocket</li>
+</ol>
+<p><strong>Market status broadcast:</strong> Broadcast to ALL connected sessions regardless of subscriptions. Repeated <code>market.status.duplicate.count</code> times (default: 3) for delivery assurance.</p>
+<p><strong>Subscription limits:</strong></p>
+<table><tbody>
+<tr><th>Limit</th><th>Value</th></tr>
+<tr><td>Max scrips per subscribe message</td><td>50</td></tr>
+<tr><td>Max concurrent connections</td><td>100,000+ (new target)</td></tr>
+<tr><td>Per-session subscription limit</td><td>No enforced cap</td></tr>
+</tbody></table>
+<p><strong>WebSocket Protobuf contract:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="0b9252bd-45b6-4afe-aa51-957f1a7d1a67"><ac:parameter ac:name="language">text</ac:parameter><ac:plain-text-body><![CDATA[message FeedMessage {
+    int32 message_type = 1;      // PacketType code: 1=Trade, 2=MBP, 3=OHLC, 5=Index...
+    int32 exchange_segment = 2;  // 0=Index, 1=NSE_E, 2=NSE_D, 4=BSE_E, 8=BSE_D
+    int32 security_id = 3;
+    bytes payload = 5;           // typed message bytes
+    bool is_stale = 6;           // true if feed source is UNCERTAIN/DOWN
+    int64 last_updated_ms = 7;   // epoch ms of last confirmed tick
+}]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Authentication:</strong> SSO token validated during WebSocket handshake via auth service. Invalid token &rarr; reject, no connection. Unauthenticated sessions closed after 30 seconds.</p>
+<p><strong>Thread model:</strong></p>
+<ul>
+<li>Kafka consumer threads: one per partition assignment (managed by consumer group)</li>
+<li>Publisher thread pool: configurable 12&ndash;25 threads (<code>ThreadPoolExecutor</code>, queue size 1,000)</li>
+<li>Distributor: Java 21 virtual threads via <code>Thread.ofVirtual()</code> for per-message distribution</li>
+<li>Per-session queue: <code>ConcurrentLinkedQueue&lt;byte[]&gt;</code> (max 10,000 entries)</li>
+</ul>
+<p><strong>Graceful shutdown (rolling deployment):</strong></p>
+<ol>
+<li>Set shutdown flag (<code>AtomicBoolean</code>)</li>
+<li>Stop Kafka consumers (commit offsets, leave consumer group)</li>
+<li>Close all WebSocket sessions with <code>GOING_AWAY</code> close code</li>
+<li><code>awaitTermination(30, TimeUnit.SECONDS)</code></li>
+<li>Messages not delivered within 30s are lost (acceptable for real-time data)</li>
+</ol>
+<hr />
+<h3>6.8 Charts Data Writer</h3>
+<p><strong>What it does:</strong> Consumes tick data from Kafka, writes raw ticks to TimescaleDB, performs minute-level aggregation, writes 1-minute candle data to both Redis (current-day) and TimescaleDB (durable storage).</p>
+<p><strong>Input:</strong> All 6 Kafka tick topics <strong>Output:</strong> TimescaleDB (raw ticks + 1-minute candles), Redis Cluster 2 (current-day candles for Charts API hot reads)</p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="bfa6280d-a652-4c3e-8a35-154cf9f414e3"><ac:plain-text-body><![CDATA[Kafka tick → TimescaleDB ticks hypertable (raw ticks)
+          → In-memory 1-minute candle aggregation (per instrument)
+          → On 1-minute boundary: finalize candle → write to:
+              a. Redis Hash (current-day candle, used by Charts API — hot path)
+              b. TimescaleDB candles_1m hypertable (durable, queryable)]]></ac:plain-text-body></ac:structured-macro>
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="9e670306-6c47-40b1-b7f8-bb88361257fc"><ac:rich-text-body><p><strong>No manual rollups.</strong> The writer only emits 1-minute candles. Higher intervals (5m, 15m, 1h, 1d, 1w, 1M) are maintained automatically by TimescaleDB continuous aggregates defined on <code>candles_1m</code>. See &sect;6.9 for details.</p></ac:rich-text-body></ac:structured-macro>
+<p><strong>Current-day candle Redis schema:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="a9b36e12-1b77-4c40-a97b-ba13c4a36dd1"><ac:plain-text-body><![CDATA[Key: {pmlId}_{date}
+Example: 1000000118_20260407
+
+Value: JSON object:
+{
+    "security_id": 58661,
+    "query_date": 20260127,
+    "exchange": "NSE",
+    "segment": "D",
+    "id": 5002380566,
+    "aggr_unit": 1,
+    "data": [
+        [1713168900, 2450.00, 2458.50, 2438.00, 2450.50, 523400, 15000000, 1713168959],
+        ...
+    ]
+}
+
+Query params: pmlId, date, aggregation unit]]></ac:plain-text-body></ac:structured-macro>
+<p>Each element in <code>data</code> array: <code>[start_time, open, high, low, close, volume, oi, end_time]</code></p>
+<hr />
+<h3>6.9 Multi-Interval Candle Aggregation (TimescaleDB Continuous Aggregates)</h3>
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="a6af1ad8-62da-48e1-9572-e5bd015d3d89"><ac:rich-text-body><p><strong>Changed in v3.1 &mdash; service eliminated.</strong> The v3 design had a separate &quot;Charts Data Collector&quot; service that manually aggregated 1-minute candles into 5m/15m/1h. <strong>This service is gone.</strong></p></ac:rich-text-body></ac:structured-macro>
+<p><strong>TimescaleDB continuous aggregates automatically maintain 5m/15m/1h/1d/1w/1M candles from the base <code>candles_1m</code> table. No separate service needed.</strong></p>
+<p>How it works:</p>
+<ul>
+<li><code>candles_1m</code> is a TimescaleDB hypertable (physical storage).</li>
+<li>Each higher interval (<code>candles_5m</code>, <code>candles_15m</code>, <code>candles_1h</code>, <code>candles_1d</code>, <code>candles_1w</code>, <code>candles_1M</code>) is defined as a <strong>continuous aggregate</strong> &mdash; a materialized view that TimescaleDB keeps up to date automatically via a background refresh policy.</li>
+<li>Writes land only in <code>candles_1m</code>. TimescaleDB incrementally refreshes each aggregate on its own schedule, using the standard OHLCV rollup rules (<code>first(open)</code>, <code>max(high)</code>, <code>min(low)</code>, <code>last(close)</code>, <code>sum(volume)</code>, <code>last(open_interest)</code>).</li>
+<li>Queries against <code>candles_5m</code> (and siblings) read pre-materialized rows &mdash; they do not re-aggregate per request.</li>
+</ul>
+<p>Operational impact:</p>
+<ul>
+<li><strong>One less service to deploy, monitor, and recover.</strong> The manual 1m &rarr; 5m &rarr; 15m &rarr; 1h fan-out in v3 is replaced by declarative SQL.</li>
+<li><strong>No chance of rollups diverging from base data.</strong> Continuous aggregates are always consistent with <code>candles_1m</code> after refresh.</li>
+<li><strong>Corporate action / backfill fixes propagate automatically</strong> &mdash; rewrite <code>candles_1m</code>, refresh the aggregates, every interval is corrected.</li>
+</ul>
+<p>Refresh cadence (default policy):</p>
+<ul>
+<li><code>candles_5m</code>, <code>candles_15m</code>, <code>candles_1h</code>: refresh every 1 minute, lag = 2 minutes (ensures 1m candles are stable before rollup).</li>
+<li><code>candles_1d</code>: refresh every 5 minutes during market hours, once post-close for the final value.</li>
+<li><code>candles_1w</code>, <code>candles_1M</code>: refresh at EOD.</li>
+</ul>
+<p>See &sect;6.10 for the full SQL definitions.</p>
+<hr />
+<h3>6.10 Time-Series Storage &mdash; TimescaleDB</h3>
+<ac:structured-macro ac:name="info" ac:schema-version="1" ac:macro-id="fe554b98-66d6-4100-88e4-8bc9cc7747e3"><ac:rich-text-body><p><strong>Replaces the v3 QuestDB + MongoDB + Elasticsearch combination.</strong> All market data time series &mdash; raw ticks, 1-minute base candles, and every higher interval via continuous aggregates &mdash; live in a single TimescaleDB database.</p></ac:rich-text-body></ac:structured-macro>
+<p><strong>Why TimescaleDB:</strong></p>
+<table><tbody>
+<tr><th>v3 (replaced)</th><th>v3.1 (TimescaleDB)</th><th>Benefit</th></tr>
+<tr><td>TSDB / QuestDB for raw ticks</td><td>TimescaleDB <code>ticks</code> hypertable (7-day retention)</td><td>Single DB</td></tr>
+<tr><td>Redis for current-day candles</td><td>Redis (unchanged)</td><td>Hot path unchanged</td></tr>
+<tr><td>MongoDB for historical candles</td><td>TimescaleDB <code>candles_1m</code> hypertable (10-year retention, compressed)</td><td>SQL, partition pruning, 10x compression</td></tr>
+<tr><td>Elasticsearch for EOD historical</td><td>Eliminated</td><td>TimescaleDB handles it</td></tr>
+<tr><td>Charts Data Collector service for 5m/15m/1h rollups</td><td>TimescaleDB continuous aggregates (5m, 15m, 1h, 1d, 1w, 1M)</td><td>Declarative, no code</td></tr>
+<tr><td><strong>3 databases + 1 service to maintain</strong></td><td><strong>1 database, 0 extra services</strong></td><td>Major ops simplification</td></tr>
+</tbody></table>
+<p><strong>Deployment &mdash; SEPARATE PostgreSQL instance:</strong></p>
+<p>TimescaleDB is a PostgreSQL extension, but it is deployed as a <strong>separate PostgreSQL instance</strong> from the Instrument Master PG (&sect;6.1). This is intentional:</p>
+<ul>
+<li><strong>Workload isolation.</strong> Instrument Master is OLTP &mdash; small reads, occasional writes, low QPS but latency-sensitive on the hot path (instrument lookup). TimescaleDB carries heavy ingest (thousands of rows/sec of ticks + 1m candles), large scans, and background continuous-aggregate refresh jobs. Mixing these workloads would cause vacuum, I/O, and cache contention.</li>
+<li><strong>Independent scaling.</strong> The time-series instance can be sized for SSD IOPS and memory (working set = recent hypertable chunks). The instrument master instance can be small.</li>
+<li><strong>Independent upgrade cadence.</strong> TimescaleDB extension upgrades should not put the instrument master at risk.</li>
+<li><strong>Independent backup/restore policies.</strong> Time-series can tolerate slightly older PITR; instrument master must be point-in-time accurate.</li>
+</ul>
+<p><strong>Retention &amp; compression:</strong></p>
+<table><tbody>
+<tr><th>Data</th><th>Table</th><th>Retention</th><th>Notes</th></tr>
+<tr><td>Raw ticks</td><td><code>ticks</code></td><td><strong>7 days (hot retention)</strong></td><td>After 7 days, ticks are dropped. Only aggregated candles remain.</td></tr>
+<tr><td>1-minute candles</td><td><code>candles_1m</code></td><td>10 years</td><td>Native TimescaleDB compression kicks in after 7 days &mdash; <strong>~10x size reduction</strong>.</td></tr>
+<tr><td>5m / 15m / 1h candles</td><td>Continuous aggregates on <code>candles_1m</code></td><td>10 years</td><td>Storage-cheap; compressed.</td></tr>
+<tr><td>1d / 1w / 1M candles</td><td>Continuous aggregates</td><td>Indefinite</td><td>EOD-refreshed.</td></tr>
+</tbody></table>
+<p>Why 7-day tick retention: operational debugging, tick-by-tick replay, dispute investigation, and intra-week reconciliation all happen within a week. Older ticks have negligible business value &mdash; the 1-minute candle is the permanent record.</p>
+<p><strong>Schema &mdash; hypertables:</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="fc6268c2-53de-44d5-8690-84246f193dc5"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- Raw ticks (7-day retention)
+CREATE TABLE ticks (
+    instrument_token  TEXT        NOT NULL,
+    ts                TIMESTAMPTZ NOT NULL,
+    ltp               DOUBLE PRECISION,
+    volume            BIGINT,
+    open_interest     BIGINT,
+    last_trade_qty    INTEGER,
+    avg_trade_price   DOUBLE PRECISION,
+    source            TEXT                                -- NSE_DIRECT | OMNENEST
+);
+SELECT create_hypertable('ticks', 'ts', chunk_time_interval => INTERVAL '1 day');
+CREATE INDEX ON ticks (instrument_token, ts DESC);
+
+-- Tick retention policy: keep 7 days, drop older chunks
+SELECT add_retention_policy('ticks', INTERVAL '7 days');
+
+-- 1-minute base candles (10-year retention, compressed)
+CREATE TABLE candles_1m (
+    instrument_token  TEXT        NOT NULL,
+    bucket            TIMESTAMPTZ NOT NULL,
+    open              DOUBLE PRECISION,
+    high              DOUBLE PRECISION,
+    low               DOUBLE PRECISION,
+    close             DOUBLE PRECISION,
+    volume            BIGINT,
+    open_interest     BIGINT,
+    total_oi          BIGINT,
+    last_trade_time   TIMESTAMPTZ,
+    PRIMARY KEY (instrument_token, bucket)
+);
+SELECT create_hypertable('candles_1m', 'bucket', chunk_time_interval => INTERVAL '7 days');
+CREATE INDEX ON candles_1m (instrument_token, bucket DESC);
+
+-- Native compression after 7 days (~10x size reduction)
+ALTER TABLE candles_1m SET (
+  timescaledb.compress,
+  timescaledb.compress_segmentby = 'instrument_token',
+  timescaledb.compress_orderby   = 'bucket DESC'
+);
+SELECT add_compression_policy('candles_1m', INTERVAL '7 days');]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Continuous aggregates (no application code required):</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="39a11925-3417-4ccb-af49-3be5105c9f72"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- 5-minute candles (auto-maintained from candles_1m)
+CREATE MATERIALIZED VIEW candles_5m
+WITH (timescaledb.continuous) AS
+SELECT
+    instrument_token,
+    time_bucket('5 minutes', bucket) AS bucket,
+    first(open, bucket)              AS open,
+    max(high)                        AS high,
+    min(low)                         AS low,
+    last(close, bucket)              AS close,
+    sum(volume)                      AS volume,
+    last(open_interest, bucket)      AS open_interest
+FROM candles_1m
+GROUP BY instrument_token, time_bucket('5 minutes', bucket);
+
+SELECT add_continuous_aggregate_policy('candles_5m',
+    start_offset => INTERVAL '1 hour',
+    end_offset   => INTERVAL '2 minutes',
+    schedule_interval => INTERVAL '1 minute');
+
+-- 15m, 1h, 1d, 1w, 1M follow the same pattern, each built FROM the next-smaller
+-- aggregate or directly FROM candles_1m. All refresh policies are declarative —
+-- there is no application code that performs rollups.]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Example read (Charts API historical path):</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="8ac34ac1-041b-4578-9017-50360bbc7294"><ac:parameter ac:name="language">sql</ac:parameter><ac:plain-text-body><![CDATA[-- Any interval — just pick the right view
+SELECT bucket, open, high, low, close, volume
+FROM candles_5m
+WHERE instrument_token = 'NSE:RELIANCE:EQ'
+  AND bucket BETWEEN $1 AND $2
+ORDER BY bucket;]]></ac:plain-text-body></ac:structured-macro>
+<p><strong>Migration path:</strong> See &sect;13 Phase 0. A one-time Temporal workflow reads MongoDB historical candles and Elasticsearch historical data, writes into TimescaleDB, validates row counts + spot-checks sample instruments, and keeps the old stores in read-only mode for 30 days as a safety net.</p>
+<hr />
+<h3>6.11 Charts API</h3>
+<p><strong>What it does:</strong> Serves price chart data to end users. <strong>API contract unchanged</strong> &mdash; same request/response as current system.</p>
+<p><strong>Data sources:</strong></p>
+<ul>
+<li>Current-day candles: Redis Cluster 2 Hash (populated by Charts Data Writer)</li>
+<li>Historical candles: TimescaleDB (<code>candles_1m</code> base table or the relevant continuous aggregate for 5m/15m/1h/1d/1w/1M)</li>
+</ul>
+<p><strong>API (matching current contract):</strong></p>
+<ac:structured-macro ac:name="code" ac:schema-version="1" ac:macro-id="52ac0024-4c03-458e-916e-e43bfdc49e96"><ac:plain-text-body><![CDATA[POST /v1/charts
+
+Request:
+{
+    "fromDate": "2024-06-01",
+    "toDate": "2024-06-10",
+    "interval": "DAY",      // 1MIN, 5MIN, 15MIN, 60MIN, DAY, WEEK, MONTH
+    "pmlId": 1000005486
+}
+
+Response: Array of OHLCV candles (same format as current)]]></ac:plain-text-body></ac:structured-macro>
+<p>Interval routing inside the Charts API:</p>
+<ul>
+<li><code>1MIN</code> &rarr; <code>candles_1m</code></li>
+<li><code>5MIN</code> &rarr; <code>candles_5m</code> (continuous aggregate)</li>
+<li><code>15MIN</code> &rarr; <code>candles_15m</code></li>
+<li><code>60MIN</code> &rarr; <code>candles_1h</code></li>
+<li><code>DAY</code>   &rarr; <code>candles_1d</code></li>
+<li><code>WEEK</code>  &rarr; <code>candles_1w</code></li>
+<li><code>MONTH</code> &rarr; <code>candles_1M</code></li>
+</ul>
+<hr />

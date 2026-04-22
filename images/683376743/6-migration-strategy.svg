@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -30 1375 800" width="1375" height="800">
+  <defs>
+    <marker id="ah-616161" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#616161"/></marker>
+    <marker id="ahs-616161" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#616161"/></marker>
+  </defs>
+  <rect x="-10" y="-30" width="1375" height="800" fill="white"/>
+  <rect x="40" y="90" width="300" height="520" rx="8" ry="8" fill="#f1f8e9" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="40" y="90" width="300" height="34" rx="0" ry="0" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="50" y="132" width="280" height="26" rx="2.6" ry="2.6" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="50" y="164" width="280" height="22" rx="2.2" ry="2.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="50" y="190" width="135" height="65" rx="6.5" ry="6.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="195" y="190" width="135" height="65" rx="6.5" ry="6.5" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="50" y="273" width="280" height="22" rx="2.2" ry="2.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="50" y="299" width="280" height="97" rx="8" ry="8" fill="#ffffff" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="50" y="414" width="280" height="50" rx="5" ry="5" fill="#e8f5e9" stroke="#43a047" stroke-width="1"/>
+  <rect x="50" y="472" width="280" height="50" rx="5" ry="5" fill="#fff3e0" stroke="#ef6c00" stroke-width="1"/>
+  <rect x="365" y="90" width="300" height="520" rx="8" ry="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+  <rect x="365" y="90" width="300" height="34" rx="0" ry="0" fill="#bbdefb" stroke="#1565c0" stroke-width="2"/>
+  <rect x="375" y="132" width="280" height="26" rx="2.6" ry="2.6" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="375" y="164" width="280" height="22" rx="2.2" ry="2.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="375" y="190" width="135" height="65" rx="6.5" ry="6.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="520" y="190" width="135" height="65" rx="6.5" ry="6.5" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="375" y="273" width="280" height="22" rx="2.2" ry="2.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="375" y="299" width="280" height="97" rx="8" ry="8" fill="#ffffff" stroke="#1565c0" stroke-width="1"/>
+  <rect x="375" y="414" width="280" height="50" rx="5" ry="5" fill="#e8f5e9" stroke="#43a047" stroke-width="1"/>
+  <rect x="375" y="472" width="280" height="50" rx="5" ry="5" fill="#fff3e0" stroke="#ef6c00" stroke-width="1"/>
+  <rect x="690" y="90" width="300" height="520" rx="8" ry="8" fill="#fffde7" stroke="#f57f17" stroke-width="2"/>
+  <rect x="690" y="90" width="300" height="34" rx="0" ry="0" fill="#fff9c4" stroke="#f57f17" stroke-width="2"/>
+  <rect x="700" y="132" width="280" height="26" rx="2.6" ry="2.6" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="700" y="164" width="280" height="22" rx="2.2" ry="2.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="700" y="190" width="135" height="65" rx="6.5" ry="6.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="845" y="190" width="135" height="65" rx="6.5" ry="6.5" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="700" y="273" width="280" height="22" rx="2.2" ry="2.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="700" y="299" width="280" height="97" rx="8" ry="8" fill="#ffffff" stroke="#f57f17" stroke-width="1"/>
+  <rect x="700" y="414" width="280" height="50" rx="5" ry="5" fill="#e8f5e9" stroke="#43a047" stroke-width="1"/>
+  <rect x="700" y="472" width="280" height="50" rx="5" ry="5" fill="#fff3e0" stroke="#ef6c00" stroke-width="1"/>
+  <rect x="1015" y="90" width="300" height="520" rx="8" ry="8" fill="#ede7f6" stroke="#4527a0" stroke-width="2"/>
+  <rect x="1015" y="90" width="300" height="34" rx="0" ry="0" fill="#d1c4e9" stroke="#4527a0" stroke-width="2"/>
+  <rect x="1025" y="132" width="280" height="26" rx="2.6" ry="2.6" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="1025" y="164" width="280" height="22" rx="2.2" ry="2.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="1025" y="190" width="135" height="65" rx="6.5" ry="6.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="1170" y="190" width="135" height="65" rx="6.5" ry="6.5" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="1025" y="273" width="280" height="22" rx="2.2" ry="2.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="1025" y="299" width="280" height="97" rx="8" ry="8" fill="#ffffff" stroke="#4527a0" stroke-width="1"/>
+  <rect x="1025" y="414" width="280" height="50" rx="5" ry="5" fill="#e8f5e9" stroke="#43a047" stroke-width="1"/>
+  <rect x="1025" y="472" width="280" height="50" rx="5" ry="5" fill="#fff3e0" stroke="#ef6c00" stroke-width="1"/>
+  <rect x="40" y="640" width="1275" height="80" rx="8" ry="8" fill="#fafafa" stroke="#9e9e9e" stroke-width="2"/>
+  <rect x="40" y="640" width="1275" height="28" rx="0" ry="0" fill="#e0e0e0" stroke="#9e9e9e" stroke-width="2"/>
+  <rect x="50" y="674" width="306.25" height="42" rx="4.2" ry="4.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="366.25" y="674" width="306.25" height="42" rx="4.2" ry="4.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="682.5" y="674" width="306.25" height="42" rx="4.2" ry="4.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="998.75" y="674" width="306.25" height="42" rx="4.2" ry="4.2" fill="none" stroke="transparent" stroke-width="1"/>
+  <polyline points="50,265 330,265" fill="none" stroke="#e0e0e0" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="50,406 330,406" fill="none" stroke="#e0e0e0" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="375,265 655,265" fill="none" stroke="#e0e0e0" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="375,406 655,406" fill="none" stroke="#e0e0e0" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="700,265 980,265" fill="none" stroke="#e0e0e0" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="700,406 980,406" fill="none" stroke="#e0e0e0" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="1025,265 1305,265" fill="none" stroke="#e0e0e0" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="1025,406 1305,406" fill="none" stroke="#e0e0e0" stroke-width="1" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="343,350 362,350" fill="none" stroke="#616161" stroke-width="2" marker-end="url(#ah-616161)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="668,350 687,350" fill="none" stroke="#616161" stroke-width="2" marker-end="url(#ah-616161)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="993,350 1012,350" fill="none" stroke="#616161" stroke-width="2" marker-end="url(#ah-616161)" stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="627.2" y="37.16" font-size="22" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="bold" text-anchor="middle" fill="#1565c0"><tspan x="627.2" dy="0">Migration Strategy — Strangler Fig Pattern</tspan></text>
+  <text x="556.7" y="65.14" font-size="13" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#757575"><tspan x="556.7" dy="0">Incremental migration from legacy to new Price Engine</tspan></text>
+  <text x="190" y="109.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#2e7d32"><tspan x="190" dy="0">Phase 1: Shadow Mode</tspan></text>
+  <text x="190" y="147.015" font-size="13" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#616161"><tspan x="190" dy="0">Week 1-2</tspan></text>
+  <text x="190" y="176.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="190" dy="0">Traffic Split</tspan></text>
+  <text x="117.5" y="209.63000000000002" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="117.5" dy="0">Old: 100%</tspan><tspan x="117.5" dy="14.3">Old system serves</tspan><tspan x="117.5" dy="14.3">ALL client traffic</tspan></text>
+  <text x="262.5" y="209.63000000000002" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="262.5" dy="0">New: 0%</tspan><tspan x="262.5" dy="14.3">New engine: shadow</tspan><tspan x="262.5" dy="14.3">mode (compare only)</tspan></text>
+  <text x="190" y="285.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="190" dy="0">Activities</tspan></text>
+  <text x="190" y="320.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="190" dy="0">- New engine processes in parallel</tspan><tspan x="190" dy="14.3">- Results compared, NOT served</tspan><tspan x="190" dy="14.3">- Diff report generated hourly</tspan><tspan x="190" dy="14.3">- Latency benchmarking (P99)</tspan><tspan x="190" dy="14.3">- Data consistency validation</tspan></text>
+  <text x="190" y="433.28" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#2e7d32"><tspan x="190" dy="0">Success: &lt;0.01% diff rate</tspan><tspan x="190" dy="14.3">for 3 consecutive days</tspan></text>
+  <text x="190" y="491.28" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="190" dy="0">Rollback: Disable shadow</tspan><tspan x="190" dy="14.3">route (zero risk)</tspan></text>
+  <text x="515" y="109.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1565c0"><tspan x="515" dy="0">Phase 2: Canary</tspan></text>
+  <text x="515" y="147.015" font-size="13" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#616161"><tspan x="515" dy="0">Week 3-4</tspan></text>
+  <text x="515" y="176.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="515" dy="0">Traffic Split</tspan></text>
+  <text x="442.5" y="209.63000000000002" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="442.5" dy="0">Old: 95%</tspan><tspan x="442.5" dy="14.3">Old system serves</tspan><tspan x="442.5" dy="14.3">majority of traffic</tspan></text>
+  <text x="587.5" y="209.63000000000002" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="587.5" dy="0">New: 5%</tspan><tspan x="587.5" dy="14.3">New engine serves</tspan><tspan x="587.5" dy="14.3">5% real traffic</tspan></text>
+  <text x="515" y="285.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="515" dy="0">Activities</tspan></text>
+  <text x="515" y="320.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="515" dy="0">- 5% traffic to new engine</tspan><tspan x="515" dy="14.3">- 95% traffic to old system</tspan><tspan x="515" dy="14.3">- Automated rollback trigger</tspan><tspan x="515" dy="14.3">- Error rate monitored real-time</tspan><tspan x="515" dy="14.3">- Latency SLO: P99 &lt; 50ms</tspan></text>
+  <text x="515" y="433.28" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#2e7d32"><tspan x="515" dy="0">Success: error rate &lt; 0.1%</tspan><tspan x="515" dy="14.3">for 5 consecutive days</tspan></text>
+  <text x="515" y="491.28" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="515" dy="0">Auto-rollback if</tspan><tspan x="515" dy="14.3">error rate &gt; 0.1%</tspan></text>
+  <text x="840" y="109.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#f57f17"><tspan x="840" dy="0">Phase 3: Gradual Cutover</tspan></text>
+  <text x="840" y="147.015" font-size="13" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#616161"><tspan x="840" dy="0">Week 5-6</tspan></text>
+  <text x="840" y="176.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="840" dy="0">Ramp Schedule</tspan></text>
+  <text x="767.5" y="209.63000000000002" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="767.5" dy="0">Old: 20%</tspan><tspan x="767.5" dy="14.3">Old system</tspan><tspan x="767.5" dy="14.3">kept warm as fallback</tspan></text>
+  <text x="912.5" y="209.63000000000002" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="912.5" dy="0">New: 80%</tspan><tspan x="912.5" dy="14.3">Ramp: 5% &gt; 25%</tspan><tspan x="912.5" dy="14.3">&gt; 50% &gt; 80% &gt; 100%</tspan></text>
+  <text x="840" y="285.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="840" dy="0">Activities</tspan></text>
+  <text x="840" y="320.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="840" dy="0">- Gradual ramp-up in steps</tspan><tspan x="840" dy="14.3">- 5% -&gt; 25% -&gt; 50% -&gt; 80%</tspan><tspan x="840" dy="14.3">- Each step: 48hr bake period</tspan><tspan x="840" dy="14.3">- Old system kept warm</tspan><tspan x="840" dy="14.3">- Instant fallback available</tspan></text>
+  <text x="840" y="433.28" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#2e7d32"><tspan x="840" dy="0">Success: each step passes</tspan><tspan x="840" dy="14.3">48hr bake with &lt;0.05% errors</tspan></text>
+  <text x="840" y="491.28" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="840" dy="0">Rollback: revert traffic</tspan><tspan x="840" dy="14.3">to previous step instantly</tspan></text>
+  <text x="1165" y="109.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4527a0"><tspan x="1165" dy="0">Phase 4: Full Migration</tspan></text>
+  <text x="1165" y="147.015" font-size="13" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#616161"><tspan x="1165" dy="0">Week 7+</tspan></text>
+  <text x="1165" y="176.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="1165" dy="0">Traffic Split</tspan></text>
+  <text x="1092.5" y="209.63000000000002" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1092.5" dy="0">Old: 0%</tspan><tspan x="1092.5" dy="14.3">Old system</tspan><tspan x="1092.5" dy="14.3">decommissioned</tspan></text>
+  <text x="1237.5" y="209.63000000000002" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1237.5" dy="0">New: 100%</tspan><tspan x="1237.5" dy="14.3">New engine serves</tspan><tspan x="1237.5" dy="14.3">ALL client traffic</tspan></text>
+  <text x="1165" y="285.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="1165" dy="0">Activities</tspan></text>
+  <text x="1165" y="320.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="1165" dy="0">- New engine serves 100%</tspan><tspan x="1165" dy="14.3">- Old system decommissioned</tspan><tspan x="1165" dy="14.3">- 7-day bake period monitoring</tspan><tspan x="1165" dy="14.3">- Performance audit completed</tspan><tspan x="1165" dy="14.3">- Runbook documentation final</tspan></text>
+  <text x="1165" y="433.28" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#2e7d32"><tspan x="1165" dy="0">Success: 7-day bake</tspan><tspan x="1165" dy="14.3">with zero P1 incidents</tspan></text>
+  <text x="1165" y="491.28" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="1165" dy="0">Emergency: redeploy old</tspan><tspan x="1165" dy="14.3">system from container image</tspan></text>
+  <text x="677.5" y="656.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="677.5" dy="0">Key Principles</tspan></text>
+  <text x="203.125" y="682.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1565c0"><tspan x="203.125" dy="0">Zero Downtime</tspan><tspan x="203.125" dy="13.75">No service interruption</tspan><tspan x="203.125" dy="13.75">at any phase</tspan></text>
+  <text x="519.375" y="682.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#c62828"><tspan x="519.375" dy="0">Automated Rollback</tspan><tspan x="519.375" dy="13.75">Instant revert on</tspan><tspan x="519.375" dy="13.75">error threshold breach</tspan></text>
+  <text x="835.625" y="682.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#2e7d32"><tspan x="835.625" dy="0">Incremental Risk</tspan><tspan x="835.625" dy="13.75">Each step is reversible</tspan><tspan x="835.625" dy="13.75">and independently validated</tspan></text>
+  <text x="1151.875" y="682.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4527a0"><tspan x="1151.875" dy="0">Observability First</tspan><tspan x="1151.875" dy="13.75">Full metrics, traces,</tspan><tspan x="1151.875" dy="13.75">and diff reports</tspan></text>
+</svg>

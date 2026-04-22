@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 -10 1380 862" width="1380" height="862" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#868e96"/></marker></defs>
+<style>text { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }</style>
+<rect x="50" y="130" width="620" height="253" rx="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="740" y="130" width="620" height="154" rx="6" fill="#d0ebff" stroke="#1971c2" stroke-width="2" opacity="0.85"/>
+<rect x="740" y="304" width="620" height="182" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="50" y="556" width="440" height="112" rx="6" fill="#d0ebff" stroke="#1971c2" stroke-width="2" opacity="0.85"/>
+<rect x="510" y="556" width="440" height="112" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="970" y="556" width="400" height="140" rx="6" fill="#fff9db" stroke="#f08c00" stroke-width="2" opacity="0.85"/>
+<rect x="50" y="726" width="1320" height="62" rx="6" fill="#fff9db" stroke="#f08c00" stroke-width="2" opacity="0.85"/>
+<text x="150" y="44.0" font-size="24" fill="#1e1e1e" font-weight="500">Decision 2: Split Redis into 2 Clusters</text>
+<text x="150" y="67.0" font-size="12" fill="#c92a2a" font-weight="500">Problem: One Redis holds everything — if it dies, the entire platform goes down.</text>
+<text x="50" y="118.0" font-size="18" fill="#c92a2a" font-weight="500">BEFORE — Single Redis Instance</text>
+<text x="66" y="155.0" font-size="11" fill="#c92a2a" font-weight="500">ONE Redis Instance Holds EVERYTHING:</text>
+<text x="66" y="168.75" font-size="11" fill="#c92a2a" font-weight="500"></text>
+<text x="66" y="182.5" font-size="11" fill="#c92a2a" font-weight="500">• Live tick snapshots (FEED_PP_*)</text>
+<text x="66" y="196.25" font-size="11" fill="#c92a2a" font-weight="500">• OHLC, previous close, circuit limits, 52-week H/L</text>
+<text x="66" y="210.0" font-size="11" fill="#c92a2a" font-weight="500">• Chart candles (current-day)</text>
+<text x="66" y="223.75" font-size="11" fill="#c92a2a" font-weight="500">• FNO option chain + Greeks + insights</text>
+<text x="66" y="237.5" font-size="11" fill="#c92a2a" font-weight="500">• Market movers sorted sets</text>
+<text x="66" y="251.25" font-size="11" fill="#c92a2a" font-weight="500">• Trading day status flag</text>
+<text x="66" y="265.0" font-size="11" fill="#c92a2a" font-weight="500"></text>
+<text x="66" y="278.75" font-size="11" fill="#c92a2a" font-weight="500">→ If this Redis dies (AWS Multi-AZ failover: 15-30 sec)</text>
+<text x="66" y="292.5" font-size="11" fill="#c92a2a" font-weight="500">→ FULL PLATFORM OUTAGE:</text>
+<text x="66" y="306.25" font-size="11" fill="#c92a2a" font-weight="500">    ✗ Feed pipeline stops writing</text>
+<text x="66" y="320.0" font-size="11" fill="#c92a2a" font-weight="500">    ✗ Charts API returns errors</text>
+<text x="66" y="333.75" font-size="11" fill="#c92a2a" font-weight="500">    ✗ FNO API returns errors</text>
+<text x="66" y="347.5" font-size="11" fill="#c92a2a" font-weight="500">    ✗ Market Movers API returns errors</text>
+<text x="66" y="361.25" font-size="11" fill="#c92a2a" font-weight="500">    ✗ WebSocket shows frozen prices</text>
+<text x="740" y="118.0" font-size="18" fill="#2f9e44" font-weight="500">AFTER — Two Independent Clusters</text>
+<text x="756" y="155.0" font-size="11" fill="#1971c2" font-weight="500">REDIS CLUSTER 1  (Feed Pipeline)</text>
+<text x="756" y="168.75" font-size="11" fill="#1971c2" font-weight="500"></text>
+<text x="756" y="182.5" font-size="11" fill="#1971c2" font-weight="500">• Live tick snapshots (FEED_PP_*)</text>
+<text x="756" y="196.25" font-size="11" fill="#1971c2" font-weight="500">• OHLC, previous close, circuit limits</text>
+<text x="756" y="210.0" font-size="11" fill="#1971c2" font-weight="500">• 52-week H/L, trading day status</text>
+<text x="756" y="223.75" font-size="11" fill="#1971c2" font-weight="500"></text>
+<text x="756" y="237.5" font-size="11" fill="#1971c2" font-weight="500">Writers: Publisher (via Lua atomic scripts)</text>
+<text x="756" y="251.25" font-size="11" fill="#1971c2" font-weight="500">Readers: Periscope API, Broadcast Service</text>
+<text x="756" y="265.0" font-size="11" fill="#1971c2" font-weight="500">          (for snapshot-on-connect)</text>
+<text x="756" y="329.0" font-size="11" fill="#2f9e44" font-weight="500">REDIS CLUSTER 2  (API Read Cache)</text>
+<text x="756" y="342.75" font-size="11" fill="#2f9e44" font-weight="500"></text>
+<text x="756" y="356.5" font-size="11" fill="#2f9e44" font-weight="500">• Current-day chart candles ({pmlId}_{date})</text>
+<text x="756" y="370.25" font-size="11" fill="#2f9e44" font-weight="500">• FNO option chain hashes per expiry</text>
+<text x="756" y="384.0" font-size="11" fill="#2f9e44" font-weight="500">• Option insights (PCR, Max Pain, ATM Straddle)</text>
+<text x="756" y="397.75" font-size="11" fill="#2f9e44" font-weight="500">• Market movers sorted sets</text>
+<text x="756" y="411.5" font-size="11" fill="#2f9e44" font-weight="500"></text>
+<text x="756" y="425.25" font-size="11" fill="#2f9e44" font-weight="500">Writers: Charts Data Writer, FNO Data Writer,</text>
+<text x="756" y="439.0" font-size="11" fill="#2f9e44" font-weight="500">          Market Movers Writer</text>
+<text x="756" y="452.75" font-size="11" fill="#2f9e44" font-weight="500">Readers: Charts API, FNO Dashboard API,</text>
+<text x="756" y="466.5" font-size="11" fill="#2f9e44" font-weight="500">          Market Movers API</text>
+<text x="50" y="542.0" font-size="16" fill="#1e1e1e" font-weight="500">Failure Scenarios Compared</text>
+<text x="66" y="581.0" font-size="11" fill="#1971c2" font-weight="500">If Redis Cluster 1 dies:</text>
+<text x="66" y="594.75" font-size="11" fill="#1971c2" font-weight="500">✓ Live price writes pause for 15-30 sec</text>
+<text x="66" y="608.5" font-size="11" fill="#1971c2" font-weight="500">✓ Kafka keeps flowing (no tick loss)</text>
+<text x="66" y="622.25" font-size="11" fill="#1971c2" font-weight="500">✓ Charts / FNO / Movers APIs keep serving</text>
+<text x="66" y="636.0" font-size="11" fill="#1971c2" font-weight="500">✓ WebSocket delivery continues (Kafka-based)</text>
+<text x="66" y="649.75" font-size="11" fill="#1971c2" font-weight="500">✗ Snapshot-on-connect unavailable until recovery</text>
+<text x="526" y="581.0" font-size="11" fill="#2f9e44" font-weight="500">If Redis Cluster 2 dies:</text>
+<text x="526" y="594.75" font-size="11" fill="#2f9e44" font-weight="500">✓ Feed pipeline fully unaffected</text>
+<text x="526" y="608.5" font-size="11" fill="#2f9e44" font-weight="500">✓ Kafka keeps flowing to Broadcast</text>
+<text x="526" y="622.25" font-size="11" fill="#2f9e44" font-weight="500">✓ WebSocket users still see live prices</text>
+<text x="526" y="636.0" font-size="11" fill="#2f9e44" font-weight="500">✗ Charts API returns errors (15-30 sec)</text>
+<text x="526" y="649.75" font-size="11" fill="#2f9e44" font-weight="500">✗ FNO + Movers APIs return errors (15-30 sec)</text>
+<text x="986" y="581.0" font-size="11" fill="#f08c00" font-weight="500">If BOTH die (rare):</text>
+<text x="986" y="594.75" font-size="11" fill="#f08c00" font-weight="500">✗ Full outage until recovery</text>
+<text x="986" y="608.5" font-size="11" fill="#f08c00" font-weight="500"></text>
+<text x="986" y="622.25" font-size="11" fill="#f08c00" font-weight="500">BUT Kafka still persists all ticks</text>
+<text x="986" y="636.0" font-size="11" fill="#f08c00" font-weight="500">→ On recovery, replay last N seconds</text>
+<text x="986" y="649.75" font-size="11" fill="#f08c00" font-weight="500">→ Zero permanent data loss</text>
+<text x="986" y="663.5" font-size="11" fill="#f08c00" font-weight="500"></text>
+<text x="986" y="677.25" font-size="11" fill="#f08c00" font-weight="500">Multi-AZ with separate AZ placement</text>
+<text x="66" y="754.0" font-size="12" fill="#f08c00" font-weight="500">Cost:  ~$200/month extra for 2nd ElastiCache instance.  Config: maxmemory-policy = noeviction, alert at 80% usage.</text>
+<text x="66" y="769.0" font-size="12" fill="#f08c00" font-weight="500">Use key prefixes (no DB 5/6/7 pattern) — required for future Redis Cluster migration.  Neither failure kills everything.</text>
+</svg>

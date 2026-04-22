@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -35 1484.8000000000002 945" width="1484.8000000000002" height="945">
+  <defs>
+    <marker id="ah-1565c0" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#1565c0"/></marker>
+    <marker id="ahs-1565c0" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#1565c0"/></marker>
+    <marker id="ah-455a64" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#455a64"/></marker>
+    <marker id="ahs-455a64" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#455a64"/></marker>
+    <marker id="ah-e65100" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#e65100"/></marker>
+    <marker id="ahs-e65100" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#e65100"/></marker>
+  </defs>
+  <rect x="-20" y="-35" width="1484.8000000000002" height="945" fill="white"/>
+  <rect x="30" y="15" width="1370" height="40" rx="4" ry="4" fill="none" stroke="transparent" stroke-width="1"/>
+  <rect x="30" y="70" width="670" height="310" rx="8" ry="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+  <rect x="30" y="70" width="670" height="32" rx="0" ry="0" fill="#1565c0" stroke="#1565c0" stroke-width="2"/>
+  <rect x="50" y="114" width="290" height="50" rx="5" ry="5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="370" y="114" width="310" height="50" rx="5" ry="5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="50" y="176" width="290" height="40" rx="4" ry="4" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="370" y="176" width="310" height="40" rx="4" ry="4" fill="#e3f2fd" stroke="#1565c0" stroke-width="1"/>
+  <rect x="50" y="228" width="630" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="50" y="266" width="130" height="50" rx="5" ry="5" fill="#e8eaf6" stroke="#283593" stroke-width="1"/>
+  <rect x="190" y="266" width="120" height="50" rx="5" ry="5" fill="#e8eaf6" stroke="#283593" stroke-width="1"/>
+  <rect x="320" y="266" width="120" height="50" rx="5" ry="5" fill="#e8eaf6" stroke="#283593" stroke-width="1"/>
+  <rect x="450" y="266" width="120" height="50" rx="5" ry="5" fill="#e8eaf6" stroke="#283593" stroke-width="1"/>
+  <rect x="580" y="266" width="110" height="50" rx="5" ry="5" fill="#e8eaf6" stroke="#283593" stroke-width="1"/>
+  <rect x="730" y="70" width="670" height="310" rx="8" ry="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="730" y="70" width="670" height="32" rx="0" ry="0" fill="#2e7d32" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="750" y="114" width="310" height="45" rx="4.5" ry="4.5" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="1080" y="114" width="300" height="45" rx="4.5" ry="4.5" fill="#ffffff" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="750" y="172" width="630" height="70" rx="7" ry="7" fill="#ffffff" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="750" y="254" width="150" height="40" rx="4" ry="4" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="910" y="254" width="150" height="40" rx="4" ry="4" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="1070" y="254" width="150" height="40" rx="4" ry="4" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="1240" y="254" width="140" height="40" rx="4" ry="4" fill="#2e7d32" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="30" y="400" width="1370" height="180" rx="8" ry="8" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="2"/>
+  <rect x="30" y="400" width="1370" height="32" rx="0" ry="0" fill="#6a1b9a" stroke="#6a1b9a" stroke-width="2"/>
+  <rect x="45" y="444" width="320" height="80" rx="8" ry="8" fill="#e1bee7" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="380" y="444" width="320" height="80" rx="8" ry="8" fill="#e1bee7" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="715" y="444" width="320" height="80" rx="8" ry="8" fill="#e1bee7" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="1050" y="444" width="300" height="80" rx="8" ry="8" fill="#e1bee7" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="45" y="536" width="1340" height="30" rx="3" ry="3" fill="#ffffff" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="30" y="600" width="670" height="260" rx="8" ry="8" fill="#fff3e0" stroke="#e65100" stroke-width="2"/>
+  <rect x="30" y="600" width="670" height="32" rx="0" ry="0" fill="#e65100" stroke="#e65100" stroke-width="2"/>
+  <rect x="50" y="644" width="200" height="80" rx="8" ry="8" fill="#ffccbc" stroke="#d84315" stroke-width="1"/>
+  <rect x="265" y="644" width="200" height="80" rx="8" ry="8" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="480" y="644" width="220" height="80" rx="8" ry="8" fill="#fff9c4" stroke="#f9a825" stroke-width="1"/>
+  <rect x="50" y="739" width="630" height="45" rx="4.5" ry="4.5" fill="#ffffff" stroke="#e65100" stroke-width="1"/>
+  <rect x="50" y="796" width="630" height="35" rx="3.5" ry="3.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="730" y="600" width="670" height="260" rx="8" ry="8" fill="#e0f2f1" stroke="#00695c" stroke-width="2"/>
+  <rect x="730" y="600" width="670" height="32" rx="0" ry="0" fill="#00695c" stroke="#00695c" stroke-width="2"/>
+  <rect x="750" y="644" width="305" height="70" rx="7" ry="7" fill="#b2dfdb" stroke="#00695c" stroke-width="1"/>
+  <rect x="1070" y="644" width="305" height="70" rx="7" ry="7" fill="#b2dfdb" stroke="#00695c" stroke-width="1"/>
+  <rect x="750" y="729" width="305" height="70" rx="7" ry="7" fill="#b2dfdb" stroke="#00695c" stroke-width="1"/>
+  <rect x="1070" y="729" width="305" height="70" rx="7" ry="7" fill="#b2dfdb" stroke="#00695c" stroke-width="1"/>
+  <rect x="750" y="814" width="630" height="35" rx="3.5" ry="3.5" fill="#ffffff" stroke="#00695c" stroke-width="1"/>
+  <polyline points="340,139 370,139" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="700,225 730,225" fill="none" stroke="#455a64" stroke-width="2" marker-end="url(#ah-455a64)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="30,390 1400,390" fill="none" stroke="#bdbdbd" stroke-width="1" stroke-dasharray="4 4" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="30,590 1400,590" fill="none" stroke="#bdbdbd" stroke-width="1" stroke-dasharray="4 4" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="250,684 265,684" fill="none" stroke="#e65100" stroke-width="2" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="465,684 480,684" fill="none" stroke="#e65100" stroke-width="2" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="365,380 372.5,400" fill="none" stroke="#455a64" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#ah-455a64)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="1065,380 1057.5,400" fill="none" stroke="#455a64" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#ah-455a64)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="1065,580 1065,600" fill="none" stroke="#455a64" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#ah-455a64)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="365,580 365,600" fill="none" stroke="#455a64" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#ah-455a64)" stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="715" y="38.41" font-size="22" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="bold" text-anchor="middle" fill="#1565c0"><tspan x="715" dy="0">QuestDB Data Pipeline — Full Lifecycle</tspan></text>
+  <text x="365" y="88.48" font-size="16" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="365" dy="0">1. Write Pipeline</tspan></text>
+  <text x="195" y="132.89" font-size="13" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="195" dy="0">Price Engine</tspan><tspan x="195" dy="16.25">(pml-core-streamer)</tspan></text>
+  <text x="525" y="133.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="525" dy="0">ILP Batch Writer</tspan><tspan x="525" dy="15">(InfluxDB Line Protocol over TCP)</tspan></text>
+  <text x="195" y="197.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="195" dy="0">Batch: 10,000 rows | Flush: 100ms</tspan></text>
+  <text x="525" y="190.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="525" dy="0">WAL (Write-Ahead Log) for durability</tspan><tspan x="525" dy="13.75">Dedup on timestamp + instrument_id</tspan></text>
+  <text x="365" y="244.015" font-size="13" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="365" dy="0">QuestDB Tables (all partitioned by DAY)</tspan></text>
+  <text x="115" y="285.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1a237e"><tspan x="115" dy="0">ticks</tspan><tspan x="115" dy="13.75">(raw data)</tspan></text>
+  <text x="250" y="292.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1a237e"><tspan x="250" dy="0">candles_1m</tspan></text>
+  <text x="380" y="292.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1a237e"><tspan x="380" dy="0">candles_5m</tspan></text>
+  <text x="510" y="292.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1a237e"><tspan x="510" dy="0">candles_15m</tspan></text>
+  <text x="635" y="285.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1a237e"><tspan x="635" dy="0">candles_1h</tspan><tspan x="635" dy="13.75">candles_1d</tspan></text>
+  <text x="1065" y="88.48" font-size="16" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="1065" dy="0">2. Candle Generation</tspan></text>
+  <text x="905" y="130.39" font-size="13" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="905" dy="0">Temporal Workflow</tspan><tspan x="905" dy="16.25">triggers candle generation</tspan></text>
+  <text x="1230" y="130.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1230" dy="0">Materialized from raw ticks</tspan><tspan x="1230" dy="15">NOT derived from other candles</tspan></text>
+  <text x="1065" y="185.16000000000003" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1065" dy="0">SELECT first(price), max(price),</tspan><tspan x="1065" dy="15.600000000000001">       min(price), last(price), sum(volume)</tspan><tspan x="1065" dy="15.600000000000001">FROM ticks</tspan><tspan x="1065" dy="15.600000000000001">SAMPLE BY 1m</tspan></text>
+  <text x="825" y="275.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="825" dy="0">1m: every minute</tspan></text>
+  <text x="985" y="268.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="985" dy="0">5m/15m/1h:</tspan><tspan x="985" dy="13.75">on boundary</tspan></text>
+  <text x="1145" y="268.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1145" dy="0">1d: end-of-day</tspan><tspan x="1145" dy="13.75">(EOD)</tspan></text>
+  <text x="1310" y="276.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="1310" dy="0">Schedules</tspan></text>
+  <text x="715" y="418.48" font-size="16" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="715" dy="0">3. Query Patterns</tspan></text>
+  <text x="205" y="470.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="205" dy="0">Chart Data</tspan><tspan x="205" dy="15">Candles for instrument + timeframe</tspan><tspan x="205" dy="15">Latency: &lt; 5ms</tspan></text>
+  <text x="540" y="470.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="540" dy="0">Live LTP</tspan><tspan x="540" dy="15">Redis primary, QuestDB fallback</tspan><tspan x="540" dy="15">Latency: &lt; 1ms (Redis)</tspan></text>
+  <text x="875" y="470.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="875" dy="0">Greeks History</tspan><tspan x="875" dy="15">Time-series for an option</tspan><tspan x="875" dy="15">Latency: &lt; 10ms</tspan></text>
+  <text x="1200" y="470.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="1200" dy="0">OHLC Aggregation</tspan><tspan x="1200" dy="15">Custom timeframe aggregation</tspan><tspan x="1200" dy="15">Latency: &lt; 50ms</tspan></text>
+  <text x="715" y="552.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="715" dy="0">All queries indexed on instrument_id  |  Partitioned scan on timestamp  |  Connection pool: HikariCP (max 20)</tspan></text>
+  <text x="365" y="618.48" font-size="16" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="365" dy="0">4. Retention &amp; Archival</tspan></text>
+  <text x="150" y="670.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="150" dy="0">HOT (7 days)</tspan><tspan x="150" dy="15">SSD, full resolution</tspan><tspan x="150" dy="15">All tables</tspan></text>
+  <text x="365" y="670.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="365" dy="0">WARM (90 days)</tspan><tspan x="365" dy="15">SSD, 1m candles only</tspan><tspan x="365" dy="15">Ticks dropped</tspan></text>
+  <text x="590" y="670.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#f57f17"><tspan x="590" dy="0">COLD (permanent)</tspan><tspan x="590" dy="15">S3 Parquet files</tspan><tspan x="590" dy="15">Queryable via Trino/Athena</tspan></text>
+  <text x="365" y="755.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="365" dy="0">Temporal Workflow: daily archival job moves data between tiers</tspan><tspan x="365" dy="15">Drop ticks &gt; 7d  |  Archive candles &gt; 90d to S3 Parquet</tspan></text>
+  <text x="365" y="815.205" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="365" dy="0">S3 lifecycle: Standard -&gt; IA (30d) -&gt; Glacier (365d)  |  Athena for ad-hoc historical queries</tspan></text>
+  <text x="1065" y="618.48" font-size="16" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="1065" dy="0">5. Query Consumers</tspan></text>
+  <text x="902.5" y="665.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#004d40"><tspan x="902.5" dy="0">Mobile App</tspan><tspan x="902.5" dy="15">Chart data via REST API</tspan><tspan x="902.5" dy="15">/api/v1/charts/{instrument}</tspan></text>
+  <text x="1222.5" y="665.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#004d40"><tspan x="1222.5" dy="0">Web App</tspan><tspan x="1222.5" dy="15">Live data via WebSocket</tspan><tspan x="1222.5" dy="15">Real-time LTP + chart updates</tspan></text>
+  <text x="902.5" y="750.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#004d40"><tspan x="902.5" dy="0">Analytics / BI</tspan><tspan x="902.5" dy="15">Batch queries via Trino</tspan><tspan x="902.5" dy="15">S3 Parquet + QuestDB federation</tspan></text>
+  <text x="1222.5" y="750.86" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#004d40"><tspan x="1222.5" dy="0">Temporal Workflows</tspan><tspan x="1222.5" dy="15">EOD reconciliation</tspan><tspan x="1222.5" dy="15">Bhav copy vs last tick validation</tspan></text>
+  <text x="1065" y="833.205" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#004d40"><tspan x="1065" dy="0">All consumers use connection pooling (HikariCP)  |  Read replicas for Analytics/BI  |  Redis cache for LTP</tspan></text>
+</svg>

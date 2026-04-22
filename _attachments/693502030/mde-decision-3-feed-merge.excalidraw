@@ -1,0 +1,486 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "claude-code",
+  "elements": [
+    {
+      "type": "text",
+      "id": "t1",
+      "x": 150,
+      "y": 20,
+      "text": "Decision 3: Merge NSE + Omnenest into Single Pipeline",
+      "fontSize": 24,
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "type": "text",
+      "id": "t2",
+      "x": 150,
+      "y": 55,
+      "text": "Problem: 85/15 user split meant 15% saw slower prices. UDP gaps had no automatic recovery.",
+      "fontSize": 12,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t3",
+      "x": 50,
+      "y": 100,
+      "text": "BEFORE \u2014 Split by User Session",
+      "fontSize": 18,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "rectangle",
+      "id": "r4",
+      "x": 50,
+      "y": 140,
+      "width": 230,
+      "height": 66,
+      "backgroundColor": "#fff3bf",
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t5",
+      "x": 66,
+      "y": 152,
+      "text": "NSE Direct\n~2K TPS (fast)\nServes 85% of users",
+      "fontSize": 11,
+      "strokeColor": "#e67700"
+    },
+    {
+      "type": "rectangle",
+      "id": "r6",
+      "x": 320,
+      "y": 140,
+      "width": 230,
+      "height": 66,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t7",
+      "x": 336,
+      "y": 152,
+      "text": "Omnenest\n~2K TPS (3-8ms slower)\nServes 15% of users",
+      "fontSize": 11,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "arrow",
+      "id": "a8",
+      "x": 165,
+      "y": 206,
+      "width": 0,
+      "height": 35,
+      "strokeColor": "#e67700",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a9",
+      "x": 435,
+      "y": 206,
+      "width": 0,
+      "height": 35,
+      "strokeColor": "#e8590c",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r10",
+      "x": 50,
+      "y": 246,
+      "width": 230,
+      "height": 52,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t11",
+      "x": 66,
+      "y": 258,
+      "text": "Feed Handler A\n(NSE feed)",
+      "fontSize": 11,
+      "strokeColor": "#7048e8"
+    },
+    {
+      "type": "rectangle",
+      "id": "r12",
+      "x": 320,
+      "y": 246,
+      "width": 230,
+      "height": 52,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t13",
+      "x": 336,
+      "y": 258,
+      "text": "Feed Handler B\n(Omnenest feed)",
+      "fontSize": 11,
+      "strokeColor": "#7048e8"
+    },
+    {
+      "type": "arrow",
+      "id": "a14",
+      "x": 165,
+      "y": 298,
+      "width": 0,
+      "height": 35,
+      "strokeColor": "#7048e8",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a15",
+      "x": 435,
+      "y": 298,
+      "width": 0,
+      "height": 35,
+      "strokeColor": "#7048e8",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          35
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r16",
+      "x": 50,
+      "y": 338,
+      "width": 230,
+      "height": 66,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t17",
+      "x": 66,
+      "y": 350,
+      "text": "85% users\n\u2192 FAST prices\n(NSE speed)",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r18",
+      "x": 320,
+      "y": 338,
+      "width": 230,
+      "height": 66,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t19",
+      "x": 336,
+      "y": 350,
+      "text": "15% users\n\u2192 SLOWER prices\n(Omnenest speed)",
+      "fontSize": 11,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "rectangle",
+      "id": "r20",
+      "x": 50,
+      "y": 429,
+      "width": 500,
+      "height": 98,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t21",
+      "x": 66,
+      "y": 443,
+      "text": "PROBLEMS:\n\u2022 15% users see prices 3-8 ms later\n\u2022 NSE UDP packet drop \u2192 data LOST forever\n  (no automatic recovery from Omnenest)\n\u2022 Failover requires rerouting users mid-session",
+      "fontSize": 11,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t22",
+      "x": 780,
+      "y": 100,
+      "text": "AFTER \u2014 Merge Both (Best-of-Both)",
+      "fontSize": 18,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r23",
+      "x": 780,
+      "y": 140,
+      "width": 230,
+      "height": 52,
+      "backgroundColor": "#fff3bf",
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t24",
+      "x": 796,
+      "y": 152,
+      "text": "NSE Direct\n~2K TPS",
+      "fontSize": 11,
+      "strokeColor": "#e67700"
+    },
+    {
+      "type": "rectangle",
+      "id": "r25",
+      "x": 1050,
+      "y": 140,
+      "width": 230,
+      "height": 52,
+      "backgroundColor": "#ffe8cc",
+      "strokeColor": "#e8590c",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t26",
+      "x": 1066,
+      "y": 152,
+      "text": "Omnenest\n~2K TPS",
+      "fontSize": 11,
+      "strokeColor": "#e8590c"
+    },
+    {
+      "type": "arrow",
+      "id": "a27",
+      "x": 895,
+      "y": 192,
+      "width": 135,
+      "height": 45,
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          135,
+          45
+        ]
+      ]
+    },
+    {
+      "type": "arrow",
+      "id": "a28",
+      "x": 1165,
+      "y": 192,
+      "width": -135,
+      "height": 45,
+      "strokeColor": "#e8590c",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -135,
+          45
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r29",
+      "x": 780,
+      "y": 252,
+      "width": 500,
+      "height": 120,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t30",
+      "x": 796,
+      "y": 266,
+      "text": "SINGLE Feed Handler\n\nDedup by (instrument, timestamp)\nWhichever source arrives first WINS\nSecond arrival = duplicate \u2192 drop\n~4K TPS in \u2192 ~2K TPS out (after dedup)",
+      "fontSize": 12,
+      "strokeColor": "#7048e8"
+    },
+    {
+      "type": "arrow",
+      "id": "a31",
+      "x": 1030,
+      "y": 372,
+      "width": 0,
+      "height": 30,
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          30
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r32",
+      "x": 780,
+      "y": 402,
+      "width": 500,
+      "height": 77,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t33",
+      "x": 796,
+      "y": 416,
+      "text": "ALL users\n\u2192 Best-of-both prices\n\u2192 Fastest available + most complete",
+      "fontSize": 13,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r34",
+      "x": 780,
+      "y": 504,
+      "width": 500,
+      "height": 112,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t35",
+      "x": 796,
+      "y": 518,
+      "text": "BENEFITS:\n\u2022 Every user gets fastest available price\n\u2022 NSE drops packet \u2192 Omnenest fills gap (automatic)\n\u2022 Omnenest continuously validated (every tick compared)\n\u2022 NSE dies \u2192 zero-switchover failover\n\u2022 No user is ever on the 'slower' path",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r36",
+      "x": 50,
+      "y": 646,
+      "width": 1320,
+      "height": 102,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#f08c00",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t37",
+      "x": 66,
+      "y": 662,
+      "text": "EXAMPLE \u2014 RELIANCE Tick Flow\n\n09:15:00.001 \u2014 NSE delivers @ \u20b92,450 \u2192 Feed Handler processes (first arrival wins)\n09:15:00.005 \u2014 Omnenest delivers same tick \u2192 skipped (duplicate by instrument+timestamp)\n09:15:00.010 \u2014 NSE misses the next tick (UDP packet loss) \u2192 Omnenest delivers 4 ms later \u2192 Feed Handler processes it (gap auto-filled, no data loss!)",
+      "fontSize": 11,
+      "strokeColor": "#f08c00"
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  }
+}

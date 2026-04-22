@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -50 1500 982" width="1500" height="982">
+  <defs>
+  </defs>
+  <rect x="-50" y="-50" width="1500" height="982" fill="white"/>
+  <rect x="0" y="0" width="1400" height="50" rx="5" ry="5" fill="#e8eaf6" stroke="#3949ab" stroke-width="2"/>
+  <rect x="0" y="50" width="1400" height="25" rx="2.5" ry="2.5" fill="#f5f5f5" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="0" y="75" width="300" height="40" rx="4" ry="4" fill="#e0e0e0" stroke="#9e9e9e" stroke-width="2"/>
+  <rect x="300" y="75" width="275" height="40" rx="4" ry="4" fill="#bbdefb" stroke="#1565c0" stroke-width="2"/>
+  <rect x="575" y="75" width="275" height="40" rx="4" ry="4" fill="#fff9c4" stroke="#f57f17" stroke-width="2"/>
+  <rect x="850" y="75" width="275" height="40" rx="4" ry="4" fill="#ffe0b2" stroke="#e65100" stroke-width="2"/>
+  <rect x="1125" y="75" width="275" height="40" rx="4" ry="4" fill="#ffcdd2" stroke="#c62828" stroke-width="2"/>
+  <rect x="0" y="115" width="300" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#e0e0e0" stroke-width="1"/>
+  <rect x="300" y="115" width="137.5" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="437.5" y="115" width="137.5" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="575" y="115" width="137.5" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="712.5" y="115" width="137.5" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="850" y="115" width="137.5" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="987.5" y="115" width="137.5" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="1125" y="115" width="137.5" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="1262.5" y="115" width="137.5" height="30" rx="3" ry="3" fill="#f5f5f5" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="0" y="145" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="145" width="275" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="575" y="145" width="275" height="55" rx="5.5" ry="5.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="850" y="145" width="275" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="1125" y="145" width="275" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="205" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="205" width="275" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="575" y="205" width="275" height="55" rx="5.5" ry="5.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="850" y="205" width="275" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="1125" y="205" width="275" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="265" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="265" width="275" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="575" y="265" width="275" height="55" rx="5.5" ry="5.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="850" y="265" width="275" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="1125" y="265" width="275" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="325" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="325" width="137.5" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="437.5" y="325" width="137.5" height="55" rx="5.5" ry="5.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="575" y="325" width="137.5" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="712.5" y="325" width="687.5" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="385" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="385" width="275" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="575" y="385" width="275" height="55" rx="5.5" ry="5.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="850" y="385" width="275" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="1125" y="385" width="275" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="445" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="445" width="275" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="575" y="445" width="275" height="55" rx="5.5" ry="5.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="850" y="445" width="275" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="1125" y="445" width="275" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="505" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="505" width="275" height="55" rx="5.5" ry="5.5" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="575" y="505" width="275" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="850" y="505" width="275" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="1125" y="505" width="275" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="565" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="565" width="137.5" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="437.5" y="565" width="275" height="55" rx="5.5" ry="5.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="712.5" y="565" width="275" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="987.5" y="565" width="412.5" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="625" width="300" height="55" rx="5.5" ry="5.5" fill="#fafafa" stroke="#bdbdbd" stroke-width="1"/>
+  <rect x="300" y="625" width="137.5" height="55" rx="5.5" ry="5.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="437.5" y="625" width="275" height="55" rx="5.5" ry="5.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="712.5" y="625" width="275" height="55" rx="5.5" ry="5.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="987.5" y="625" width="412.5" height="55" rx="5.5" ry="5.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="0" y="695" width="80" height="35" rx="3.5" ry="3.5" fill="#e0e0e0" stroke="#9e9e9e" stroke-width="1"/>
+  <rect x="80" y="695" width="264" height="35" rx="3.5" ry="3.5" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="344" y="695" width="264" height="35" rx="3.5" ry="3.5" fill="#fff9c4" stroke="#f57f17" stroke-width="1"/>
+  <rect x="608" y="695" width="264" height="35" rx="3.5" ry="3.5" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="872" y="695" width="264" height="35" rx="3.5" ry="3.5" fill="#ffcdd2" stroke="#c62828" stroke-width="1"/>
+  <rect x="1136" y="695" width="264" height="35" rx="3.5" ry="3.5" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="0" y="740" width="1400" height="30" rx="3" ry="3" fill="#ffe0b2" stroke="#e65100" stroke-width="2"/>
+  <rect x="0" y="770" width="1400" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#ffcc80" stroke-width="1"/>
+  <rect x="0" y="798" width="1400" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff3e0" stroke="#ffcc80" stroke-width="1"/>
+  <rect x="0" y="826" width="1400" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff8e1" stroke="#ffcc80" stroke-width="1"/>
+  <rect x="0" y="854" width="1400" height="28" rx="2.8000000000000003" ry="2.8000000000000003" fill="#fff3e0" stroke="#ffcc80" stroke-width="1"/>
+  <polyline points="300,75 300,695" fill="none" stroke="#9e9e9e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="700" y="28.1" font-size="20" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="bold" text-anchor="middle" fill="#1565c0"><tspan x="700" dy="0">Legacy Service Decommissioning Timeline</tspan></text>
+  <text x="700" y="64.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#757575"><tspan x="700" dy="0">9 services across 4 phases (8 weeks)</tspan></text>
+  <text x="150" y="97.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="150" dy="0">Service</tspan></text>
+  <text x="437.5" y="89.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="437.5" dy="0">Phase 1: Shadow</tspan><tspan x="437.5" dy="13.75">Week 1-2</tspan></text>
+  <text x="712.5" y="89.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="712.5" dy="0">Phase 2: Canary</tspan><tspan x="712.5" dy="13.75">Week 3-4</tspan></text>
+  <text x="987.5" y="89.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="987.5" dy="0">Phase 3: Cutover</tspan><tspan x="987.5" dy="13.75">Week 5-6</tspan></text>
+  <text x="1262.5" y="89.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1262.5" dy="0">Phase 4: Decommission</tspan><tspan x="1262.5" dy="13.75">Week 7-8</tspan></text>
+  <text x="150" y="131.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#9e9e9e"><tspan x="150" dy="0"></tspan></text>
+  <text x="368.75" y="131.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="368.75" dy="0">Wk 1</tspan></text>
+  <text x="506.25" y="131.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="506.25" dy="0">Wk 2</tspan></text>
+  <text x="643.75" y="131.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="643.75" dy="0">Wk 3</tspan></text>
+  <text x="781.25" y="131.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="781.25" dy="0">Wk 4</tspan></text>
+  <text x="918.75" y="131.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="918.75" dy="0">Wk 5</tspan></text>
+  <text x="1056.25" y="131.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="1056.25" dy="0">Wk 6</tspan></text>
+  <text x="1193.75" y="131.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="1193.75" dy="0">Wk 7</tspan></text>
+  <text x="1331.25" y="131.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="1331.25" dy="0">Wk 8</tspan></text>
+  <text x="150" y="167.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">1. pml-core-streamer</tspan><tspan x="150" dy="13.75">Replaced by Feed Handler</tspan></text>
+  <text x="437.5" y="174.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="437.5" dy="0">Shadow</tspan></text>
+  <text x="712.5" y="174.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="712.5" dy="0">Canary</tspan></text>
+  <text x="987.5" y="174.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="987.5" dy="0">Cutover</tspan></text>
+  <text x="1262.5" y="174.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1262.5" dy="0">Decommissioned</tspan></text>
+  <text x="150" y="227.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">2. pml-core-feed-broadcast</tspan><tspan x="150" dy="13.75">Replaced by Price Engine</tspan></text>
+  <text x="437.5" y="234.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="437.5" dy="0">Shadow</tspan></text>
+  <text x="712.5" y="234.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="712.5" dy="0">Canary</tspan></text>
+  <text x="987.5" y="234.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="987.5" dy="0">Cutover</tspan></text>
+  <text x="1262.5" y="234.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1262.5" dy="0">Decommissioned</tspan></text>
+  <text x="150" y="287.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">3. pml-core-tick-producer</tspan><tspan x="150" dy="13.75">Replaced by Event Bus Publisher</tspan></text>
+  <text x="437.5" y="294.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="437.5" dy="0">Shadow</tspan></text>
+  <text x="712.5" y="294.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="712.5" dy="0">Canary</tspan></text>
+  <text x="987.5" y="294.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="987.5" dy="0">Cutover</tspan></text>
+  <text x="1262.5" y="294.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1262.5" dy="0">Decommissioned</tspan></text>
+  <text x="150" y="347.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">4. data-tick-listener</tspan><tspan x="150" dy="13.75">Replaced by Price Engine Consumer</tspan></text>
+  <text x="368.75" y="354.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="368.75" dy="0">Shadow</tspan></text>
+  <text x="506.25" y="354.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="506.25" dy="0">Canary</tspan></text>
+  <text x="643.75" y="354.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="643.75" dy="0">Cutover</tspan></text>
+  <text x="1056.25" y="354.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1056.25" dy="0">Decommissioned</tspan></text>
+  <text x="150" y="407.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">5. data-websocket-pull-api</tspan><tspan x="150" dy="13.75">Replaced by REST API</tspan></text>
+  <text x="437.5" y="414.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="437.5" dy="0">Shadow</tspan></text>
+  <text x="712.5" y="414.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="712.5" dy="0">Canary</tspan></text>
+  <text x="987.5" y="414.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="987.5" dy="0">Cutover</tspan></text>
+  <text x="1262.5" y="414.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1262.5" dy="0">Decommissioned</tspan></text>
+  <text x="150" y="467.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">6. cmots-data-processor</tspan><tspan x="150" dy="13.75">Replaced by Temporal Workflows</tspan></text>
+  <text x="437.5" y="474.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="437.5" dy="0">Shadow</tspan></text>
+  <text x="712.5" y="474.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="712.5" dy="0">Canary</tspan></text>
+  <text x="987.5" y="474.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="987.5" dy="0">Cutover</tspan></text>
+  <text x="1262.5" y="474.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1262.5" dy="0">Decommissioned</tspan></text>
+  <text x="150" y="527.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">7. data-consumer-service</tspan><tspan x="150" dy="13.75">Temporal takes over gradually</tspan></text>
+  <text x="437.5" y="534.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="437.5" dy="0">Running</tspan></text>
+  <text x="712.5" y="534.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="712.5" dy="0">Shadow</tspan></text>
+  <text x="987.5" y="534.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="987.5" dy="0">Cutover</tspan></text>
+  <text x="1262.5" y="534.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1262.5" dy="0">Decommissioned</tspan></text>
+  <text x="150" y="587.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">8. scrip-master-cache</tspan><tspan x="150" dy="13.75">Replaced by Instrument Master</tspan></text>
+  <text x="368.75" y="594.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="368.75" dy="0">Shadow</tspan></text>
+  <text x="575" y="594.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="575" dy="0">Canary</tspan></text>
+  <text x="850" y="594.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="850" dy="0">Cutover</tspan></text>
+  <text x="1193.75" y="594.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1193.75" dy="0">Decommissioned</tspan></text>
+  <text x="150" y="647.33" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="150" dy="0">9. scrip-master-service</tspan><tspan x="150" dy="13.75">Replaced by Instrument Master</tspan></text>
+  <text x="368.75" y="654.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="368.75" dy="0">Shadow</tspan></text>
+  <text x="575" y="654.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="575" dy="0">Canary</tspan></text>
+  <text x="850" y="654.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="850" dy="0">Cutover</tspan></text>
+  <text x="1193.75" y="654.05" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1193.75" dy="0">Decommissioned</tspan></text>
+  <text x="40" y="714.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#424242"><tspan x="40" dy="0">Legend:</tspan></text>
+  <text x="212" y="714.205" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="212" dy="0">Shadow</tspan></text>
+  <text x="476" y="714.205" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#e65100"><tspan x="476" dy="0">Canary</tspan></text>
+  <text x="740" y="714.205" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="740" dy="0">Cutover</tspan></text>
+  <text x="1004" y="714.205" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#b71c1c"><tspan x="1004" dy="0">Decommissioned</tspan></text>
+  <text x="1268" y="714.205" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1268" dy="0">Running</tspan></text>
+  <text x="700" y="757.17" font-size="14" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="700" dy="0">Key Milestones</tspan></text>
+  <text x="700" y="785.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="700" dy="0">Week 2: data-tick-listener and scrip-master services enter parallel/canary mode</tspan></text>
+  <text x="700" y="813.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="700" dy="0">Week 4: data-tick-listener and scrip-master-cache fully decommissioned (first wins)</tspan></text>
+  <text x="700" y="841.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="700" dy="0">Week 6: 5 more services decommissioned (streamer, tick-producer, websocket-pull-api, cmots, data-consumer)</tspan></text>
+  <text x="700" y="869.705" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="700" dy="0">Week 8: feed-broadcast and scrip-master-service decommissioned (final shutdown)</tspan></text>
+</svg>

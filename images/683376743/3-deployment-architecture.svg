@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-10 -40 1465 900" width="1465" height="900">
+  <defs>
+    <marker id="ah-1565c0" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#1565c0"/></marker>
+    <marker id="ahs-1565c0" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#1565c0"/></marker>
+    <marker id="ah-2e7d32" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#2e7d32"/></marker>
+    <marker id="ahs-2e7d32" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#2e7d32"/></marker>
+    <marker id="ah-6a1b9a" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#6a1b9a"/></marker>
+    <marker id="ahs-6a1b9a" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#6a1b9a"/></marker>
+    <marker id="ah-e65100" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#e65100"/></marker>
+    <marker id="ahs-e65100" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#e65100"/></marker>
+    <marker id="ah-00695c" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#00695c"/></marker>
+    <marker id="ahs-00695c" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#00695c"/></marker>
+    <marker id="ah-37474f" markerWidth="12" markerHeight="9" refX="11" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="0 0, 12 4.5, 0 9" fill="#37474f"/></marker>
+    <marker id="ahs-37474f" markerWidth="12" markerHeight="9" refX="1" refY="4.5" orient="auto" markerUnits="userSpaceOnUse"><polygon points="12 0, 0 4.5, 12 9" fill="#37474f"/></marker>
+  </defs>
+  <rect x="-10" y="-40" width="1465" height="900" fill="white"/>
+  <rect x="40" y="10" width="1365" height="36" rx="3.6" ry="3.6" fill="#e8eaf6" stroke="#283593" stroke-width="2"/>
+  <rect x="40" y="60" width="670" height="240" rx="8" ry="8" fill="#e3f2fd" stroke="#1565c0" stroke-width="2"/>
+  <rect x="40" y="60" width="670" height="32" rx="0" ry="0" fill="#1565c0" stroke="#1565c0" stroke-width="2"/>
+  <rect x="55" y="98" width="640" height="22" rx="2.2" ry="2.2" fill="#bbdefb" stroke="#1565c0" stroke-width="1"/>
+  <rect x="55" y="128" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#90caf9" stroke="#1565c0" stroke-width="1"/>
+  <rect x="207" y="128" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#90caf9" stroke="#1565c0" stroke-width="1"/>
+  <rect x="359" y="128" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#90caf9" stroke="#1565c0" stroke-width="1"/>
+  <rect x="511" y="128" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#90caf9" stroke="#1565c0" stroke-width="1"/>
+  <rect x="55" y="186" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#90caf9" stroke="#1565c0" stroke-width="1"/>
+  <rect x="207" y="186" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#90caf9" stroke="#1565c0" stroke-width="1"/>
+  <rect x="359" y="186" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#90caf9" stroke="#1565c0" stroke-width="1"/>
+  <rect x="511" y="186" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#90caf9" stroke="#1565c0" stroke-width="1"/>
+  <rect x="735" y="60" width="670" height="240" rx="8" ry="8" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="735" y="60" width="670" height="32" rx="0" ry="0" fill="#2e7d32" stroke="#2e7d32" stroke-width="2"/>
+  <rect x="750" y="98" width="640" height="22" rx="2.2" ry="2.2" fill="#c8e6c9" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="750" y="128" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#a5d6a7" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="902" y="128" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#a5d6a7" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="1054" y="128" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#a5d6a7" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="1206" y="128" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#a5d6a7" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="750" y="186" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#a5d6a7" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="902" y="186" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#a5d6a7" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="1054" y="186" width="140" height="46" rx="4.6000000000000005" ry="4.6000000000000005" fill="#a5d6a7" stroke="#2e7d32" stroke-width="1"/>
+  <rect x="40" y="325" width="670" height="190" rx="8" ry="8" fill="#fff3e0" stroke="#e65100" stroke-width="2"/>
+  <rect x="40" y="325" width="670" height="32" rx="0" ry="0" fill="#e65100" stroke="#e65100" stroke-width="2"/>
+  <rect x="55" y="367" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#ffe0b2" stroke="#e65100" stroke-width="1"/>
+  <rect x="262" y="367" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#ffcdd2" stroke="#e65100" stroke-width="1"/>
+  <rect x="469" y="367" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#f3e5f5" stroke="#e65100" stroke-width="1"/>
+  <rect x="55" y="435" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#fff9c4" stroke="#e65100" stroke-width="1"/>
+  <rect x="262" y="435" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#fce4ec" stroke="#e65100" stroke-width="1"/>
+  <rect x="735" y="325" width="670" height="190" rx="8" ry="8" fill="#f3e5f5" stroke="#6a1b9a" stroke-width="2"/>
+  <rect x="735" y="325" width="670" height="32" rx="0" ry="0" fill="#6a1b9a" stroke="#6a1b9a" stroke-width="2"/>
+  <rect x="750" y="363" width="640" height="22" rx="2.2" ry="2.2" fill="#e1bee7" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="750" y="393" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#ce93d8" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="957" y="393" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#ce93d8" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="1164" y="393" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#ce93d8" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="750" y="461" width="640" height="22" rx="2.2" ry="2.2" fill="#e1bee7" stroke="#6a1b9a" stroke-width="1"/>
+  <rect x="40" y="540" width="670" height="145" rx="8" ry="8" fill="#e0f2f1" stroke="#00695c" stroke-width="2"/>
+  <rect x="40" y="540" width="670" height="32" rx="0" ry="0" fill="#00695c" stroke="#00695c" stroke-width="2"/>
+  <rect x="55" y="584" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#80cbc4" stroke="#00695c" stroke-width="1"/>
+  <rect x="262" y="584" width="195" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#80cbc4" stroke="#00695c" stroke-width="1"/>
+  <rect x="735" y="540" width="670" height="145" rx="8" ry="8" fill="#eceff1" stroke="#37474f" stroke-width="2"/>
+  <rect x="735" y="540" width="670" height="32" rx="0" ry="0" fill="#37474f" stroke="#37474f" stroke-width="2"/>
+  <rect x="750" y="584" width="190" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#b0bec5" stroke="#37474f" stroke-width="1"/>
+  <rect x="952" y="584" width="190" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#b0bec5" stroke="#37474f" stroke-width="1"/>
+  <rect x="1154" y="584" width="190" height="56" rx="5.6000000000000005" ry="5.6000000000000005" fill="#b0bec5" stroke="#37474f" stroke-width="1"/>
+  <rect x="40" y="710" width="1365" height="100" rx="8" ry="8" fill="#f5f5f5" stroke="#455a64" stroke-width="2"/>
+  <rect x="40" y="710" width="1365" height="32" rx="0" ry="0" fill="#455a64" stroke="#455a64" stroke-width="2"/>
+  <rect x="55" y="752" width="320" height="42" rx="4.2" ry="4.2" fill="#e0e0e0" stroke="#616161" stroke-width="1"/>
+  <rect x="393" y="752" width="320" height="42" rx="4.2" ry="4.2" fill="#ffecb3" stroke="#616161" stroke-width="1"/>
+  <rect x="731" y="752" width="320" height="42" rx="4.2" ry="4.2" fill="#e0e0e0" stroke="#616161" stroke-width="1"/>
+  <rect x="1069" y="752" width="320" height="42" rx="4.2" ry="4.2" fill="#ffecb3" stroke="#616161" stroke-width="1"/>
+  <polyline points="710,180 735,180" fill="none" stroke="#1565c0" stroke-width="2" marker-end="url(#ah-1565c0)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="1070,300 1057.5,325" fill="none" stroke="#2e7d32" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#ah-2e7d32)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="1070,300 1070,325" fill="none" stroke="#6a1b9a" stroke-width="2" marker-end="url(#ah-6a1b9a)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="375,300 375,325" fill="none" stroke="#e65100" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#ah-e65100)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="263.33333333333337,515 263.33333333333337,540" fill="none" stroke="#00695c" stroke-width="2" stroke-dasharray="8 8" marker-end="url(#ah-00695c)" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="735,612.5 1405,300" fill="none" stroke="#37474f" stroke-width="1" stroke-dasharray="4 4" marker-end="url(#ah-37474f)" stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="722.5" y="30.79" font-size="18" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="bold" text-anchor="middle" fill="#1565c0"><tspan x="722.5" dy="0">Deployment Architecture — AWS EKS  |  Region: ap-south-1 (Mumbai)</tspan></text>
+  <text x="375" y="78.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="375" dy="0">Colocation Namespace  (price-engine-colo)</tspan></text>
+  <text x="375" y="110.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="375" dy="0">Leader election: only 1 PRIMARY handles feed  |  3 replicas (1 per AZ)  |  8 CPU, 16 GB RAM</tspan></text>
+  <text x="125" y="145.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="125" dy="0">Feed Handler</tspan><tspan x="125" dy="15">NSE Primary</tspan></text>
+  <text x="277" y="145.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="277" dy="0">Feed Handler</tspan><tspan x="277" dy="15">NSE Standby</tspan></text>
+  <text x="429" y="145.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="429" dy="0">Feed Handler</tspan><tspan x="429" dy="15">BSE Primary</tspan></text>
+  <text x="581" y="145.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="581" dy="0">Feed Handler</tspan><tspan x="581" dy="15">BSE Standby</tspan></text>
+  <text x="125" y="203.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="125" dy="0">Normalizer</tspan><tspan x="125" dy="15">Pods</tspan></text>
+  <text x="277" y="203.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="277" dy="0">Bad Tick</tspan><tspan x="277" dy="15">Detector</tspan></text>
+  <text x="429" y="203.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="429" dy="0">Redis Snapshot</tspan><tspan x="429" dy="15">Volume</tspan></text>
+  <text x="581" y="203.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#0d47a1"><tspan x="581" dy="0">Snapshot</tspan><tspan x="581" dy="15">Store</tspan></text>
+  <text x="1070" y="78.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="1070" dy="0">Core Namespace  (price-engine-core)</tspan></text>
+  <text x="1070" y="110.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1070" dy="0">3 replicas (1 per AZ)  |  8 CPU, 16 GB RAM  |  Self-Healing Supervisor monitors all pods</tspan></text>
+  <text x="820" y="145.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="820" dy="0">Price Engine</tspan><tspan x="820" dy="15">3 replicas</tspan></text>
+  <text x="972" y="145.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="972" dy="0">Greeks</tspan><tspan x="972" dy="15">Calculator</tspan></text>
+  <text x="1124" y="145.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1124" dy="0">Candle</tspan><tspan x="1124" dy="15">Aggregator</tspan></text>
+  <text x="1276" y="145.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1276" dy="0">Self-Healing</tspan><tspan x="1276" dy="15">Supervisor</tspan></text>
+  <text x="820" y="203.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="820" dy="0">Option Chain</tspan><tspan x="820" dy="15">Builder</tspan></text>
+  <text x="972" y="203.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="972" dy="0">Alert Engine</tspan><tspan x="972" dy="15">Pods</tspan></text>
+  <text x="1124" y="203.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#1b5e20"><tspan x="1124" dy="0">Kafka Publisher</tspan><tspan x="1124" dy="15">Pods</tspan></text>
+  <text x="375" y="343.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="375" dy="0">Storage Namespace</tspan></text>
+  <text x="152.5" y="382.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="152.5" dy="0">QuestDB (StatefulSet)</tspan><tspan x="152.5" dy="13.75">3 replicas</tspan><tspan x="152.5" dy="13.75">8 CPU, 32 GB, 500 GB SSD</tspan></text>
+  <text x="359.5" y="382.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="359.5" dy="0">Redis Cluster</tspan><tspan x="359.5" dy="13.75">6 pods (3 master + 3 replica)</tspan><tspan x="359.5" dy="13.75">ElastiCache Managed</tspan></text>
+  <text x="566.5" y="382.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="566.5" dy="0">PostgreSQL (RDS)</tspan><tspan x="566.5" dy="13.75">Multi-AZ</tspan><tspan x="566.5" dy="13.75">Managed</tspan></text>
+  <text x="152.5" y="450.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="152.5" dy="0">MSK (Kafka)</tspan><tspan x="152.5" dy="13.75">3 brokers</tspan><tspan x="152.5" dy="13.75">Managed</tspan></text>
+  <text x="359.5" y="450.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#bf360c"><tspan x="359.5" dy="0">S3 (Archival)</tspan><tspan x="359.5" dy="13.75">Candle archive</tspan><tspan x="359.5" dy="13.75">Parquet format</tspan></text>
+  <text x="1070" y="343.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="1070" dy="0">Distribution Namespace</tspan></text>
+  <text x="1070" y="375.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="1070" dy="0">HPA auto-scaling based on connection count and CPU</tspan></text>
+  <text x="847.5" y="408.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="847.5" dy="0">WebSocket Gateway</tspan><tspan x="847.5" dy="13.75">HPA: 5-20 pods</tspan><tspan x="847.5" dy="13.75">4 CPU, 8 GB RAM</tspan></text>
+  <text x="1054.5" y="408.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="1054.5" dy="0">REST API</tspan><tspan x="1054.5" dy="13.75">HPA: 3-10 pods</tspan><tspan x="1054.5" dy="13.75">4 CPU, 8 GB RAM</tspan></text>
+  <text x="1261.5" y="415.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="1261.5" dy="0">Kafka Connect</tspan><tspan x="1261.5" dy="13.75">Pods</tspan></text>
+  <text x="1070" y="473.55" font-size="10" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#4a148c"><tspan x="1070" dy="0">WebSocket: 30K conn/pod x 6 = 180K normal  |  Peak 500K: auto-scales to 12 pods</tspan></text>
+  <text x="375" y="558.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="375" dy="0">Temporal Namespace</tspan></text>
+  <text x="152.5" y="599.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#004d40"><tspan x="152.5" dy="0">Temporal Server</tspan><tspan x="152.5" dy="13.75">Self-hosted on EKS</tspan><tspan x="152.5" dy="13.75">4 CPU, 8 GB RAM</tspan></text>
+  <text x="359.5" y="599.955" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#004d40"><tspan x="359.5" dy="0">Worker Pods</tspan><tspan x="359.5" dy="13.75">3 replicas, 2 CPU, 4 GB RAM</tspan><tspan x="359.5" dy="13.75">Recon, Sync, Corp Actions, NAV</tspan></text>
+  <text x="1070" y="558.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="1070" dy="0">Monitoring</tspan></text>
+  <text x="845" y="606.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#263238"><tspan x="845" dy="0">Prometheus</tspan><tspan x="845" dy="15">Metrics collection</tspan></text>
+  <text x="1047" y="606.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#263238"><tspan x="1047" dy="0">Grafana</tspan><tspan x="1047" dy="15">Dashboards</tspan></text>
+  <text x="1249" y="606.36" font-size="12" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#263238"><tspan x="1249" dy="0">AlertManager</tspan><tspan x="1249" dy="15">Alert routing</tspan></text>
+  <text x="722.5" y="728.325" font-size="15" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#ffffff"><tspan x="722.5" dy="0">Resource Summary</tspan></text>
+  <text x="215" y="767.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="215" dy="0">Normal Load</tspan><tspan x="215" dy="13.75">~60 vCPU, ~150 GB RAM, ~1.2 TB Disk</tspan></text>
+  <text x="553" y="767.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="553" dy="0">Peak Load (volatile days)</tspan><tspan x="553" dy="13.75">~100 vCPU, ~250 GB RAM (auto-scale)</tspan></text>
+  <text x="891" y="767.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="891" dy="0">WebSocket Normal</tspan><tspan x="891" dy="13.75">30K conn/pod x 6 = 180K connections</tspan></text>
+  <text x="1229" y="767.83" font-size="11" font-family="'Virgil', 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="normal" text-anchor="middle" fill="#212121"><tspan x="1229" dy="0">WebSocket Peak</tspan><tspan x="1229" dy="13.75">500K conn: auto-scales to 12 pods</tspan></text>
+</svg>

@@ -1,0 +1,669 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "claude-code",
+  "elements": [
+    {
+      "type": "text",
+      "x": 150,
+      "y": 10,
+      "text": "Service Decommission Mapping (12 Current \u2192 5 Groups)",
+      "fontSize": 24,
+      "strokeColor": "#1e1e1e",
+      "id": "d2t40"
+    },
+    {
+      "type": "text",
+      "x": 30,
+      "y": 50,
+      "text": "CURRENT (12 services)",
+      "fontSize": 16,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 80,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 87,
+      "text": "Streamer (pml-core-streamer)",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 112,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 119,
+      "text": "Market Feed Publisher",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 144,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 151,
+      "text": "Tick Producer (pml-core-tick-producer)",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 176,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 183,
+      "text": "Feed Broadcast (pml-core-feed-broadcast)",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 208,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 215,
+      "text": "Charts Data Writer",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 240,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 247,
+      "text": "Charts Data Collector",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 272,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 279,
+      "text": "FNO Data Writer",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 304,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 311,
+      "text": "Market Movers Data Writer",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 336,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 343,
+      "text": "Charts API (data-price-charts-api)",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 368,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 375,
+      "text": "FNO Dashboard API (fno-dashboard-app)",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 400,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 407,
+      "text": "Market Movers API (eq-marketmovers-app)",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 20,
+      "y": 432,
+      "width": 230,
+      "height": 28,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 1,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 28,
+      "y": 439,
+      "text": "Job Manager (CMOTS loader)",
+      "fontSize": 10,
+      "strokeColor": "#c92a2a",
+      "id": "d2t40"
+    },
+    {
+      "type": "text",
+      "x": 420,
+      "y": 50,
+      "text": "NEW (5 deployment groups)",
+      "fontSize": 16,
+      "strokeColor": "#2f9e44",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 400,
+      "y": 80,
+      "width": 280,
+      "height": 75,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 410,
+      "y": 85,
+      "text": "Core Processing\n(2-3 pods)\nFeed Handler + Denormalizer\nDuplicate Detector\nPublisher (Redis + PubSub)\nProducer (Kafka)",
+      "fontSize": 9,
+      "strokeColor": "#1971c2",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 400,
+      "y": 190,
+      "width": 280,
+      "height": 75,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 410,
+      "y": 195,
+      "text": "Broadcast Service\n(20+ pods)\nRedis PubSub \u2192 Protobuf\n\u2192 WebSocket \u2192 Users\n+ Kafka recovery",
+      "fontSize": 9,
+      "strokeColor": "#7048e8",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 400,
+      "y": 275,
+      "width": 280,
+      "height": 75,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 410,
+      "y": 280,
+      "text": "Data Writers\n(scale independently)\nCharts Data Writer\nCharts Data Collector\nFNO Data Writer\nMarket Movers Writer",
+      "fontSize": 9,
+      "strokeColor": "#2f9e44",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 400,
+      "y": 380,
+      "width": 280,
+      "height": 75,
+      "backgroundColor": "#fff3bf",
+      "strokeColor": "#e67700",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 410,
+      "y": 385,
+      "text": "APIs\n(20+ pods)\nCharts API\nFNO Dashboard API\nMarket Movers API\nInstrument Master API",
+      "fontSize": 9,
+      "strokeColor": "#e67700",
+      "id": "d2t40"
+    },
+    {
+      "type": "rectangle",
+      "x": 400,
+      "y": 470,
+      "width": 280,
+      "height": 75,
+      "backgroundColor": "#fff9db",
+      "strokeColor": "#f08c00",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100,
+      "id": "d2r40"
+    },
+    {
+      "type": "text",
+      "x": 410,
+      "y": 475,
+      "text": "Temporal Workers\nInstrument Master Sync\nCorporate Actions\nPre-Market Loading\nEOD Recon + Archival",
+      "fontSize": 9,
+      "strokeColor": "#f08c00",
+      "id": "d2t40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 94,
+      "width": 150,
+      "height": 6,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          6
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 126,
+      "width": 150,
+      "height": -11,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          -11
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 158,
+      "width": 150,
+      "height": -28,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          -28
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 190,
+      "width": 150,
+      "height": 20,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          20
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 222,
+      "width": 150,
+      "height": 73,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          73
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 254,
+      "width": 150,
+      "height": 56,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          56
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 286,
+      "width": 150,
+      "height": 39,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          39
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 318,
+      "width": 150,
+      "height": 22,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          22
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 350,
+      "width": 150,
+      "height": 50,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          50
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 382,
+      "width": 150,
+      "height": 33,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          33
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 414,
+      "width": 150,
+      "height": 16,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          16
+        ]
+      ],
+      "id": "d2a40"
+    },
+    {
+      "type": "arrow",
+      "x": 250,
+      "y": 446,
+      "width": 150,
+      "height": 44,
+      "strokeColor": "#868e96",
+      "strokeWidth": 1,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          150,
+          44
+        ]
+      ],
+      "id": "d2a40"
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  }
+}

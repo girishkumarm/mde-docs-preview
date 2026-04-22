@@ -1,0 +1,210 @@
+---
+title: "MDE Candles v2 — Canary & Rollback Plan"
+---
+
+> **Parent:** [MDE Candles v2 — Production Readiness Checklist](#)
+> **Status:** DRAFT — awaiting sign-off from DevOps / SRE / Product
+> **Audit date:** 2026-04-20
+> **Applies to:** Candles v2 cutover in Market Data Engine (MDE)
+
+This page is the canary and rollback plan for Blocker 7 of the Production Readiness Checklist. It sits alongside the checklist and is the operational contract for switching `charts-api` reads from Redis-only to the new Redis + ClickHouse routed path (`source=auto`).
+
+---
+
+## 1. Scope
+
+**In scope for the cutover:**
+
+- `charts-api` — read-path routing via `MDE_CHARTS_API_DEFAULT_SOURCE` (auto | redis | clickhouse) plus per-interval Redis windows.
+- `candle-writer` — new dual-sink service (Redis + ClickHouse) replacing `charts-writer` and `charts-historical-writer`.
+- ClickHouse schema v2 — `candles_1m` (ReplacingMergeTree) + `candles_5m` / `candles_15m` / `candles_1h` / `candles_1d` materialized-view rollups.
+- Redis running-candle keys `CANDLE:RUN:{interval}:{token}` with per-interval routing windows.
+
+**Out of scope (stays as-is):**
+
+- `instrument-master`, `feed-handler`, `publisher`, `broadcast-service`, `recon-service`, `incident-manager`, `fno-data-writer`, `market-movers-writer`, `premarket-scheduler` — no behavioural change.
+- TimescaleDB — already removed from the candle pipeline; no writes, no reads.
+- Legacy PML Kafka topic names — dual-publish remains behind its own flag (tracked separately on the parent checklist §8).
+
+**Shipped commits on **`main` (in order):
+
+| # | SHA | Summary |
+| --- | --- | --- |
+| 1 | `dbab118` | candle-writer service skeleton + shared Temporal wiring |
+| 2 | `1e4312a` | ClickHouse v2 schema baseline (candles_1m RMT + MV rollups) |
+| 3 | `22b566c` | Redis running-candle keying + per-interval window config |
+| 4 | `22e3db6` | candle-writer dual-sink (Redis + ClickHouse) production path |
+| 5 | `bb3f8ff` | charts-api routing service (`redis` / `clickhouse` / `auto`) |
+| 6 | `a9863de` | Grafana dashboard 05-charts-pipeline + per-interval panels |
+| 7 | `35560c0` | charts-api `MDE_CHARTS_API_DEFAULT_SOURCE` env wiring + `?source=` override |
+| 8 | `cf966ec` | alertmanager → incident-manager webhook routing for charts pipeline |
+
+The cleanup branch `chore/drop-legacy-candle-writers` (removes `charts-writer` and `charts-historical-writer` deployments) is **staged but not merged** — it is kept as the Tier 3 rollback lever below.
+
+---
+
+## 2. Pre-cutover gating
+
+All six remaining Production Readiness blockers must be ✅ before any canary traffic is routed to ClickHouse. No exceptions.
+
+| # | Blocker | Gate |
+| --- | --- | --- |
+| 1 | ClickHouse TTL conflict (`candles_1m`: 180 days vs 7 years) | Single reconciled migration merged; `SHOW CREATE TABLE candles_1m` in staging matches target retention. |
+| 2 | Contract mismatches (charts-api ↔ candle-writer payload shape) | Consumer-driven contract test green in CI for all four intervals. |
+| 3 | JWT enforcement on `/v1/**` across the 10 services currently open | Spring resource-server filter active; 401 on unauthenticated `curl` in staging. |
+| 4 | ClickHouse JDBC stability (pool leaks + socket timeouts) | 24h staging soak with `CLICKHOUSE_POOL_MAX` saturated, zero `SocketTimeoutException` / leaked connections. |
+| 5 | Graceful-shutdown integration test for `candle-writer` | SIGTERM drains Kafka consumer + flushes Redis pipeline + closes ClickHouse pool within `spring.lifecycle.timeout-per-shutdown-phase=30s`. |
+| 6 | `pm-jobs-sdk` published to CodeArtifact (currently `mavenLocal`) | CI build passes with `CODEARTIFACT_TOKEN` from vault only; no `mavenLocal()` in `build.gradle`. |
+
+This page (#7) is the deliverable that closes the seventh blocker.
+
+---
+
+## 3. Canary plan
+
+### Day -1 — Staging warm-up
+
+- Deploy `candle-writer` to staging with both sinks enabled.
+- Leave `charts-api` on `MDE_CHARTS_API_DEFAULT_SOURCE=redis` (no read traffic hits ClickHouse yet).
+- Observe for **24 hours** continuously during market hours + one overnight window.
+
+**Exit checks (must all pass before Day 0):**
+
+- Redis: `SCAN 0 MATCH CANDLE:RUN:* COUNT 1000` returns one key per active token per interval; key TTLs align with the configured routing windows below.
+- ClickHouse: `SELECT toStartOfMinute(now()), count() FROM candles_1m WHERE bucket_start > now() - INTERVAL 10 MINUTE GROUP BY 1` — row-growth rate ≥ expected (≈ active-token count per minute during market hours).
+- Grafana board `05-charts-pipeline` shows no red panels for 24h.
+- Zero firing alerts in `mde.kafka`, `mde.redis`, `mde.service.availability` groups.
+
+### Day 0 — Single-pod canary
+
+1. **Fleet default stays safe:** confirm `MDE_CHARTS_API_DEFAULT_SOURCE=redis` is set on the `charts-api` Deployment (env at the pod-spec level, not in ConfigMap, so it overrides the container default of `auto`).
+2. **Canary pod:** patch one pod (label it `canary=true`) to `MDE_CHARTS_API_DEFAULT_SOURCE=auto`. This is the only pod that will route reads to ClickHouse when the request falls outside the Redis window.
+3. Watch the success gates at **30 min**, **2h**, and **24h** checkpoints.
+
+**Redis routing windows (for reference — applied only on the canary pod):**
+
+| Interval | Redis window | Older requests → |
+| --- | --- | --- |
+| 1m | 3h | ClickHouse `candles_1m` |
+| 5m | 6h | ClickHouse `candles_5m` |
+| 15m | 1d | ClickHouse `candles_15m` |
+| 1h | 7d | ClickHouse `candles_1h` |
+
+### Success gates (at each checkpoint)
+
+| Metric | Threshold |
+| --- | --- |
+| p99 read latency — Redis path (per interval) | ≤ 50 ms |
+| p99 read latency — ClickHouse path (per interval) | ≤ 300 ms |
+| 5xx rate on `/v1/candles` (canary pod) | < 0.1 % |
+| ClickHouse connection-pool utilisation | < 70 % of `CLICKHOUSE_POOL_MAX` |
+| `ClickHouseQueryFailed` alerts firing | 0 |
+| Data parity (sampled): canary-pod response equals Redis-only baseline for requests inside the Redis window | 100 % match |
+
+If **any** gate fails at any checkpoint, execute **Tier 1 rollback** immediately. Do not wait for the next checkpoint.
+
+### Ramp
+
+Each ramp step requires **all success gates green for ≥ 1 hour** before proceeding.
+
+| Step | Fleet on `auto` | Minimum soak |
+| --- | --- | --- |
+| 1 | 1 pod (canary) | 24 h |
+| 2 | 10 % of fleet | 1 h |
+| 3 | 50 % of fleet | 1 h |
+| 4 | 100 % of fleet (flip the Deployment default, remove the `redis` override) | — |
+
+After Step 4 holds green for 24h, merge `chore/drop-legacy-candle-writers` to decommission `charts-writer` and `charts-historical-writer`.
+
+---
+
+## 4. Rollback plan
+
+Three tiers, ordered by speed and blast-radius. Always start at Tier 1; escalate only if the prior tier does not restore SLOs.
+
+### Tier 1 — Seconds (flip one env var)
+
+- On every `charts-api` pod currently running `MDE_CHARTS_API_DEFAULT_SOURCE=auto`, set it back to `redis`:
+
+```
+kubectl set env deployment/charts-api MDE_CHARTS_API_DEFAULT_SOURCE=redis -n mde
+kubectl rollout restart deployment/charts-api -n mde
+```
+- Rolling restart takes the standard pod-disruption-budget time (< 60 s for a single-pod canary; a few minutes for a full fleet).
+- Outcome: all read traffic returns to Redis-only; ClickHouse reads stop. `candle-writer` continues to write to both sinks (safe — ReplacingMergeTree is idempotent).
+
+### Tier 2 — Minutes (roll back the API image)
+
+- Use this if Tier 1 does not restore SLOs (e.g. routing bug that ignores the env var, or a charts-api code regression).
+- In ArgoCD, roll `charts-api` back to the commit immediately **before** `35560c0` (i.e. the Deployment manifest pinned to the image built from `a9863de`).
+- This removes the entire `MDE_CHARTS_API_DEFAULT_SOURCE` wiring; the service reverts to its pre-env-switch behaviour (Redis-only by construction).
+- Outcome: same as Tier 1 at the read layer, plus any regression shipped in `35560c0` is removed.
+
+### Tier 3 — Hour (drop the new writer)
+
+- Use this only if the new dual-sink write path itself is producing bad data (e.g. incorrect OHLCV aggregation or corrupt Redis keys).
+- Scale `candle-writer` to 0 replicas in ArgoCD.
+- Revert the staged cleanup by re-applying the old `charts-writer` + `charts-historical-writer` manifests. The legacy manifests are preserved on the tip of `main`; they are only *removed* by `chore/drop-legacy-candle-writers`, which has not been merged yet — so re-enabling is a standard ArgoCD sync of the prior Deployment YAML.
+- Confirm `charts-writer` / `charts-historical-writer` resume Kafka consumption (check lag on `mde-candles-1m`).
+- Outcome: write path returns to legacy; read path must already be on Tier 1 or Tier 2.
+
+---
+
+## 5. What rollback does NOT cover
+
+- **ClickHouse rows written during the canary stay.** `candles_1m` is `ReplacingMergeTree` — duplicate `(token, bucket_start)` writes during a later cutover are deduplicated on merge. No cleanup required.
+- **Materialized-view rollups (**`candles_5m/15m/1h/1d`) also stay. They are derived from `candles_1m` and recompute correctly on further writes.
+- **Redis running-candle state can be left to expire naturally.** Each `CANDLE:RUN:{interval}:{token}` key has a TTL bounded by the next bucket boundary; letting them expire is safer than a flush.
+- **Manual Redis flush is available but discouraged.** `DEL CANDLE:*` (or `SCAN + UNLINK` in production to avoid a blocking operation) will drop every running candle key, including active ones. Only do this if a corrupted Redis state is actively causing incorrect reads; accept the brief gap while keys repopulate from the next tick.
+
+Rollback does **not** revert ClickHouse schema migrations (V2_1, V2_2, V3). Schema is forward-compatible with the legacy writer path.
+
+---
+
+## 6. Owners and on-call
+
+| Role | Team |
+| --- | --- |
+| Primary owner | `charts-api` service team (MDE) |
+| Secondary owner | Platform / ClickHouse ops |
+| Read-path escalation | MDE on-call rotation |
+| Write-path escalation | Platform on-call rotation |
+
+**Dashboards:** Grafana board `05-charts-pipeline` (MDE-charts-pipeline) — dashboard URL published in the parent Production Readiness Checklist once the prod Grafana alias is cut. Local dev: `http://localhost:3001`.
+
+**Runbook:** Incident-manager runbook index at Confluence page **698482839** (MDE operational runbooks). Specific pages for `redis-primary-failover`, `clickhouse-shard-rebuild`, and `cmots-outage` are linked from there.
+
+**Alert routing:** AlertManager routes `severity=critical` in groups `mde.kafka`, `mde.redis`, and `mde.service.availability` to the incident-manager webhook, which pages the MDE rotation.
+
+---
+
+## 7. Sign-offs
+
+Leave unticked until the named approver signs in person during the cutover call. Do **not** tick on anyone's behalf.
+
+- [ ] **DevOps** — confirms Tier 1/2/3 rollback procedures are runnable from current RBAC.
+- [ ] **SRE** — confirms alert routing + paging rotation + dashboard URLs.
+- [ ] **Product** — confirms user-visible SLO for `/v1/candles` (p99 ≤ 300 ms, 5xx < 0.1 %) is acceptable during the ramp.
+
+---
+
+## 8. Appendix — env-var quick reference
+
+All values are sourced from Kubernetes Deployment env or ConfigMap. No secrets are listed here; see the parent checklist for secret-handling policy.
+
+| Env var | Values / range | Default | Purpose |
+| --- | --- | --- | --- |
+| `MDE_CHARTS_API_DEFAULT_SOURCE` | `auto` / `redis` / `clickhouse` | `auto` (container default) | Canary knob. Prod default should be `redis` until Step 4 of the ramp. |
+| `MDE_CHARTS_API_AUTO_REDIS_WINDOW_1M` | Duration (e.g. `3h`) | `3h` | Requests within this window served from Redis for the `1m` interval. |
+| `MDE_CHARTS_API_AUTO_REDIS_WINDOW_5M` | Duration | `6h` | Same, for `5m`. |
+| `MDE_CHARTS_API_AUTO_REDIS_WINDOW_15M` | Duration | `1d` | Same, for `15m`. |
+| `MDE_CHARTS_API_AUTO_REDIS_WINDOW_1H` | Duration | `7d` | Same, for `1h`. |
+| `CLICKHOUSE_SOCKET_TIMEOUT_MS` | Integer ms | (service default) | Per-query socket timeout for the JDBC driver. |
+| `CLICKHOUSE_QUERY_TIMEOUT_SECONDS` | Integer s | (service default) | Server-side query timeout. |
+| `CLICKHOUSE_POOL_MAX` | Integer | (service default) | Max JDBC connections. Utilisation monitored in success gates. |
+
+Override order during canary: pod-spec env overrides Deployment env overrides ConfigMap overrides container default.
+
+---
+
+*End of plan. Questions or changes to the ramp percentages, success gates, or rollback tiers must be raised on the parent Production Readiness Checklist page before the cutover call.*

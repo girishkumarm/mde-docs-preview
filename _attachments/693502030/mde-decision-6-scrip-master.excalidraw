@@ -1,0 +1,205 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "claude-code",
+  "elements": [
+    {
+      "type": "text",
+      "id": "t1",
+      "x": 100,
+      "y": 20,
+      "text": "Decision 6: Scrip Master in PostgreSQL (Not Redis)",
+      "fontSize": 24,
+      "strokeColor": "#1e1e1e"
+    },
+    {
+      "type": "text",
+      "id": "t2",
+      "x": 100,
+      "y": 55,
+      "text": "Problem: 80,000 instruments stored as ONE 16MB JSON blob in Redis blocks the single thread on every read.",
+      "fontSize": 12,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t3",
+      "x": 50,
+      "y": 100,
+      "text": "BEFORE \u2014 Redis JSON Blob",
+      "fontSize": 18,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "rectangle",
+      "id": "r4",
+      "x": 50,
+      "y": 140,
+      "width": 620,
+      "height": 120,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t5",
+      "x": 66,
+      "y": 154,
+      "text": "Redis Key:  MGR_SM_NSE_OPTION\n\nValue: JSON array of 80,000 instruments\n        [{inst_1}, {inst_2}, ... , {inst_80000}]\n\nSize: ~16 MB in ONE Redis key",
+      "fontSize": 12,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "rectangle",
+      "id": "r6",
+      "x": 50,
+      "y": 280,
+      "width": 620,
+      "height": 168,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t7",
+      "x": 66,
+      "y": 294,
+      "text": "Reading this key:\n\u2022 Loads 16 MB into memory\n\u2022 Serializes to send over network\n\u2022 Blocks Redis single thread for 10-20 ms\n\nDuring that 10-20 ms, ALL other Redis operations WAIT:\n  \u2717 Price writes delayed\n  \u2717 Chart reads delayed\n  \u2717 OHLC updates delayed\n  \u2717 WebSocket backfill delayed",
+      "fontSize": 11,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "rectangle",
+      "id": "r8",
+      "x": 50,
+      "y": 468,
+      "width": 620,
+      "height": 126,
+      "backgroundColor": "#ffe3e3",
+      "strokeColor": "#c92a2a",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t9",
+      "x": 66,
+      "y": 482,
+      "text": "Read frequency:\n\u2022 Every service startup (10-20 pods)\n\u2022 Every daily scrip master reload (7:35 AM)\n\u2022 Every manual Periscope reload trigger\n\nNot per-tick, but still blocks everything when read.\nAND it's redundant \u2014 CSVs are already persisted in PostgreSQL!",
+      "fontSize": 11,
+      "strokeColor": "#c92a2a"
+    },
+    {
+      "type": "text",
+      "id": "t10",
+      "x": 720,
+      "y": 100,
+      "text": "AFTER \u2014 PostgreSQL + In-Memory Cache",
+      "fontSize": 18,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r11",
+      "x": 720,
+      "y": 140,
+      "width": 620,
+      "height": 168,
+      "backgroundColor": "#d0bfff",
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t12",
+      "x": 736,
+      "y": 154,
+      "text": "PostgreSQL  (Source of Truth)\n\ninstruments table  (~90,000 rows)\n  \u2022 Indexed: symbol, exchange, pml_id, scrip_type\n\ncompanies table  (~5,000 rows \u2014 CMOTS data)\n  \u2022 Indexed: co_code, isin\n\nPopulated by daily Temporal workflow (6 PM)\nreading CSV files from NSE/BSE + CMOTS API",
+      "fontSize": 11,
+      "strokeColor": "#7048e8"
+    },
+    {
+      "type": "arrow",
+      "id": "a13",
+      "x": 1030,
+      "y": 308,
+      "width": 0,
+      "height": 25,
+      "strokeColor": "#7048e8",
+      "strokeWidth": 2,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          25
+        ]
+      ]
+    },
+    {
+      "type": "rectangle",
+      "id": "r14",
+      "x": 720,
+      "y": 338,
+      "width": 620,
+      "height": 140,
+      "backgroundColor": "#d3f9d8",
+      "strokeColor": "#2f9e44",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t15",
+      "x": 736,
+      "y": 352,
+      "text": "On service startup, each service loads instruments into:\n\nLocal ConcurrentHashMap<Long, Instrument>\n  (in-memory instrument lookup map per JVM)\n\n\u2192 Sub-microsecond lookup by security ID\n\u2192 No Redis blob. No network round-trip per lookup.\n\u2192 Redis freed from scrip master entirely.",
+      "fontSize": 11,
+      "strokeColor": "#2f9e44"
+    },
+    {
+      "type": "rectangle",
+      "id": "r16",
+      "x": 720,
+      "y": 498,
+      "width": 620,
+      "height": 140,
+      "backgroundColor": "#d0ebff",
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "fillStyle": "hachure",
+      "roughness": 0,
+      "opacity": 100
+    },
+    {
+      "type": "text",
+      "id": "t17",
+      "x": 736,
+      "y": 512,
+      "text": "Instrument Master API  (for external queries)\n\nGET /v1/instruments?symbol=RELIANCE\nGET /v1/instruments?expiry=2026-04-24&type=CE\n\n\u2192 Reads PostgreSQL directly with proper filters\n\u2192 < 5 ms per query, with indexes\n\u2192 Supports pagination, search, filtering, joins",
+      "fontSize": 11,
+      "strokeColor": "#1971c2"
+    }
+  ],
+  "appState": {
+    "gridSize": null,
+    "viewBackgroundColor": "#ffffff"
+  }
+}

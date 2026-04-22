@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -10 820 722" width="820" height="722" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1e1e1e"/></marker></defs>
+<style>text { font-family: Segoe UI, Helvetica, Arial, sans-serif; }</style>
+<text x="200" y="30" font-size="20" fill="#1e1e1e">Service Decommission Mapping: 11 Current → 4 New</text>
+<text x="30" y="71" font-size="16" fill="#e03131">CURRENT (11 services)</text>
+<text x="550" y="71" font-size="16" fill="#2f9e44">NEW (4 deployments)</text>
+<rect x="20" y="90" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="109" font-size="12" fill="#1e1e1e">Streamer (pml-core-streamer)</text>
+<rect x="20" y="135" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="154" font-size="12" fill="#1e1e1e">Market Feed Publisher</text>
+<rect x="20" y="180" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="199" font-size="12" fill="#1e1e1e">Tick Producer</text>
+<rect x="20" y="225" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="244" font-size="12" fill="#1e1e1e">Charts Data Writer</text>
+<rect x="20" y="270" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="289" font-size="12" fill="#1e1e1e">FNO Data Writer</text>
+<rect x="500" y="90" width="300" height="230" rx="8" fill="#ebfbee" stroke="#2f9e44" stroke-width="1.5"/>
+<text x="550" y="116" font-size="16" fill="#2f9e44">Price Engine — Core</text>
+<text x="515" y="137" font-size="12" fill="#495057">Feed Handler (← Streamer)</text>
+<text x="515" y="153" font-size="12" fill="#495057">Normalizer + Duplicate Detector</text>
+<text x="515" y="169" font-size="12" fill="#495057">Bad Tick Detector</text>
+<text x="515" y="185" font-size="12" fill="#495057">Snapshot Store (← Publisher)</text>
+<text x="515" y="201" font-size="12" fill="#495057">  Lua atomic 52wk/OHLC</text>
+<text x="515" y="217" font-size="12" fill="#495057">Candle Aggregator (← Charts Writer)</text>
+<text x="515" y="233" font-size="12" fill="#495057">Option Chain Builder (← FNO Writer)</text>
+<text x="515" y="249" font-size="12" fill="#495057">  + PCR, Max Pain, ATM Straddle</text>
+<text x="515" y="265" font-size="12" fill="#495057">Kafka Publisher (← Tick Producer)</text>
+<text x="515" y="281" font-size="12" fill="#495057">  Protobuf encode once</text>
+<line x1="240" y1="107" x2="500" y2="107" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="240" y1="152" x2="500" y2="152" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="240" y1="197" x2="500" y2="197" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="240" y1="242" x2="500" y2="242" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="240" y1="287" x2="500" y2="287" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="20" y="350" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="369" font-size="12" fill="#1e1e1e">Charts Data Collector</text>
+<rect x="500" y="340" width="300" height="70" rx="8" fill="#ebfbee" stroke="#2f9e44" stroke-width="1.5"/>
+<text x="530" y="361" font-size="14" fill="#2f9e44">Price Engine — Temporal Worker</text>
+<text x="515" y="382" font-size="12" fill="#495057">Candle generation (QuestDB SAMPLE BY)</text>
+<text x="515" y="398" font-size="12" fill="#495057">EOD recon, corp actions, archival</text>
+<line x1="240" y1="367" x2="500" y2="367" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="20" y="440" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="459" font-size="12" fill="#1e1e1e">Charts API</text>
+<rect x="20" y="485" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="504" font-size="12" fill="#1e1e1e">FNO Data API</text>
+<rect x="20" y="530" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="549" font-size="12" fill="#1e1e1e">Market Movers Writer + API</text>
+<rect x="500" y="430" width="300" height="150" rx="8" fill="#ebfbee" stroke="#2f9e44" stroke-width="1.5"/>
+<text x="560" y="451" font-size="14" fill="#2f9e44">Price Engine — API</text>
+<text x="515" y="472" font-size="12" fill="#495057">Charts API (← Charts API)</text>
+<text x="515" y="488" font-size="12" fill="#495057">  reads QuestDB candle tables</text>
+<text x="515" y="504" font-size="12" fill="#495057">Option Chain API (← FNO API)</text>
+<text x="515" y="520" font-size="12" fill="#495057">  reads Redis option chain + insights</text>
+<text x="515" y="536" font-size="12" fill="#495057">Market Movers API (← MM Writer + API)</text>
+<text x="515" y="552" font-size="12" fill="#495057">  reads Redis sorted sets</text>
+<text x="515" y="568" font-size="12" fill="#495057">Snapshot API (/ltp, /depth)</text>
+<line x1="240" y1="457" x2="500" y2="457" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="240" y1="502" x2="500" y2="502" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="240" y1="547" x2="500" y2="547" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+<rect x="20" y="620" width="220" height="35" rx="8" fill="#ffc9c9" stroke="#e03131" stroke-width="1.5"/>
+<text x="35" y="639" font-size="12" fill="#1e1e1e">Feed Broadcast (8,500/pod)</text>
+<rect x="500" y="610" width="300" height="70" rx="8" fill="#d0ebff" stroke="#1971c2" stroke-width="1.5"/>
+<text x="540" y="631" font-size="14" fill="#1971c2">Distribution Service (separate)</text>
+<text x="515" y="654" font-size="12" fill="#495057">Kafka consumer (not Redis Pub/Sub)</text>
+<text x="515" y="670" font-size="12" fill="#495057">Protobuf WebSocket, 100K+/pod, 1 tick/sec</text>
+<line x1="240" y1="637" x2="500" y2="637" stroke="#868e96" stroke-width="1" marker-end="url(#arrow)"/>
+</svg>

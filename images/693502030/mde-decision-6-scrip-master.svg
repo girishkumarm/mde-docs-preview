@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 -10 1350 678" width="1350" height="678" style="background:#fff">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#868e96"/></marker></defs>
+<style>text { font-family: "Segoe UI", Helvetica, Arial, sans-serif; }</style>
+<rect x="50" y="140" width="620" height="120" rx="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="50" y="280" width="620" height="168" rx="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="50" y="468" width="620" height="126" rx="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="720" y="140" width="620" height="168" rx="6" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="0.85"/>
+<rect x="720" y="338" width="620" height="140" rx="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="720" y="498" width="620" height="140" rx="6" fill="#d0ebff" stroke="#1971c2" stroke-width="2" opacity="0.85"/>
+<line x1="1030" y1="308" x2="1030" y2="333" stroke="#7048e8" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="100" y="44.0" font-size="24" fill="#1e1e1e" font-weight="500">Decision 6: Scrip Master in PostgreSQL (Not Redis)</text>
+<text x="100" y="67.0" font-size="12" fill="#c92a2a" font-weight="500">Problem: 80,000 instruments stored as ONE 16MB JSON blob in Redis blocks the single thread on every read.</text>
+<text x="50" y="118.0" font-size="18" fill="#c92a2a" font-weight="500">BEFORE — Redis JSON Blob</text>
+<text x="66" y="166.0" font-size="12" fill="#c92a2a" font-weight="500">Redis Key:  MGR_SM_NSE_OPTION</text>
+<text x="66" y="181.0" font-size="12" fill="#c92a2a" font-weight="500"></text>
+<text x="66" y="196.0" font-size="12" fill="#c92a2a" font-weight="500">Value: JSON array of 80,000 instruments</text>
+<text x="66" y="211.0" font-size="12" fill="#c92a2a" font-weight="500">        [{inst_1}, {inst_2}, ... , {inst_80000}]</text>
+<text x="66" y="226.0" font-size="12" fill="#c92a2a" font-weight="500"></text>
+<text x="66" y="241.0" font-size="12" fill="#c92a2a" font-weight="500">Size: ~16 MB in ONE Redis key</text>
+<text x="66" y="305.0" font-size="11" fill="#c92a2a" font-weight="500">Reading this key:</text>
+<text x="66" y="318.75" font-size="11" fill="#c92a2a" font-weight="500">• Loads 16 MB into memory</text>
+<text x="66" y="332.5" font-size="11" fill="#c92a2a" font-weight="500">• Serializes to send over network</text>
+<text x="66" y="346.25" font-size="11" fill="#c92a2a" font-weight="500">• Blocks Redis single thread for 10-20 ms</text>
+<text x="66" y="360.0" font-size="11" fill="#c92a2a" font-weight="500"></text>
+<text x="66" y="373.75" font-size="11" fill="#c92a2a" font-weight="500">During that 10-20 ms, ALL other Redis operations WAIT:</text>
+<text x="66" y="387.5" font-size="11" fill="#c92a2a" font-weight="500">  ✗ Price writes delayed</text>
+<text x="66" y="401.25" font-size="11" fill="#c92a2a" font-weight="500">  ✗ Chart reads delayed</text>
+<text x="66" y="415.0" font-size="11" fill="#c92a2a" font-weight="500">  ✗ OHLC updates delayed</text>
+<text x="66" y="428.75" font-size="11" fill="#c92a2a" font-weight="500">  ✗ WebSocket backfill delayed</text>
+<text x="66" y="493.0" font-size="11" fill="#c92a2a" font-weight="500">Read frequency:</text>
+<text x="66" y="506.75" font-size="11" fill="#c92a2a" font-weight="500">• Every service startup (10-20 pods)</text>
+<text x="66" y="520.5" font-size="11" fill="#c92a2a" font-weight="500">• Every daily scrip master reload (7:35 AM)</text>
+<text x="66" y="534.25" font-size="11" fill="#c92a2a" font-weight="500">• Every manual Periscope reload trigger</text>
+<text x="66" y="548.0" font-size="11" fill="#c92a2a" font-weight="500"></text>
+<text x="66" y="561.75" font-size="11" fill="#c92a2a" font-weight="500">Not per-tick, but still blocks everything when read.</text>
+<text x="66" y="575.5" font-size="11" fill="#c92a2a" font-weight="500">AND it's redundant — CSVs are already persisted in PostgreSQL!</text>
+<text x="720" y="118.0" font-size="18" fill="#2f9e44" font-weight="500">AFTER — PostgreSQL + In-Memory Cache</text>
+<text x="736" y="165.0" font-size="11" fill="#7048e8" font-weight="500">PostgreSQL  (Source of Truth)</text>
+<text x="736" y="178.75" font-size="11" fill="#7048e8" font-weight="500"></text>
+<text x="736" y="192.5" font-size="11" fill="#7048e8" font-weight="500">instruments table  (~90,000 rows)</text>
+<text x="736" y="206.25" font-size="11" fill="#7048e8" font-weight="500">  • Indexed: symbol, exchange, pml_id, scrip_type</text>
+<text x="736" y="220.0" font-size="11" fill="#7048e8" font-weight="500"></text>
+<text x="736" y="233.75" font-size="11" fill="#7048e8" font-weight="500">companies table  (~5,000 rows — CMOTS data)</text>
+<text x="736" y="247.5" font-size="11" fill="#7048e8" font-weight="500">  • Indexed: co_code, isin</text>
+<text x="736" y="261.25" font-size="11" fill="#7048e8" font-weight="500"></text>
+<text x="736" y="275.0" font-size="11" fill="#7048e8" font-weight="500">Populated by daily Temporal workflow (6 PM)</text>
+<text x="736" y="288.75" font-size="11" fill="#7048e8" font-weight="500">reading CSV files from NSE/BSE + CMOTS API</text>
+<text x="736" y="363.0" font-size="11" fill="#2f9e44" font-weight="500">On service startup, each service loads instruments into:</text>
+<text x="736" y="376.75" font-size="11" fill="#2f9e44" font-weight="500"></text>
+<text x="736" y="390.5" font-size="11" fill="#2f9e44" font-weight="500">Local ConcurrentHashMap&lt;Long, Instrument&gt;</text>
+<text x="736" y="404.25" font-size="11" fill="#2f9e44" font-weight="500">  (in-memory instrument lookup map per JVM)</text>
+<text x="736" y="418.0" font-size="11" fill="#2f9e44" font-weight="500"></text>
+<text x="736" y="431.75" font-size="11" fill="#2f9e44" font-weight="500">→ Sub-microsecond lookup by security ID</text>
+<text x="736" y="445.5" font-size="11" fill="#2f9e44" font-weight="500">→ No Redis blob. No network round-trip per lookup.</text>
+<text x="736" y="459.25" font-size="11" fill="#2f9e44" font-weight="500">→ Redis freed from scrip master entirely.</text>
+<text x="736" y="523.0" font-size="11" fill="#1971c2" font-weight="500">Instrument Master API  (for external queries)</text>
+<text x="736" y="536.75" font-size="11" fill="#1971c2" font-weight="500"></text>
+<text x="736" y="550.5" font-size="11" fill="#1971c2" font-weight="500">GET /v1/instruments?symbol=RELIANCE</text>
+<text x="736" y="564.25" font-size="11" fill="#1971c2" font-weight="500">GET /v1/instruments?expiry=2026-04-24&amp;type=CE</text>
+<text x="736" y="578.0" font-size="11" fill="#1971c2" font-weight="500"></text>
+<text x="736" y="591.75" font-size="11" fill="#1971c2" font-weight="500">→ Reads PostgreSQL directly with proper filters</text>
+<text x="736" y="605.5" font-size="11" fill="#1971c2" font-weight="500">→ &lt; 5 ms per query, with indexes</text>
+<text x="736" y="619.25" font-size="11" fill="#1971c2" font-weight="500">→ Supports pagination, search, filtering, joins</text>
+</svg>

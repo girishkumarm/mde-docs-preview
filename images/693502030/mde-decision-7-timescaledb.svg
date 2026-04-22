@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 10 1480 878" width="1480" height="878">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#495057"/></marker></defs>
+<rect x="10" y="10" width="1480" height="878" fill="#ffffff"/>
+<rect x="40" y="40" width="1420" height="51" rx="6" ry="6" fill="#e7f5ff" stroke="#1864ab" stroke-width="2" opacity="0.85"/>
+<rect x="40" y="106" width="1420" height="42" rx="6" ry="6" fill="#fff5f5" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="40" y="178" width="695.0" height="46" rx="6" ry="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="2" opacity="0.85"/>
+<rect x="765.0" y="178" width="695.0" height="46" rx="6" ry="6" fill="#d3f9d8" stroke="#2f9e44" stroke-width="2" opacity="0.85"/>
+<rect x="60" y="244" width="655.0" height="56" rx="6" ry="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1.5" opacity="0.85"/>
+<rect x="60" y="310" width="655.0" height="56" rx="6" ry="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1.5" opacity="0.85"/>
+<rect x="60" y="376" width="655.0" height="56" rx="6" ry="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1.5" opacity="0.85"/>
+<rect x="60" y="442" width="655.0" height="56" rx="6" ry="6" fill="#ffe3e3" stroke="#c92a2a" stroke-width="1.5" opacity="0.85"/>
+<rect x="60" y="508" width="655.0" height="56" rx="6" ry="6" fill="#ffe8cc" stroke="#d9480f" stroke-width="1.5" opacity="0.85"/>
+<rect x="60" y="579" width="655.0" height="99" rx="6" ry="6" fill="#fff0f0" stroke="#c92a2a" stroke-width="1.5" opacity="0.85"/>
+<rect x="780.0" y="244" width="665.0" height="300" rx="6" ry="6" fill="#e6fcf5" stroke="#0ca678" stroke-width="2" opacity="0.85"/>
+<rect x="795.0" y="298" width="635.0" height="56" rx="6" ry="6" fill="#c3fae8" stroke="#0ca678" stroke-width="1.5" opacity="0.85"/>
+<rect x="795.0" y="364" width="635.0" height="56" rx="6" ry="6" fill="#c3fae8" stroke="#0ca678" stroke-width="1.5" opacity="0.85"/>
+<rect x="795.0" y="430" width="635.0" height="89" rx="6" ry="6" fill="#c3fae8" stroke="#0ca678" stroke-width="1.5" opacity="0.85"/>
+<rect x="780.0" y="559" width="665.0" height="56" rx="6" ry="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.5" opacity="0.85"/>
+<rect x="780.0" y="630" width="665.0" height="69" rx="6" ry="6" fill="#e7f5ff" stroke="#1971c2" stroke-width="1.5" opacity="0.85"/>
+<rect x="40" y="729" width="1420" height="129" rx="6" ry="6" fill="#fff3bf" stroke="#e67700" stroke-width="1.5" opacity="0.85"/>
+<text x="444.0" y="74.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="22" fill="#1e1e1e">Decision 7: TimescaleDB for All Time-Series Data</text>
+<text x="280.5" y="133.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="15" fill="#1e1e1e">Problem: 3 separate stores for time-series (TSDB + MongoDB + Elasticsearch) is complex, slow, and expensive.</text>
+<text x="257.0" y="208.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="18" fill="#1e1e1e">BEFORE: 3 separate stores</text>
+<text x="966.5" y="208.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="18" fill="#1e1e1e">AFTER: TimescaleDB (unified)</text>
+<text x="282.0" y="269.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">TSDB (raw ticks)</text>
+<text x="282.0" y="285.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">~90M ticks/day, 7-day window</text>
+<text x="240.5" y="335.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">Redis (current-day candles)</text>
+<text x="240.5" y="351.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">per-instrument rollups, lost on restart</text>
+<text x="271.0" y="401.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">MongoDB (historical 1m candles)</text>
+<text x="271.0" y="417.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">3+ years, nested arrays schema</text>
+<text x="248.5" y="467.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">Elasticsearch (historical EOD)</text>
+<text x="248.5" y="483.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">expensive, wrong tool for time-series</text>
+<text x="199.0" y="533.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">Charts Data Collector (extra service)</text>
+<text x="199.0" y="549.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">Manually aggregates 1m &gt; 5m/15m/1h/1d every minute</text>
+<text x="224.0" y="603.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">Issues:</text>
+<text x="224.0" y="618.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">- 4 databases to maintain (ops burden)</text>
+<text x="224.0" y="633.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">- Data duplicated across stores</text>
+<text x="224.0" y="648.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">- Charts Data Collector is an extra moving part</text>
+<text x="224.0" y="663.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">- Elasticsearch is expensive and the wrong tool</text>
+<text x="950.5" y="272.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="16" fill="#0ca678">TimescaleDB (single time-series DB)</text>
+<text x="935.5" y="323.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">ticks hypertable</text>
+<text x="935.5" y="339.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">(7-day retention, auto-compressed after 2 days)</text>
+<text x="1033.5" y="389.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">candles_1m hypertable</text>
+<text x="1033.5" y="405.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">(10-year retention)</text>
+<text x="977.0" y="455.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">Continuous aggregates:</text>
+<text x="977.0" y="471.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">candles_5m, candles_15m, candles_1h,</text>
+<text x="977.0" y="487.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">candles_1d, candles_1w, candles_1M</text>
+<text x="977.0" y="503.75" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">(auto-refreshed)</text>
+<text x="988.5" y="584.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">Redis Cluster 2 (hot cache)</text>
+<text x="988.5" y="600.25" font-family="Segoe UI, Helvetica, sans-serif" font-size="13" fill="#1e1e1e">current-day candles, sub-ms reads</text>
+<text x="980.5" y="654.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">Note:</text>
+<text x="980.5" y="669.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">Separate PostgreSQL instance from</text>
+<text x="980.5" y="684.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="12" fill="#1e1e1e">Instrument Master (workload isolation)</text>
+<text x="425.5" y="755.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">Benefits:</text>
+<text x="425.5" y="772.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- 3 databases collapsed to 1 (TimescaleDB)</text>
+<text x="425.5" y="790.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- Charts Data Collector ELIMINATED (continuous aggregates auto-maintain rollups)</text>
+<text x="425.5" y="807.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- Same PostgreSQL tooling as Instrument Master (operational simplicity)</text>
+<text x="425.5" y="825.0" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- Used in production by Robinhood, Coinbase, Messari</text>
+<text x="425.5" y="842.5" font-family="Segoe UI, Helvetica, sans-serif" font-size="14" fill="#1e1e1e">- Native 10x compression saves ~80% storage cost vs MongoDB</text>
+</svg>

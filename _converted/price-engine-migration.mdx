@@ -1,0 +1,838 @@
+---
+title: "Price Engine Migration — Detailed Sub-Document"
+---
+
+<Info>
+**Paytm Money Pro | v1.0 | April 2026**
+
+Parent: [Operations & Migration](#) (Confluence ID: 683376743)
+
+This document is the detailed, end-to-end migration plan for replacing 25+ legacy PML pricing services with the Market Data Engine (MDE).
+</Info>
+
+## 1. Executive Summary
+
+The Price Engine migration replaces **25 legacy PML services** spread across 118 repositories with the **Market Data Engine (MDE)** — a unified, 14-service Gradle monorepo built on Java 21, Spring Boot 3.2, Kafka, Redis, TimescaleDB/ClickHouse, and Temporal.
+
+**Current state:** All 14 MDE stories (Epic PM3-140083) are code-complete with 200+ passing tests. The system has been proven end-to-end in local/integration environments.
+
+**Migration approach:** Strangler fig pattern — 4 phases over 7 weeks, zero-downtime, with feature-flag-controlled rollout.
+
+**Additionally:** This document plans 4 new features not in the original scope: Market Depth, Peer Groups, User Price Alerts, and Service-Level Alerts (~31 engineering days).
+
+**Key numbers:**
+
+| Metric | Current (PML) | Target (MDE) |
+| --- | --- | --- |
+| Services | 25+ standalone JARs | 14 modules in 1 monorepo |
+| Languages | Java 8-17, mixed | Java 21 (unified) |
+| Data stores | ES + MySQL + Redis (7 DBs) + S3 | PostgreSQL + TimescaleDB + ClickHouse + Redis (2 clusters) + ES + S3 |
+| Feed source | CMOTS API + NSE multicast | NSE Direct UDP (colocation) |
+| Tick latency | 50-200ms (via CMOTS relay) | <2ms P50, <10ms P99 (direct feed) |
+| Candle storage | ES indices (limited history) | ClickHouse 10yr + TimescaleDB 90d intraday |
+| Deployment | 25 separate CI/CD pipelines | 5 deployment groups, 1 pipeline |
+
+## 2. Current State Inventory
+
+### 2.1 Current PML Pricing Services (25 repos)
+
+These are the repos directly involved in market data, pricing, and related functionality:
+
+| # | Repo | Role | Data Store | Status |
+| --- | --- | --- | --- | --- |
+| 1 | `pml-core-tick-data-service` | Real-time tick WebSocket distribution | Redis DB 0 | **Replace** → Broadcast Service |
+| 2 | `pml-core-tick-producer` | Tick ingestion from CMOTS | Redis DB 0 | **Replace** → Feed Handler |
+| 3 | `data-tick-listener` | Tick consumption pipeline | Redis | **Replace** → Publisher |
+| 4 | `data-price-charts-api` | Chart data REST API (intraday + EOD) | ES `live_data_*`, Redis | **Replace** → Charts API |
+| 5 | `data-portfolio-charts-api` | Portfolio chart overlays | ES | **Replace** → Charts API |
+| 6 | `scrip-master` | Instrument master raw data | MySQL bodatadb | **Replace** → Instrument Master |
+| 7 | `scrip-master-service` | Instrument master REST API | MySQL bodatadb | **Replace** → Instrument Master |
+| 8 | `data-company-app` | Company fundamentals, financials | MySQL bodatadb, ES | **Replace** → Company Fundamentals (future) |
+| 9 | `data-consumer` | CMOTS data aggregation (12 processors) | MySQL bodatadb, Redis, ES | **Replace** → Temporal workflows |
+| 10 | `data-consumer-service` | Consumer support service | MySQL bodatadb | **Replace** → Temporal workflows |
+| 11 | `data-screener-consumer` | Screener data pipeline | ES `instruments_screener` | **Replace** → Discovery & Search (future) |
+| 12 | `data-search` | Full-text search API | ES | **Replace** → Discovery & Search (future) |
+| 13 | `data-internal-apis` | Internal pricing endpoints | Redis, ES | **Replace** → MDE internal APIs |
+| 14 | `pml-core-market-mover-collector` | Market movers data collection | Redis DB 6 | **Replace** → Market Movers Writer |
+| 15 | `pml-core-market-movers-service` | Market movers REST API | Redis DB 6 | **Replace** → Market Movers Writer |
+| 16 | `pml-core-badge-service` | Badge computations (52w high, circuits) | Redis | **Replace** → Publisher |
+| 17 | `data-corporate-action-pull-push` | Corporate action processing | MySQL bodatadb | **Replace** → Corporate Action Processor (future) |
+| 18 | `data-holdings` | Holdings price enrichment | Redis | **Migrate** → reads from MDE Redis |
+| 19 | `data-websocket-pull-api` | WebSocket data pull fallback | Redis | **Replace** → Broadcast Service |
+| 20 | `pml-open-data-service` | Open data API (LTP for portfolio) | Redis | **Replace** → MDE snapshot API |
+| 21 | `subscription-data-producer` | Subscription-based data feeds | Redis, Kafka | **Replace** → Broadcast Service |
+| 22 | `eq-marketmovers-app` | Equity market movers (legacy) | Redis | **Replace** → Market Movers Writer |
+| 23 | `eq-mo-data-service` | Equity market order data | Redis | **Replace** → Publisher |
+| 24 | `eq-fms-data-sync-consumer` | FMS data sync | MySQL | **Replace** → Temporal workflows |
+| 25 | `data-bullfinch-output-consumer` | Bullfinch P&L data consumer | Kafka | **Keep** → Portfolio Engine scope |
+
+### 2.2 Current Data Stores
+
+#### Elasticsearch (20+ indices)
+
+| Index Pattern | Content | Size (est.) | Migration Target |
+| --- | --- | --- | --- |
+| `live_data_nse_*` | Real-time NSE tick data | ~2GB/day | Redis C1 (snapshot) |
+| `live_data_bse_*` | Real-time BSE tick data | ~500MB/day | Redis C1 (snapshot) |
+| `intraday_candle_*` | Intraday OHLCV candles (1m, 5m, 15m) | ~50GB (90 days) | TimescaleDB (1m) + ClickHouse (5m, 15m) |
+| `eod_candle_*` | Daily/weekly/monthly candles | ~20GB (10 years) | ClickHouse (daily, weekly, monthly) |
+| `instruments_screener` | Combined price + fundamental data (80+ fields) | ~2GB | Elasticsearch (same concept, new index) |
+| `company_*` | Company fundamentals, financials | ~5GB | PostgreSQL `company_fundamentals` |
+| `shareholding_*` | Shareholding patterns (quarterly) | ~1GB | PostgreSQL `shareholding_patterns` |
+| `news_*` | Market news articles | ~10GB | PostgreSQL `news_articles` + ES `news_feed` |
+| `scrip_master_*` | Instrument master data | ~500MB | PostgreSQL `instrument_master` |
+| `corporate_actions_*` | Corporate action history | ~200MB | PostgreSQL `corporate_actions` |
+| `market_movers_*` | Historical movers snapshots | ~5GB | Redis C2 (live) + ClickHouse (historical) |
+| `badge_*` | Badge/alert data | ~500MB | PostgreSQL `alert_rules` |
+
+**Total Elasticsearch data to migrate: ~95GB**
+
+#### MySQL (bodatadb)
+
+| Table/Group | Content | Rows (est.) | Migration Target |
+| --- | --- | --- | --- |
+| `scrip_master` + related | Instrument definitions, exchanges | ~200K | PostgreSQL `instrument_master` |
+| `cmots_*` (12 tables) | CMOTS processor data (technicals, pivots, fundamentals) | ~5M | PostgreSQL (fundamentals, shareholding, analyst) |
+| `corporate_actions` | Corporate action history | ~50K | PostgreSQL `corporate_actions` |
+| `data_sync_status` | CMOTS job run status | ~100K | Temporal workflow history (auto) |
+| `bhavcopy_*` | Daily bhavcopy archives | ~10M | ClickHouse (daily candles) |
+
+**Total MySQL data to migrate: ~15M rows**
+
+#### Redis (7 databases)
+
+| DB | Content | Keys (est.) | Migration Target |
+| --- | --- | --- | --- |
+| DB 0 | Live tick data (LTP, OHLC, volume) | ~100K | Redis C1: `FEED_PP_*`, `MGR_*_OHLC` |
+| DB 2 | Circuit limits, market status | ~10K | Redis C1: `MGR_*_LC_UC` |
+| DB 3 | Option chain data | ~80K | Redis C2: option chain hashes |
+| DB 6 | Market movers (gainers, losers, volume) | ~1K | Redis C2: ZSET movers |
+| DB 8 | 52-week high/low | ~10K | Redis C1: `MGR_*_52_WK_HL` |
+| DB 11 | Pre-computed badge data | ~10K | Redis C1: `TRD_DAY` |
+| DB 14 | Open interest data | ~50K | Redis C2: FNO chain data |
+
+**Migration:** 7 separate Redis databases → 2 dedicated Redis ElastiCache clusters:
+
+- **C1 (Feed, port 6380):** Real-time snapshot data written by Publisher
+- **C2 (API, port 6381):** Read-optimized data for API/WebSocket pods
+
+#### S3 Buckets
+
+| Bucket | Content | Migration |
+| --- | --- | --- |
+| `prod-scrip-master` | Daily scrip master CSVs from exchanges | → Same pattern, new bucket `mde-instrument-master` |
+| `prod-pm-scrip-master-raw-data` | Raw exchange data files | → `mde-raw-exchange-data` |
+| `prod-pml-core-scrip-master` | Processed scrip master snapshots | → `mde-instrument-snapshots` |
+
+#### CMOTS Processors (12 scheduled jobs)
+
+These are `@Scheduled` cron jobs inside `data-consumer` that pull data from CMOTS API:
+
+| # | Processor | Schedule | Data | MDE Replacement |
+| --- | --- | --- | --- | --- |
+| 1 | InstrumentMasterProcessor | Daily 6:00 AM | Instrument list from CMOTS | Temporal: `InstrumentMasterSyncWorkflow` |
+| 2 | PivotProcessor | Daily 7:00 AM | Pivot points (support/resistance) | Temporal: `TechnicalDataSyncWorkflow` |
+| 3 | CorporateActionProcessor | Daily 8:00 PM | Splits, dividends, bonus | Temporal: `CorporateActionWorkflow` |
+| 4 | TechnicalIndicatorProcessor | Daily 9:00 PM | RSI, MACD, Bollinger, ADX | Temporal: `TechnicalDataSyncWorkflow` |
+| 5 | BhavcopyProcessor | Daily 6:30 PM | EOD OHLCV from exchanges | Temporal: `EODReconciliationWorkflow` |
+| 6 | NAVProcessor | Daily 11:00 PM | Mutual fund NAVs from AMFI | Temporal: `NAVUpdateWorkflow` |
+| 7 | QuarterlyResultsProcessor | Quarterly | Revenue, PAT, EPS | Temporal: `FundamentalsSyncWorkflow` (future) |
+| 8 | ShareholdingProcessor | Quarterly | Promoter/FII/DII % | Temporal: `FundamentalsSyncWorkflow` (future) |
+| 9 | AnalystRecommendationProcessor | Weekly | Target prices, ratings | Temporal: `FundamentalsSyncWorkflow` (future) |
+| 10 | InstitutionalActivityProcessor | Daily 7:00 PM | FII/DII buy/sell | Temporal: `MarketIntelligenceWorkflow` (future) |
+| 11 | NewsProcessor | Every 15 min | Market news articles | Temporal: `NewsFeedWorkflow` (future) |
+| 12 | IPOProcessor | Daily 8:00 AM | IPO data (open, upcoming, closed) | Temporal: `IPODataSyncWorkflow` (future) |
+
+### 2.3 Current APIs Consumed by UI
+
+The `equity-web-app` (React) consumes these pricing APIs:
+
+| API Category | Current Endpoint | Service | Usage |
+| --- | --- | --- | --- |
+| Live prices | `wss://*/ws/tick` | pml-core-tick-data-service | SharedWorker WebSocket, binary frames |
+| Chart intraday | `GET /api/chart/sym/{symbol}/intra/{interval}` | data-price-charts-api | TradingView chart widget |
+| Chart EOD | `GET /api/chart/sym/{symbol}/eod/{interval}` | data-price-charts-api | TradingView chart widget |
+| Instrument search | `GET /api/scrip-master/search?q={query}` | scrip-master-service | Search bar autocomplete |
+| Instrument detail | `GET /api/scrip-master/{scripId}` | scrip-master-service | Stock detail page |
+| Market movers | `GET /api/market-movers/{index}` | pml-core-market-movers-service | Home screen movers widget |
+| Company info | `GET /api/company/{isin}` | data-company-app | Stock detail fundamentals tab |
+| Screener | `POST /api/screener/filter` | data-screener-consumer | Screener page |
+| News | `GET /api/news?isin={isin}` | data-search | Stock detail news tab |
+| Open data (LTP) | `GET /api/open-data/{scripId}` | pml-open-data-service | Portfolio/holdings LTP enrichment |
+| Option chain | `GET /api/fno/option-chain/{symbol}` | data-internal-apis | F&O option chain page |
+| Badge data | `GET /api/badge/{scripId}` | pml-core-badge-service | Stock card badges (52w high, circuit) |
+
+## 3. Target State — MDE Architecture
+
+### 3.1 Built Components (14 Stories — All Complete)
+
+| Story | MDE Module | Replaces | Key Tech |
+| --- | --- | --- | --- |
+| 1 — Platform Foundation | `shared/common` + `shared/proto` | — | Gradle monorepo, protobuf, Temporal framework |
+| 2 — Instrument Master | `services/instrument-master` | scrip-master, scrip-master-service | Temporal sync, PostgreSQL, REST API |
+| 3 — Feed Handler | `services/feed-handler` | pml-core-tick-producer | NSE Direct UDP, 7 virtual-thread receivers |
+| 4 — Publisher | `services/publisher` | data-tick-listener, pml-core-badge-service | Redis C1 writer (FEED_PP, OHLC, PC, LC_UC, 52WK, TRD_DAY) |
+| 5 — Pre-market Scheduler | `services/premarket-scheduler` | data-consumer (BOD jobs) | Redis warm-up, instrument cache preload |
+| 6 — Broadcast Service | `services/broadcast-service` | pml-core-tick-data-service, data-websocket-pull-api | WebSocket `/ws/feed`, protobuf binary frames, API key auth |
+| 7 — Charts Data Writer | `services/charts-writer` | data-consumer (candle pipeline) | 1-min candles → TimescaleDB, event-time aggregation |
+| 8 — Charts Historical Writer | `services/charts-historical-writer` | ES `eod_candle_*` indices | ClickHouse JDBC, V1/V2/V3 DDL, batch upsert |
+| 9 — Charts API | `services/charts-api` | data-price-charts-api | Dual datasource (TimescaleDB + ClickHouse), Redis C2 cache |
+| 10 — FNO Data Writer + API | `services/fno-data-writer` | data-internal-apis (option chain) | BSM + Black-76 pricers, IV solver, OI ZSET |
+| 11 — Market Movers Writer + API | `services/market-movers-writer` | pml-core-market-mover-collector, pml-core-market-movers-service, eq-marketmovers-app | ZSET ranking, Caffeine cache, REST API |
+| 12/13 — Recon Service | `services/recon-service` | — (new capability) | EOD bhavcopy comparison, mismatch reporting |
+| 14 — Incident Manager | `services/incident-manager` | — (new capability) | Anomaly detection, Kafka consumers, REST API |
+
+### 3.2 Remaining Components (Not Yet Built)
+
+These design-doc components are **not yet implemented** and are required before full decommission:
+
+| Component | Design Doc Section | Effort (est.) | Dependency |
+| --- | --- | --- | --- |
+| Bad Tick Detector | 5.4 | 5 days | Feed Handler (done) |
+| Corporate Action Processor | 5.5 | 8 days | Instrument Master (done), Temporal (done) |
+| Alert Engine | 5.8 | 12 days | Publisher (done), PostgreSQL schema (done) |
+| Company Fundamentals Service | 5.15 | 10 days | CMOTS integration, PostgreSQL |
+| Discovery & Search Service | 5.16 | 12 days | Elasticsearch, Instrument Master |
+| Self-Healing Supervisor | 5.13 | 5 days | All core services |
+
+**Total remaining design-doc components: ~52 days**
+
+## 4. Data Migration Plan
+
+### 4.1 Elasticsearch → New Storage
+
+This is the largest data migration. Historical candle data must move from ES to TimescaleDB/ClickHouse.
+
+#### 4.1.1 Intraday Candles (ES → TimescaleDB)
+
+| Detail | Value |
+| --- | --- |
+| Source | ES `intraday_candle_*` indices |
+| Target | TimescaleDB `candles_1m` hypertable |
+| Data volume | ~50GB (90 days × ~5K instruments × 375 candles/day) |
+| Migration strategy | Bulk export from ES → CSV → TimescaleDB `COPY` |
+| Timeline | 1 day (export) + 1 day (import) + 1 day (validation) = **3 days** |
+| Validation | Row count match, random sample price comparison (1% of rows) |
+
+```sql
+-- TimescaleDB target table (already exists from Story 7)
+-- candles_1m(timestamp, instrument_token, open, high, low, close, volume, vwap)
+-- Hypertable with 1-day chunks, compression after 7 days
+```
+
+**Migration script outline:**
+
+1. ES scroll query: `GET /intraday_candle_*/_search?scroll=5m` with batch size 10,000
+2. Transform ES `_source` → CSV with columns matching TimescaleDB schema
+3. `\COPY candles_1m FROM '/tmp/candles_batch_N.csv' WITH CSV HEADER`
+4. Validate: `SELECT COUNT(*), MIN(timestamp), MAX(timestamp) FROM candles_1m`
+
+#### 4.1.2 EOD Candles (ES → ClickHouse)
+
+| Detail | Value |
+| --- | --- |
+| Source | ES `eod_candle_*` indices |
+| Target | ClickHouse `candles_daily`, `candles_weekly`, `candles_monthly` |
+| Data volume | ~20GB (10 years × ~5K instruments × 250 trading days/year) |
+| Migration strategy | ES bulk export → CSV → ClickHouse `INSERT ... FORMAT CSVWithNames` |
+| Timeline | 1 day (export) + 1 day (import) + 1 day (validation) = **3 days** |
+| Validation | Row count, OHLCV checksum on random 500 instruments |
+
+```sql
+-- ClickHouse target tables (already exist from Story 8)
+-- candles_daily(date, instrument_token, open, high, low, close, volume)
+-- Materialized views auto-aggregate to weekly/monthly
+```
+
+#### 4.1.3 Screener Data (ES → ES, new index)
+
+| Detail | Value |
+| --- | --- |
+| Source | ES `instruments_screener` (current, 80+ fields) |
+| Target | ES `instruments_screener_v2` (new mapping, same concept) |
+| Data volume | ~2GB |
+| Migration strategy | Reindex with field mapping transformation |
+| Timeline | **1 day** (reindex + validate) |
+| Note | The screener index is rebuilt daily from live data. Once MDE is running, the new index populates automatically. Only need to ensure no downtime during switchover. |
+
+#### 4.1.4 Company/News/Other (ES → PostgreSQL)
+
+| Source Index | Target Table | Rows | Strategy |
+| --- | --- | --- | --- |
+| `company_*` | `company_fundamentals` | ~50K | ES export → PostgreSQL `COPY` |
+| `shareholding_*` | `shareholding_patterns` | ~20K | ES export → PostgreSQL `COPY` |
+| `news_*` | `news_articles` | ~500K | ES export → PostgreSQL `COPY` |
+| `corporate_actions_*` | `corporate_actions` | ~50K | ES export → PostgreSQL `COPY` |
+
+**Timeline: 2 days** (all four can be parallelized)
+
+### 4.2 MySQL bodatadb → PostgreSQL
+
+| Source Table | Target Table | Rows | Strategy |
+| --- | --- | --- | --- |
+| `scrip_master` + related | `instrument_master` | ~200K | `pg_dump`-style migration with column mapping |
+| `cmots_technical_*` | Not migrated (recomputed) | — | Technical indicators recomputed from candle data |
+| `cmots_fundamental_*` | `company_fundamentals` | ~50K | SQL export → transform → PostgreSQL import |
+| `cmots_shareholding` | `shareholding_patterns` | ~20K | Direct migration |
+| `bhavcopy_*` | `candles_daily` (ClickHouse) | ~10M | SQL export → ClickHouse bulk insert |
+| `corporate_actions` | `corporate_actions` | ~50K | Direct migration |
+| `data_sync_status` | Not migrated | — | Replaced by Temporal workflow history |
+
+**Key transformation:** MySQL `scrip_master` uses `SM_SCRIP_CODE` (numeric) as primary key. MDE uses composite token `{EXCHANGE}:{SYMBOL}:{TYPE}` as `instrument_token` (varchar). A mapping table is needed during migration.
+
+**Timeline: 3 days** (schema mapping + export + import + validation)
+
+### 4.3 Redis Multi-DB → Redis 2-Cluster
+
+| Current | New | Migration |
+| --- | --- | --- |
+| DB 0: Live ticks (LTP, OHLC, vol) | C1: `FEED_PP_{token}` (protobuf binary) | **No migration needed** — populated live by Publisher |
+| DB 2: Circuit limits | C1: `MGR_{seg}_{pmlId}_LC_UC` | **No migration needed** — populated by Publisher |
+| DB 3: Option chain | C2: Chain hashes | **No migration needed** — populated by FNO Data Writer |
+| DB 6: Market movers | C2: ZSET `movers:{index}:*` | **No migration needed** — populated by Market Movers Writer |
+| DB 8: 52-week high/low | C1: `MGR_{seg}_{pmlId}_52_WK_HL` | **Migrate historical 52w values** for first-day accuracy |
+| DB 11: Badge/pre-computed | C1: `TRD_DAY` | **No migration needed** — recomputed daily |
+| DB 14: Open interest | C2: FNO chain data | **No migration needed** — populated by FNO Data Writer |
+
+**Only DB 8 (52-week high/low) needs migration** — without it, the first day after cutover would show incorrect 52w values until a full trading year passes.
+
+**52w migration strategy:**
+
+1. Export all 52w high/low values from Redis DB 8: `SCAN 0 MATCH 52w:* COUNT 1000`
+2. Transform key format: `52w:{scripId}` → `MGR_{seg}_{pmlId}_52_WK_HL`
+3. Bulk `SET` into Redis C1
+
+**Timeline: 1 day**
+
+### 4.4 CMOTS Processors → Temporal Workflows
+
+The 12 `@Scheduled` cron jobs in `data-consumer` are replaced by Temporal workflows:
+
+| Current Cron | MDE Temporal Workflow | Status |
+| --- | --- | --- |
+| InstrumentMasterProcessor | `InstrumentMasterSyncWorkflow` | **Built** (Story 2) |
+| BhavcopyProcessor | `EODReconciliationWorkflow` | **Built** (Story 12/13) |
+| NAVProcessor | `NAVUpdateWorkflow` | **Not built** (design-doc only) |
+| CorporateActionProcessor | `CorporateActionWorkflow` | **Not built** |
+| TechnicalIndicatorProcessor | `TechnicalDataSyncWorkflow` | **Not built** |
+| PivotProcessor | `TechnicalDataSyncWorkflow` | **Not built** |
+| QuarterlyResultsProcessor | `FundamentalsSyncWorkflow` | **Not built** |
+| ShareholdingProcessor | `FundamentalsSyncWorkflow` | **Not built** |
+| AnalystRecommendationProcessor | `FundamentalsSyncWorkflow` | **Not built** |
+| InstitutionalActivityProcessor | `MarketIntelligenceWorkflow` | **Not built** |
+| NewsProcessor | `NewsFeedWorkflow` | **Not built** |
+| IPOProcessor | `IPODataSyncWorkflow` | **Not built** |
+
+**Key difference:** Temporal workflows are durable (automatic retry on failure), observable (Temporal UI shows status), and version-controlled. The current cron jobs silently fail and require manual monitoring.
+
+**Timeline: Included in "Remaining Components" estimate (Section 3.2)**
+
+### 4.5 Historical Candle Data — Volume Estimates
+
+| Data Category | Source | Volume | Target | Import Method | Time |
+| --- | --- | --- | --- | --- | --- |
+| 1-min candles (90 days) | ES `intraday_candle_*` | 50 GB | TimescaleDB | `COPY` from CSV | 4 hours |
+| 5-min candles (90 days) | ES `intraday_candle_*` | 10 GB | ClickHouse | Bulk INSERT | 1 hour |
+| 15-min candles (90 days) | ES `intraday_candle_*` | 3 GB | ClickHouse | Bulk INSERT | 30 min |
+| Daily candles (10 years) | ES `eod_candle_*` | 15 GB | ClickHouse | Bulk INSERT | 2 hours |
+| Weekly candles (10 years) | ES `eod_candle_*` | 3 GB | ClickHouse MV | Auto-aggregated from daily | — |
+| Monthly candles (10 years) | ES `eod_candle_*` | 1 GB | ClickHouse MV | Auto-aggregated from daily | — |
+
+**Total migration time for candle data: ~8 hours** (can run overnight)
+
+## 5. API Migration Mapping
+
+### 5.1 REST API Mapping (Old → New)
+
+| # | Feature | Current PML Endpoint | New MDE Endpoint | Breaking Changes |
+| --- | --- | --- | --- | --- |
+| 1 | **Live snapshot** | `GET /api/open-data/{scripId}` | `GET /v1/snapshots/{token}` | Token format changed: numeric scripId → `NSE:RELIANCE:EQ` |
+| 2 | **Chart intraday** | `GET /api/chart/sym/{symbol}/intra/{interval}` | `GET /v1/candles/{token}?interval=1m&from=...&to=...` | Path structure changed, interval as query param |
+| 3 | **Chart EOD** | `GET /api/chart/sym/{symbol}/eod/{interval}` | `GET /v1/candles/{token}?interval=1d&from=...&to=...` | Unified endpoint (intraday + EOD same URL) |
+| 4 | **Instrument search** | `GET /api/scrip-master/search?q={query}` | `GET /v1/search?q={query}&type={type}` | Added `type` filter, token format |
+| 5 | **Instrument detail** | `GET /api/scrip-master/{scripId}` | `GET /v1/instruments/{token}` | Token format, enriched response with sector/indices |
+| 6 | **Market movers** | `GET /api/market-movers/{index}` | `GET /v1/movers/{index}?type=gainers` | Added `type` param (gainers/losers/volume) |
+| 7 | **Company info** | `GET /api/company/{isin}` | `GET /v1/companies/{isin}` | Richer response (financials + ratios + technical) |
+| 8 | **Analysts** | N/A (not available) | `GET /v1/companies/{isin}/analysts` | **New endpoint** |
+| 9 | **Screener** | `POST /api/screener/filter` | `POST /v1/screener` | Same concept, new filter syntax |
+| 10 | **News** | `GET /api/news?isin={isin}` | `GET /v1/news?isin={isin}&category={cat}` | Added category filter, sentiment field |
+| 11 | **Option chain** | `GET /api/fno/option-chain/{symbol}` | `GET /v1/option-chain/{underlying}?expiry={date}` | Greeks included, explicit expiry param |
+| 12 | **Badge data** | `GET /api/badge/{scripId}` | `GET /v1/snapshots/{token}` | Merged into snapshot (52w, circuit in same response) |
+| 13 | **Expert picks** | N/A | `GET /v1/expert-picks` | **New endpoint** |
+| 14 | **IPO data** | N/A | `GET /v1/ipo?status={status}` | **New endpoint** |
+| 15 | **Bhav copy** | N/A (internal only) | `GET /v1/bhav-copy/{date}` | **New endpoint** (public) |
+| 16 | **Market depth** | N/A | `GET /v1/depth/{token}` | **New endpoint** (see Section 7.1) |
+| 17 | **Peer group** | N/A | `GET /v1/peers/{isin}` | **New endpoint** (see Section 7.2) |
+| 18 | **Price alerts** | N/A | `POST /v1/alerts`, `GET /v1/alerts` | **New endpoint** (see Section 7.3) |
+
+### 5.2 WebSocket Protocol Changes
+
+| Aspect | Current (PML) | New (MDE) |
+| --- | --- | --- |
+| Endpoint | `wss://*/ws/tick` | `wss://*/ws/v1/feed` |
+| Auth | Cookie-based session | API key (`x-api-key` header) |
+| Frame format | JSON text frames | Protobuf binary frames |
+| Subscribe | `{"action":"subscribe","tokens":[123,456]}` | JSON control frame: `{"type":"SUBSCRIBE","tokens":["NSE:RELIANCE:EQ"]}` |
+| Unsubscribe | `{"action":"unsubscribe","tokens":[123]}` | JSON control frame: `{"type":"UNSUBSCRIBE","tokens":["NSE:RELIANCE:EQ"]}` |
+| Tick data | JSON: `{"t":123,"ltp":2450.30,"v":5200000}` | Protobuf binary: `Tick { token, ltp, open, high, low, close, volume, ... }` |
+| Throttle | Variable (server-side) | 1 tick/sec per instrument (configurable) |
+| Client pattern | SharedWorker + multiple tabs | Same pattern supported (binary decode in worker) |
+| Reconnection | Manual (app handles) | Server sends heartbeat, client reconnects on miss |
+
+**Key breaking change:** Binary protobuf frames require frontend to include a protobuf decoder (e.g., `protobufjs`). This is more bandwidth-efficient but requires UI code changes.
+
+### 5.3 Kafka Topic Mapping
+
+| Current Topic | New Topic | Content Change |
+| --- | --- | --- |
+| `live-tick-*` | `mde-feed-equity` | Protobuf `Tick` (was JSON) |
+| `fno-tick-*` | `mde-feed-fno` | Protobuf `Tick` (was JSON) |
+| N/A | `mde-feed-index` | **New** — index ticks separated |
+| N/A | `mde-candle-1m` | **New** — 1-min candle events |
+| N/A | `mde-instrument-master-events` | **New** — instrument CRUD events |
+| N/A | `mde-feed-anomalies` | **New** — anomaly detection events |
+| N/A | `mde-recon-reports` | **New** — reconciliation results |
+| `cmots-notification` | Removed | Replaced by Temporal workflow status |
+
+## 6. UI Impact Analysis
+
+### 6.1 Frontend Changes Required
+
+The `equity-web-app` (React) requires the following changes:
+
+| # | Change | Scope | Effort | Priority |
+| --- | --- | --- | --- | --- |
+| 1 | **WebSocket client rewrite** | SharedWorker + tick decoder | 5 days | P0 — blocks live prices |
+| 2 | **API URL migration** | All API constants/hooks | 3 days | P0 — blocks all data |
+| 3 | **Token format migration** | scripId (numeric) → instrument_token (string) | 3 days | P0 — breaks all lookups |
+| 4 | **Chart component update** | TradingView data adapter | 2 days | P0 — blocks charts |
+| 5 | **Protobuf decoder integration** | npm `protobufjs` + proto files | 1 day | P0 — blocks WebSocket |
+| 6 | **Option chain page update** | New response format with Greeks | 2 days | P1 |
+| 7 | **Market movers widget update** | New API params + response | 1 day | P1 |
+| 8 | **Screener page update** | New filter syntax | 2 days | P1 |
+| 9 | **News tab update** | New response with sentiment/category | 1 day | P2 |
+| 10 | **Badge removal + snapshot merge** | Badge data now in snapshot | 1 day | P2 |
+
+**Total frontend effort: ~21 days** (can be parallelized across 2-3 frontend developers)
+
+### 6.2 Feature Flag Strategy
+
+Feature flags control the gradual rollout:
+
+| Flag | Controls | Rollout Plan |
+| --- | --- | --- |
+| `mde.websocket.enabled` | New WebSocket endpoint | 10% → 50% → 100% over 2 weeks |
+| `mde.charts.enabled` | New Charts API | Internal → 50% → 100% over 1 week |
+| `mde.search.enabled` | New Search/Screener API | Internal → 100% (after validation) |
+| `mde.movers.enabled` | New Market Movers API | Internal → 100% (low risk) |
+| `mde.optionchain.enabled` | New Option Chain API | Internal → 50% → 100% over 1 week |
+
+**Implementation:** LaunchDarkly or custom Redis-based feature flag service. The frontend checks the flag and routes to either old or new API.
+
+### 6.3 New UI Components (from new features)
+
+| Feature | UI Component | Design Needed | Effort |
+| --- | --- | --- | --- |
+| Market Depth | 5-level bid/ask ladder | Yes — depth visualization widget | 3 days |
+| Peer Groups | Peer comparison table + chart | Yes — sector comparison view | 4 days |
+| Price Alerts | Alert creation form + list | Yes — alert management page | 5 days |
+| Push notifications | Alert notification cards | Yes — notification center | 3 days |
+
+**Total new UI component effort: ~15 days**
+
+## 7. New Feature Plans
+
+These features were identified as missing from the original Price Engine design and are planned (not implemented).
+
+### 7.1 Market Depth (Level 2 Order Book)
+
+**What it does:** Shows the top 5 bid/ask price levels with quantities for any instrument. Gives traders insight into supply/demand at each price level.
+
+**Current state:** PML does NOT expose market depth to the UI. The data exists in the exchange feed but is discarded after best bid/ask extraction.
+
+**MDE state:** Feed Handler already decodes `BCastHeader` with full MBP (Market By Price) depth data. Publisher currently writes only best bid/ask to Redis. The depth data is available in the `Tick` protobuf but not stored.
+
+**Design:**
+
+```text
+Feed Handler -> Tick proto (already includes depth[5]) -> Publisher
+                                                          |
+                                                   Redis C2: DEPTH_{seg}:{pmlId}
+                                                   Value: protobuf DepthSnapshot {
+                                                       bid[5] { price, qty, orders }
+                                                       ask[5] { price, qty, orders }
+                                                       timestamp
+                                                   }
+                                                   TTL: none (overwritten each tick)
+                                                          |
+                                                   REST: GET /v1/depth/{token}
+                                                   WebSocket: included in tick frame (optional subscribe flag)
+```
+
+**Implementation plan:**
+
+1. **Publisher change** (1 day): Add `DepthWriter` component — extracts depth from `Tick` proto, writes to Redis C2 as `DEPTH_{seg}:{pmlId}` key with protobuf-serialized `DepthSnapshot` value
+2. **REST endpoint** (0.5 day): `GET /v1/depth/{token}` — reads from Redis C2, returns JSON
+3. **WebSocket extension** (1 day): New subscribe mode `SUBSCRIBE_WITH_DEPTH` — tick frames include depth levels
+4. **Frontend** (2 days): Depth ladder widget (bid/ask visualization with color-coded quantity bars)
+
+**Effort: 4.5 days** | **Dependencies:** Publisher (done), Broadcast Service (done)
+
+### 7.2 Peer Groups (Sector Comparison)
+
+**What it does:** For any stock, shows a comparison table of key metrics (P/E, ROE, market cap, revenue growth, etc.) against its industry/sector peers. Essential for investment decision-making.
+
+**Current state:** PML has no peer comparison feature. Users must manually search for companies in the same sector.
+
+**Design:**
+
+```text
+Instrument Master (sector, industry data)
+                              |
+                   PostgreSQL: peer_groups table
+                   +---------------------------------------------+
+                   | isin | sector | industry | indices | ...     |
+                   +---------------------------------------------+
+                              |
+                   Peer Resolution Service
+                   1. Find all instruments in same industry
+                   2. Filter by market cap tier (large/mid/small)
+                   3. Enrich with fundamentals from company_fundamentals
+                   4. Enrich with live price data from Redis snapshot
+                              |
+                   REST: GET /v1/peers/{isin}?limit=10
+                   Response: {
+                       target: { isin, symbol, metrics... },
+                       peers: [{ isin, symbol, metrics... }, ...],
+                       industryAvg: { pe, roe, debtEquity, ... }
+                   }
+```
+
+**Implementation plan:**
+
+1. **Schema migration** (0.5 day): Add `sector`, `industry`, `market_cap_tier` columns to `instrument_master` if not present; Flyway V3 migration
+2. **CMOTS integration** (2 days): Temporal workflow to fetch sector/industry classification from CMOTS API, populate `instrument_master`
+3. **Peer resolution logic** (2 days): Service that finds peers (same industry + similar market cap), computes industry averages
+4. **REST endpoint** (1 day): `GET /v1/peers/{isin}` with Caffeine cache (5-min TTL, refreshed on fundamentals update)
+5. **Frontend** (2.5 days): Peer comparison table component, bar charts for metric comparison
+
+**Effort: 8 days** | **Dependencies:** Company Fundamentals Service (not yet built), Instrument Master (done)
+
+### 7.3 User Price Alerts
+
+**What it does:** Users set price conditions (e.g., "alert me when RELIANCE crosses ₹2500") and receive push notifications when triggered.
+
+**Current state:** PML has no price alert feature. Users must manually check prices.
+
+**Design:**
+
+```text
+User API
+                   POST /v1/alerts { instrumentToken, type, value }
+                   GET  /v1/alerts (list user's alerts)
+                   DELETE /v1/alerts/{id}
+                              |
+                   PostgreSQL: alert_rules (already in schema)
+                   Redis C2: alerts:instrument:{token} -> Set<AlertRule>
+                   Redis C2: alerts:user:{userId} -> Set<alertId>
+                              |
+                   Alert Evaluation Engine (runs inside Publisher pipeline)
+                   On each tick:
+                   1. Check if instrument has active alerts (Redis lookup, O(1))
+                   2. If yes, evaluate each alert condition
+                   3. If triggered: update status, publish to Kafka, send push
+                              |
+                   Kafka: mde-alerts-triggered
+                              |
+                   Push Notification Service (external -- FCM/APNs)
+```
+
+**Alert types supported:**
+
+- `PRICE_ABOVE` / `PRICE_BELOW` — absolute price crossing
+- `PERCENT_CHANGE` — % change from previous close exceeds threshold
+- `VOLUME_SPIKE` — volume exceeds N× average
+- `CIRCUIT_HIT` — upper or lower circuit hit
+- `52W_HIGH` / `52W_LOW` — new 52-week high or low
+
+**Scale considerations:**
+
+- Target: 1M active alerts across all users
+- Redis `alerts:instrument:{token}` keeps alerts indexed by instrument for O(1) lookup during tick processing
+- Most instruments will have 0 alerts; popular stocks (RELIANCE, TCS, NIFTY) might have 10K+ alerts each
+- Alert evaluation per tick: ~0.1ms even for 10K alerts (simple numeric comparison)
+
+**Implementation plan:**
+
+1. **Alert CRUD API** (2 days): REST endpoints, PostgreSQL persistence, Redis index sync
+2. **Alert evaluation engine** (3 days): Plugs into Publisher tick pipeline, evaluates all alert types
+3. **Kafka publisher** (1 day): Publishes triggered alerts to `mde-alerts-triggered`
+4. **Push notification integration** (2 days): Consumes from Kafka, calls FCM/APNs
+5. **Rate limiting** (1 day): Max 50 alerts per user, max 10 alerts per instrument per user, cooldown period
+6. **Frontend** (3 days): Alert creation form (on stock detail page), alerts list page, notification center
+
+**Effort: 12 days** | **Dependencies:** Publisher (done), PostgreSQL schema (done)
+
+### 7.4 Service-Level Alerts (System Monitoring)
+
+**What it does:** Automatic, system-wide alerts for market anomalies that ops/traders should know about — NOT user-configured.
+
+**Current state:** PML has basic Grafana alerting on metrics but no semantic market event alerts.
+
+**Design:**
+
+```text
+Publisher (tick pipeline)
+                              |
+                   Service Alert Detectors (run inside Publisher)
+                   +-- CircuitHitDetector -- instrument hits upper/lower circuit
+                   +-- VolumeAnomalyDetector -- volume > 5x 20-day avg in 1 min
+                   +-- IndexLevelBreachDetector -- NIFTY/SENSEX crosses round numbers
+                   +-- FeedGapDetector -- no ticks for instrument > 30s during market hours
+                   +-- FlashCrashDetector -- >5% drop in <60s across 10+ instruments
+                              |
+                   Kafka: mde-feed-anomalies (already exists, Story 14)
+                              |
+                   Incident Manager (already built, Story 14)
+                   -> Classifies severity (INFO/WARNING/CRITICAL)
+                   -> Stores in PostgreSQL incidents table
+                   -> Routes to Slack/PagerDuty based on severity
+```
+
+**Implementation plan:**
+
+1. **Detector implementations** (3 days): 5 detector classes plugged into Publisher’s tick dispatch pipeline
+2. **Anomaly event schema** (0.5 day): Protobuf `AnomalyEvent { type, instrument, severity, details, timestamp }`
+3. **Incident Manager integration** (1 day): Consume anomaly events, classify, store, route
+4. **Grafana dashboard** (1 day): Anomaly frequency, severity distribution, response time
+5. **Slack/PagerDuty routing** (1 day): Webhook integration for CRITICAL alerts
+
+**Effort: 6.5 days** | **Dependencies:** Publisher (done), Incident Manager (done)
+
+### 7.5 Feature Implementation Order
+
+| Order | Feature | Effort | Rationale |
+| --- | --- | --- | --- |
+| 1 | Market Depth | 4.5 days | Easiest — data already in pipeline, just needs storage + API |
+| 2 | Service-Level Alerts | 6.5 days | Builds on existing Incident Manager, improves ops readiness |
+| 3 | Peer Groups | 8 days | Depends on Company Fundamentals Service (must be built first) |
+| 4 | User Price Alerts | 12 days | Most complex, needs push notification infra |
+
+**Total new features: ~31 days** (sequential) or **~20 days** (with 2 developers in parallel)
+
+## 8. Migration Phases & Timeline
+
+### Overview Timeline
+
+```text
+Week 1-2:    Phase 1 -- Shadow Mode (parallel run)
+Week 3-4:    Phase 2 -- Internal Consumers (candles, option chain)
+Week 5-6:    Phase 3 -- Live Prices (WebSocket to clients)
+Week 7:      Phase 4 -- Decommission legacy services
+Week 8-9:    Phase 5a -- Remaining design-doc components
+Week 10-13:  Phase 5b -- New features (depth, alerts, peers)
+```
+
+### Phase 1: Shadow Mode (Weeks 1-2)
+
+**Goal:** Verify MDE produces correct data by running in parallel with PML.
+
+| Task | Owner | Days |
+| --- | --- | --- |
+| Deploy MDE to staging EKS cluster | DevOps | 2 |
+| Connect Feed Handler to NSE Direct UDP (staging feed) | Backend | 1 |
+| Run Publisher + write to Redis C1 (shadow) | Backend | 1 |
+| Build comparison tool: MDE Redis vs PML Redis (sample 1000 instruments every 5 sec) | Backend | 3 |
+| Run comparison for 5 trading days, fix discrepancies | Backend | 5 |
+| Migrate historical candle data (ES → TimescaleDB/ClickHouse) | Data Eng | 3 |
+| Migrate 52-week high/low from Redis DB 8 | Data Eng | 1 |
+| Migrate MySQL bodatadb → PostgreSQL (instrument master, fundamentals) | Data Eng | 3 |
+
+**Exit criteria:** <0.01% price discrepancy between MDE and PML over 5 trading days.
+
+### Phase 2: Internal Consumers (Weeks 3-4)
+
+**Goal:** Switch internal (non-user-facing) consumers to MDE.
+
+| Task | Owner | Days |
+| --- | --- | --- |
+| Switch Charts API to serve from MDE (TimescaleDB + ClickHouse) | Backend | 2 |
+| Frontend: Update chart component to use new Charts API | Frontend | 2 |
+| Switch Option Chain page to MDE FNO Data Writer API | Backend | 1 |
+| Frontend: Update option chain component | Frontend | 2 |
+| Switch Market Movers to MDE Market Movers Writer API | Backend | 1 |
+| Frontend: Update movers widget | Frontend | 1 |
+| Run for 5 trading days under real load | QA | 5 |
+
+**Exit criteria:** All internal consumers working on MDE, no regression in functionality.
+
+### Phase 3: Live Prices (Weeks 5-6)
+
+**Goal:** MDE serves live prices to end users via WebSocket.
+
+| Task | Owner | Days |
+| --- | --- | --- |
+| Frontend: WebSocket client rewrite (protobuf + new endpoint) | Frontend | 5 |
+| Frontend: Token format migration (scripId → instrument_token) | Frontend | 3 |
+| Frontend: API URL migration (all remaining endpoints) | Frontend | 3 |
+| Feature flag setup (LaunchDarkly or Redis-based) | Backend | 1 |
+| Rollout: 10% of users → monitor for 2 days | Ops | 2 |
+| Rollout: 50% of users → monitor for 2 days | Ops | 2 |
+| Rollout: 100% of users | Ops | 1 |
+
+**Exit criteria:** 100% of users on MDE WebSocket, error rate <0.01%, latency P99 <50ms.
+
+### Phase 4: Decommission (Week 7)
+
+**Goal:** Shut down legacy PML pricing services.
+
+| Task | Owner | Days |
+| --- | --- | --- |
+| Verify no traffic to old endpoints (check ALB access logs) | Ops | 1 |
+| Scale down old services to 0 replicas (keep images for rollback) | DevOps | 1 |
+| Monitor for 3 trading days with old services at 0 | Ops | 3 |
+| Delete old EKS deployments, ALB rules, Route53 entries | DevOps | 1 |
+| Archive old ES indices (snapshot to S3) | Data Eng | 1 |
+
+**Exit criteria:** All 25 legacy services decommissioned, MDE sole source of truth.
+
+### Phase 5a: Remaining Design-Doc Components (Weeks 8-9)
+
+| Component | Effort | Dependency |
+| --- | --- | --- |
+| Bad Tick Detector | 5 days | None (plugs into Publisher) |
+| Corporate Action Processor | 8 days | Temporal (done) |
+| Company Fundamentals Service | 10 days | CMOTS integration |
+| Self-Healing Supervisor | 5 days | All core services |
+
+### Phase 5b: New Features (Weeks 10-13)
+
+| Feature | Effort | Dependency |
+| --- | --- | --- |
+| Market Depth | 4.5 days | Publisher (done) |
+| Service-Level Alerts | 6.5 days | Publisher + Incident Manager (done) |
+| Peer Groups | 8 days | Company Fundamentals (Phase 5a) |
+| User Price Alerts | 12 days | Publisher (done) |
+
+### Total Timeline Summary
+
+| Phase | Duration | Cumulative |
+| --- | --- | --- |
+| Phase 1: Shadow Mode | 2 weeks | Week 2 |
+| Phase 2: Internal Consumers | 2 weeks | Week 4 |
+| Phase 3: Live Prices | 2 weeks | Week 6 |
+| Phase 4: Decommission | 1 week | Week 7 |
+| Phase 5a: Remaining Components | 2 weeks | Week 9 |
+| Phase 5b: New Features | 4 weeks | Week 13 |
+| **Total** | **13 weeks** |   |
+
+## 9. Risk Matrix
+
+| # | Risk | Impact | Likelihood | Mitigation |
+| --- | --- | --- | --- | --- |
+| 1 | **Feed data mismatch** — MDE prices differ from PML | HIGH | MEDIUM | Shadow mode comparison for 5 days, automated reconciliation |
+| 2 | **Historical candle data loss** during ES→ClickHouse migration | HIGH | LOW | Validate row counts + random sample checksums; keep ES snapshots on S3 for 90 days |
+| 3 | **WebSocket protocol change breaks mobile app** | HIGH | MEDIUM | Feature flag rollout (10%→50%→100%), keep old endpoint running during Phase 3 |
+| 4 | **Token format migration (scripId → instrument_token)** breaks internal services | HIGH | MEDIUM | Build mapping service that translates old→new during transition; deprecate old format after 4 weeks |
+| 5 | **CMOTS API unavailability** during Temporal workflow migration | MEDIUM | LOW | CMOTS has 99.5% uptime; Temporal retries handle transient failures |
+| 6 | **Redis C1/C2 capacity** insufficient for 90K instruments | MEDIUM | LOW | Load test with 90K instruments before Phase 1; ElastiCache auto-scaling |
+| 7 | **Frontend team bandwidth** — 21 days of frontend work | MEDIUM | HIGH | Start frontend changes in Phase 1 (parallel with shadow mode); dedicate 2 frontend devs |
+| 8 | **52-week high/low accuracy** on Day 1 after cutover | LOW | HIGH | Migrate historical 52w values from Redis DB 8 (Section 4.3) |
+| 9 | **Binary protobuf in WebSocket** — debugging harder than JSON | LOW | MEDIUM | Ship protobuf debug tools; keep JSON fallback endpoint for 4 weeks |
+| 10 | **Corporate actions during migration** (stock split mid-Phase 3) | MEDIUM | LOW | Dual-write: process corp actions in both PML and MDE during Phase 2-3 |
+
+## 10. Rollback Strategy
+
+Each phase has an independent rollback plan:
+
+| Phase | Rollback Trigger | Rollback Action | RTO |
+| --- | --- | --- | --- |
+| Phase 1 (Shadow) | >0.1% price discrepancy | Stop MDE shadow, investigate | 0 min (PML unaffected) |
+| Phase 2 (Internal) | API errors >1% or latency >200ms | Feature flag → switch back to old APIs | <5 min |
+| Phase 3 (Live Prices) | WebSocket errors >0.1% or price issues | Feature flag → route to old WebSocket | <5 min |
+| Phase 4 (Decommission) | Any critical issue within 3 days | Scale old services back to previous replica count | <15 min |
+| Phase 5 (New Features) | Feature bugs | Disable feature flag | <1 min |
+
+**Key principle:** Old services are kept at 0 replicas (not deleted) for 4 weeks after Phase 4. Docker images remain in ECR for 90 days. ES index snapshots on S3 for 90 days.
+
+## 11. Repos to Decommission
+
+### Phase 4 Decommission (7 repos — from original design doc)
+
+| # | Repo | Replaced By | Decommission Week |
+| --- | --- | --- | --- |
+| 1 | `data-company-app` | Company Fundamentals Service | Week 7 |
+| 2 | `data-consumer` | Temporal workflows | Week 7 |
+| 3 | `data-screener-consumer` | Discovery & Search Service | Week 7 |
+| 4 | `data-search` | Discovery & Search Service | Week 7 |
+| 5 | `pml-core-market-mover-collector` | Market Movers Writer | Week 7 |
+| 6 | `pml-core-market-movers-service` | Market Movers Writer | Week 7 |
+| 7 | `pml-core-badge-service` | Publisher | Week 7 |
+
+### Additional Repos to Decommission (18 more — identified in this analysis)
+
+| # | Repo | Replaced By | Decommission Week |
+| --- | --- | --- | --- |
+| 8 | `pml-core-tick-data-service` | Broadcast Service | Week 7 |
+| 9 | `pml-core-tick-producer` | Feed Handler | Week 7 |
+| 10 | `data-tick-listener` | Publisher | Week 7 |
+| 11 | `data-price-charts-api` | Charts API | Week 7 |
+| 12 | `data-portfolio-charts-api` | Charts API | Week 7 |
+| 13 | `scrip-master` | Instrument Master | Week 7 |
+| 14 | `scrip-master-service` | Instrument Master | Week 7 |
+| 15 | `data-consumer-service` | Temporal workflows | Week 7 |
+| 16 | `data-internal-apis` | MDE REST APIs | Week 7 |
+| 17 | `data-corporate-action-pull-push` | Corporate Action Processor | Week 9 |
+| 18 | `data-websocket-pull-api` | Broadcast Service | Week 7 |
+| 19 | `pml-open-data-service` | MDE Snapshot API | Week 7 |
+| 20 | `subscription-data-producer` | Broadcast Service | Week 7 |
+| 21 | `eq-marketmovers-app` | Market Movers Writer | Week 7 |
+| 22 | `eq-mo-data-service` | Publisher | Week 7 |
+| 23 | `eq-fms-data-sync-consumer` | Temporal workflows | Week 7 |
+| 24 | `data-holdings` | Migrated to read from MDE Redis | Week 9 (modified, not decommissioned) |
+| 25 | `data-bullfinch-output-consumer` | Portfolio Engine scope | Not decommissioned (different owner) |
+
+**Total decommissioned: 23 repos** (+ 1 modified, + 1 kept for Portfolio Engine)
+
+## Appendix A: Instrument Token Mapping
+
+The biggest breaking change is the token format:
+
+| Current (PML) | New (MDE) | Example |
+| --- | --- | --- |
+| Numeric scripId (`256265`) | String token (`NSE:RELIANCE:EQ`) | RELIANCE equity |
+| Numeric scripId (`11536386`) | String token (`NSE:RELIANCE:FUT:2026-04-24`) | RELIANCE futures |
+| Numeric scripId (`11536642`) | String token (`NSE:RELIANCE:CE:2026-04-24:2500`) | RELIANCE call option |
+
+**Migration approach:** Build a bidirectional mapping service:
+
+- `GET /v1/internal/token-map?scripId=256265` → `NSE:RELIANCE:EQ`
+- `GET /v1/internal/token-map?token=NSE:RELIANCE:EQ` → `256265`
+
+This mapping service is used during the transition period (Phase 2-4). After full migration, the scripId mapping is deprecated.
+
+## Appendix B: CMOTS API Endpoints Used
+
+For reference, these are the CMOTS API endpoints currently called by `data-consumer`:
+
+| # | Endpoint | Data | Frequency | MDE Replacement |
+| --- | --- | --- | --- | --- |
+| 1 | `GET /api/ScripMaster` | Instrument list | Daily 6 AM | Temporal: InstrumentMasterSync |
+| 2 | `GET /api/PivotData` | Pivot points | Daily 7 AM | Temporal: TechnicalDataSync |
+| 3 | `GET /api/CorporateAction` | Corp actions | Daily 8 PM | Temporal: CorporateAction |
+| 4 | `GET /api/TechIndicator` | RSI, MACD, etc. | Daily 9 PM | Temporal: TechnicalDataSync |
+| 5 | `GET /api/BhavCopy` | EOD OHLCV | Daily 6:30 PM | Temporal: EODReconciliation |
+| 6 | `GET /api/NAVData` | MF NAVs | Daily 11 PM | Temporal: NAVUpdate |
+| 7 | `GET /api/QuarterlyResults` | Financials | Quarterly | Temporal: FundamentalsSync |
+| 8 | `GET /api/Shareholding` | Promoter/FII/DII | Quarterly | Temporal: FundamentalsSync |
+| 9 | `GET /api/AnalystReco` | Target prices | Weekly | Temporal: FundamentalsSync |
+| 10 | `GET /api/FIIDIIData` | Institutional flows | Daily 7 PM | Temporal: MarketIntelligence |
+| 11 | `GET /api/News` | Market news | Every 15 min | Temporal: NewsFeed |
+| 12 | `GET /api/IPOData` | IPO listings | Daily 8 AM | Temporal: IPODataSync |
+
+**Base URLs:**
+
+- UAT: `http://paytmapiuat.cmots.com/api`
+- Production: `http://paytmapi.cmots.com/api`
+
+**Authentication:** API key passed as query parameter (`?key=$CMOTS_API_KEY`). Key is stored in AWS Secrets Manager.
