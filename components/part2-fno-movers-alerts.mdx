@@ -921,7 +921,7 @@ When deploying new service versions:
 | **Kafka** | Consumer lag growth | >5 seconds sustained for 30 seconds OR >2x normal lag for 2 minutes |
 | **Redis** | Slow query log, evicted keys, replica lag | >1 slow query per 10 seconds, OR any noeviction-induced write failure |
 | **Feed Health** | Heartbeat missing, sequence gaps | >3 seconds silence on any UDP stream, OR sequence gap > 100 with no fill |
-| **Synthetic Probes** | Service health endpoints (all 9 services) | 3 consecutive failures within 60 seconds |
+| **Synthetic Probes** | Service health endpoints (all 10 services) | 3 consecutive failures within 60 seconds |
 | **WebSocket** | Disconnect rate spike, snapshot fetch latency | Disconnect rate > 5x baseline OR snapshot fetch p99 > 200ms |
 | **ClickHouse** | Insert rate drop, query latency spike | Insert rate < 50% of baseline for 2 minutes, OR query p99 > 500ms |
 

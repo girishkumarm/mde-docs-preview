@@ -3,7 +3,7 @@ title: "Market Data Engine — Technical Design Document"
 ---
 
 <Info>
-**April 2026 — pre-production draft.** Platform consolidated from 15 to 9 services. TimescaleDB fully removed — candles now stored in Redis (hot) + ClickHouse (historical). FNO analytics suite (Max Pain, ATM Straddle, PCR). Corporate action pre-computation with atomic partition swap. Autonomous ops-service with self-healing and LLM-driven RCA. Zero-Error UX with graceful degradation, circuit breakers (Resilience4j + Unleash). Production observability with Prometheus metrics and 8 Grafana dashboards.
+**April 2026 — pre-production draft.** Platform consolidated from 15 to 10 services. TimescaleDB fully removed — candles now stored in Redis (hot) + ClickHouse (historical). FNO analytics suite (Max Pain, ATM Straddle, PCR). Corporate action pre-computation with atomic partition swap. Autonomous ops-service with self-healing and LLM-driven RCA. Zero-Error UX with graceful degradation, circuit breakers (Resilience4j + Unleash). Production observability with Prometheus metrics and 8 Grafana dashboards.
 </Info>
 
 # Market Data Engine — Technical Design Document
@@ -13,7 +13,7 @@ title: "Market Data Engine — Technical Design Document"
 
 **Highlights:**
 
-- **Service consolidation 15 to 9** — charts-writer + charts-historical-writer + charts-api merged into **charts-service**; premarket-scheduler + corporate-action-processor merged into **scheduler-service**; incident-manager + recon-service merged into **ops-service**; company-fundamentals absorbed into **instrument-master**.
+- **Service consolidation 15 to 10** — charts-writer + charts-historical-writer + charts-api merged into **charts-service**; premarket-scheduler + corporate-action-processor merged into **scheduler-service**; incident-manager + recon-service merged into **ops-service**; company-fundamentals absorbed into **instrument-master**.
 - **TimescaleDB fully removed** — 1-minute candles stored in **Redis** (hot, 2-3 day TTL with AOF), historical candles in **ClickHouse** (ReplacingMergeTree + 4 materialized view rollups). Three-layer durability: Redis AOF, ClickHouse batch insert, Kafka replay fallback.
 - **FNO analytics suite** — Max Pain, ATM Straddle, PCR (OI + Volume), day-over-day changes, BSE F&O support, Black-76 for index options.
 - **Corporate action pre-computation** — T-1 pre-computation with shadow tables and atomic partition swap.
@@ -104,7 +104,7 @@ The Market Data Engine is the **single, authoritative source of all market data*
 | Decode + Denormalize | &lt; 0.5 ms | Single-pass binary decode, Java 21 |
 | Duplicate detection (incl. cross-source dedup) | &lt; 0.05 ms | In-process ConcurrentHashMap check |
 | Redis snapshot write | &lt; 0.5 ms | Redis HSET, Lua scripts for atomics |
-| Kafka publish | &lt; 3 ms | Avro, linger.ms=1, acks=all, idempotent |
+| Kafka publish | &lt; 3 ms | Protobuf, linger.ms=1, acks=all, idempotent |
 | **Total feed-to-Redis** | **&lt; 1.5 ms** |   |
 | **Total feed-to-user (WebSocket)** | **&lt; 8 ms** | Via Kafka → Broadcast Service |
 

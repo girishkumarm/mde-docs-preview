@@ -77,7 +77,7 @@ flowchart LR
 
 See **[Architecture Diagrams](/architecture/diagrams)** for the full set (12 decision diagrams + end-to-end flows).
 
-## Core components (9 services)
+## Core components (10 services)
 
 Consolidated from the original set of legacy services. See **[Service Catalog](/architecture/service-catalog)** for Spring application classes, per-service endpoints, and storage details.
 
@@ -149,7 +149,7 @@ Full details: **[Components Part 2 §6.20–6.21](/components/part2-fno-movers-a
 
 <Tabs>
   <Tab title="Current (v4.0)">
-    - **9 consolidated services** — charts-service (3-in-1), scheduler-service (2-in-1), ops-service (2-in-1), instrument-master absorbs company-fundamentals
+    - **10 consolidated services** — charts-service (3-in-1), scheduler-service (2-in-1), ops-service (2-in-1), instrument-master absorbs company-fundamentals
     - **ClickHouse + Redis replaces TimescaleDB** — 1m candles in Redis C2 (hot, AOF), historical in ClickHouse (ReplacingMergeTree + 4 MV rollups), three-layer durability
     - **FNO analytics suite** — Max Pain, ATM Straddle, PCR (OI + Volume), day-over-day changes, BSE F&O, Black-76 for index options
     - **Corporate action pre-computation** — T-1 shadow tables with atomic partition swap
