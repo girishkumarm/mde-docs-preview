@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Market Data Engine — Docs Preview</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.5.1/github-markdown.min.css">
+<!-- Force LIGHT variant to avoid OS dark-mode auto-switch (was breaking code blocks) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@5.5.1/github-markdown-light.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
 <style>
   :root { --sidebar: 280px; --bg: #ffffff; --fg: #1f2328; --muted: #656d76; --accent:#0D9373; --border:#d1d9e0; --sidebar-bg:#f6f8fa; }
@@ -21,6 +22,18 @@
   .markdown-body table tr { background-color: #fff !important; }
   .markdown-body table tr:nth-child(2n) { background-color: #f6f8fa !important; }
   .markdown-body hr { background-color: var(--border) !important; }
+  /* Force light theme on code blocks regardless of OS dark-mode */
+  .markdown-body pre { background-color: #f6f8fa !important; color: #1f2328 !important; }
+  .markdown-body pre code, .markdown-body pre code.hljs { background: transparent !important; color: #1f2328 !important; }
+  .markdown-body pre code.hljs { padding: 0 !important; }
+  .hljs { background: transparent !important; color: #1f2328 !important; }
+  .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link { color: #cf222e !important; }
+  .hljs-string, .hljs-attr, .hljs-symbol, .hljs-bullet, .hljs-addition { color: #0a3069 !important; }
+  .hljs-title, .hljs-name, .hljs-type, .hljs-attribute, .hljs-built_in { color: #8250df !important; }
+  .hljs-number, .hljs-meta { color: #0550ae !important; }
+  .hljs-comment, .hljs-quote, .hljs-deletion { color: #6e7781 !important; }
+  .hljs-doctag, .hljs-strong { font-weight: bold; }
+  .hljs-emphasis { font-style: italic; }
   header { position:fixed; top:0; left:0; right:0; height:52px; background:var(--accent); color:white; padding:0 20px; display:flex; align-items:center; justify-content:space-between; z-index:100; box-shadow:0 1px 3px rgba(0,0,0,.1); }
   header h1 { margin:0; font-size:16px; font-weight:600; }
   header .meta { font-size:12px; opacity:.85; }
