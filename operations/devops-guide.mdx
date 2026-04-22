@@ -4,21 +4,18 @@ title: "Market Data Engine — DevOps Operating Guide (Staging): Database Strate
 
 # MDE — DevOps Operating Guide (Staging)
 
-> **v2 — shipped (2026-04-20)** — the v2 candle path referenced throughout this doc (candle-writer dual-sink, Redis running candles, ClickHouse ReplacingMergeTree + 4 MV rollups, TimescaleDB removed, charts-api `source` switch + UDF-compat `/v1/price-charts`) is merged to `main` in the market-data-engine repo. Shipped commits on `main`:
+> **v3 — consolidated (2026-04-22)** — MDE consolidated from 15 to 10 deployable services. TimescaleDB completely removed. ClickHouse is the sole time-series store (ReplacingMergeTree + 4 MV rollups). Two Redis clusters: C1 (real-time snapshots, RDB persistence) and C2 (candles + movers + FNO + alerts, AOF persistence). All services built with Jib (no Dockerfile), base image Eclipse Temurin 21-jre-alpine.
 >
-> - `35560c0` — v2 candles ClickHouse schema (ReplacingMergeTree + MV rollups) + TimescaleDB drop
-> - `cf966ec` — charts-historical-writer V2_1 migration
-> - `22b566c` — merge candle-writer (new v2 dual-sink service)
-> - `bb3f8ff` — charts-api v2 endpoints (`POST /v1/price-charts` UDF, `GET /v1/running-candles`, `GET /v1/candles?source=`)
-> - `a9863de` — charts-api Redis auto-config excludes fix
-> - `22e3db6` — shared/common reactive MDC `WebFilter`
-> - `1e4312a` — sequential flow charts (decision diamonds, start/end pills)
-> - `dbab118` — k6 candles bake-off script (Redis vs ClickHouse)
+> **Service consolidation merges:**
+> - `charts-writer` + `charts-historical-writer` + `charts-api` merged into `charts-service`
+> - `recon-service` + `incident-manager` merged into `ops-service`
+> - `premarket-scheduler` absorbed into `scheduler-service`
+> - `company-fundamentals` absorbed into `instrument-master`
 >
-> DevOps can use this guide as the provisioning target for staging. Production deploy still gated by readiness checklist (Confluence 698056921) and bake-off (§9).
+> DevOps can use this guide as the provisioning target for staging. Production deploy still gated by readiness checklist (Confluence 698056921).
 
 **Scope**: Staging environment on EKS `ap-south-1`. Minimum viable sizing, single-AZ where safe.
-**Last updated**: 2026-04-20
+**Last updated**: 2026-04-22
 **Owner**: [girish3.kumar@paytm.com](mailto:girish3.kumar@paytm.com)
 
 ---
@@ -27,44 +24,42 @@ title: "Market Data Engine — DevOps Operating Guide (Staging): Database Strate
 
 | Item | Spec | Count | Notes | **Owner** | **Status** |
 | --- | --- | --- | --- | --- | --- |
-| EKS cluster | K8s ≥ 1.28 | 1 | Namespace `mde-staging` |   | Done |
+| EKS cluster | K8s >= 1.28 | 1 | Namespace `mde-staging` |   | Done |
 | Worker nodes | `m6i.xlarge` (4 vCPU / 16 GB) | **2** | Single node group, single AZ `ap-south-1a` |   |   |
-| RDS PostgreSQL 16 | `db.t4g.medium` (2 vCPU / 4 GB), Single-AZ | 1 | 50 GB gp3. DBs: `mde`, `incident`, `temporal` |   |   |
-| ElastiCache Redis 7.2 — Feed (Cluster 1) | `cache.r7g.xlarge` (26 GB), 1 primary + 1 replica, cluster-mode-disabled | 2 nodes | AUTH password in Secrets Manager |   | Done |
-| ElastiCache Redis 7.2 — API (Cluster 2) | `cache.r7g.medium` (3.2 GB), single node | 1 node | API cache + movers zsets |   | Pending, cache.r7g.medium doesn't exist, waiting for confimation. |
-| Kafka (Strimzi on EKS) | 1 broker, KRaft mode | 1 | 20 GB gp3 PVC |   |   |
-| ClickHouse (operator, single instance) | `m6i.large`-equivalent pod, non-replicated MergeTree engines | 1 | 200 GB gp3 PVC. No ZooKeeper (single replica). |   |   |
-| Temporal (on EKS) | 1× history + 1× matching + 1× frontend + 1× worker | 4 pods | Uses `temporal` DB on the RDS above |   |   |
+| RDS PostgreSQL 15 | `db.r6g.large` (2 vCPU / 16 GB), Single-AZ | 1 | 50 GB gp3. DBs: `instrument_master`, `alert_engine`, `scheduler_service`, `ops_service`, `temporal` |   |   |
+| ElastiCache Redis 7.2 — C1 (Real-time Snapshots) | `cache.r6g.large`, 3 masters + 3 replicas, cluster-mode-enabled | 6 nodes | maxmemory 8GB, RDB snapshots every 5 min. AUTH in Secrets Manager |   |   |
+| ElastiCache Redis 7.2 — C2 (Candles + Movers + FNO + Alerts) | `cache.r6g.xlarge`, 3 masters + 3 replicas, cluster-mode-enabled | 6 nodes | maxmemory 16GB, AOF (appendfsync everysec). AUTH in Secrets Manager |   |   |
+| Kafka (MSK) | 3 brokers, `m5.large` | 3 | 8 topics, retention per topic (see section 3.2) |   |   |
+| ClickHouse (Keeper cluster or managed) | 3-node cluster | 3 | 500 GB gp3 EBS initial. `candles_1m` ReplacingMergeTree + 4 MV rollup tables |   |   |
+| Temporal (on EKS) | 1x history + 1x matching + 1x frontend + 1x worker | 4 pods | Uses `temporal` DB on the RDS above |   |   |
 | S3 buckets | `mde-staging-scripmaster` (30 GB), `mde-staging-backups` (100 GB, 14-day retention) | 2 | Versioning ON scripmaster |   |   |
 | NAT Gateway | Single-AZ | 1 | For S3 / ECR / Secrets Manager egress |   | Done |
-| ALB (internal) | 1 × Application Load Balancer | 1 | Fronts charts-api + instrument-master + broadcast-service |   |   |
-| Route 53 private zone | `mde-staging.internal…` | 1 | — |   | Done |
-| Secrets Manager | 1 per role | ~8 secrets | See §4 |   |   |
+| ALB (internal) | 1 x Application Load Balancer | 1 | Fronts charts-service + instrument-master + broadcast-service |   |   |
+| Route 53 private zone | `mde-staging.internal...` | 1 | -- |   | Done |
+| Secrets Manager | 1 per role | ~8 secrets | See section 4 |   |   |
 | Prometheus + Grafana + Loki | kube-prometheus-stack + loki-distributed | 1 stack | 50 GB gp3 shared PVC |   | Done |
-| ECR repositories | 1 per service | 11 | `mde/<service>` |   |   |
+| ECR repositories | 1 per service | 10 | `mde/<service>`, built via Jib (Temurin 21-jre-alpine base) |   |   |
 
 ---
 
-## 2. Kubernetes workloads (11 services)
+## 2. Kubernetes workloads (10 services)
 
-| Service | Replicas | CPU r/l | RAM r/l | App:Mgmt port |
-| --- | --- | --- | --- | --- |
-| `instrument-master` | 1 | 250m/1 | 512Mi/1Gi | 8081:9081 |
-| `feed-handler` | 1 | 500m/2 | 1Gi/2Gi | 8082:9082 (hostNetwork for UDP multicast) |
-| `publisher` | 1 | 250m/1 | 512Mi/1Gi | 8083:9083 |
-| `market-movers-writer` | 1 | 250m/1 | 512Mi/1Gi | 8084:9084 |
-| `fno-data-writer` | 1 | 250m/1 | 512Mi/1Gi | 8085:9085 |
-| `candle-writer` | 1 | 500m/1 | 1Gi/2Gi | 8086:9086 |
-| `broadcast-service` | 2 | 250m/1 | 512Mi/1Gi | 8087:9087 |
-| `charts-api` | 1 | 250m/1 | 512Mi/1Gi | 8188:9188 |
-| `recon-service` | 1 | 250m/500m | 256Mi/512Mi | 8089:9089 |
-| `premarket-scheduler` | 1 | 250m/500m | 256Mi/512Mi | 8091:9091 |
-| `incident-manager` | 1 | 250m/500m | 256Mi/512Mi | 8092:9092 |
-| `jira-mock` | 1 | 100m/250m | 128Mi/256Mi | 8095:9095 |
-
-Plus feed simulator pod: 1 × `250m/1 CPU, 512Mi RAM`.
+| Service | Type | Replicas | CPU (req/lim) | Memory (req/lim) | App:Mgmt port | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| `instrument-master` | Deployment | 2 | 500m/1 | 512Mi/1Gi | 8081:9081 | Absorbs company-fundamentals |
+| `feed-handler` | Deployment | 2 | 1/2 | 1Gi/2Gi | 8082:9082 | Binary packet decoder, LZO decompression |
+| `publisher` | Deployment | 3 | 500m/1 | 512Mi/1Gi | 8083:9083 | Headless writer, no HTTP API |
+| `broadcast-service` | Deployment | 3-10 (HPA) | 500m/1 | 512Mi/1Gi | 8087:9087 | HPA on connection count, 5000/pod limit |
+| `charts-service` | Deployment | 3 | 1/2 | 1Gi/2Gi | 8088:9088 | Merged writer + historical + API, partition-based scaling |
+| `market-movers-writer` | Deployment | 2 | 500m/1 | 512Mi/1Gi | 8084:9084 | Consumes 1m candles (not raw ticks) |
+| `fno-data-writer` | Deployment | 2 | 1/2 | 1Gi/2Gi | 8085:9085 | Greeks computation, IV solver |
+| `alert-engine` | Deployment | 2 | 500m/1 | 512Mi/1Gi | 8086:9086 | Redis index reconciliation on restart |
+| `scheduler-service` | Deployment | 1 | 500m/1 | 512Mi/1Gi | 8091:9091 | Temporal worker, two task queues |
+| `ops-service` | Deployment | 1 | 500m/1 | 512Mi/1Gi | 8089:9089 | Recon + incidents + self-healing |
 
 All services: liveness `/actuator/health/liveness`, readiness `/actuator/health/readiness`, `terminationGracePeriodSeconds: 45`.
+
+Build: Jib (Gradle plugin, no Dockerfile needed). Base image: Eclipse Temurin 21-jre-alpine. 10 Docker images (one per service) pushed to ECR.
 
 ---
 
@@ -72,64 +67,82 @@ All services: liveness `/actuator/health/liveness`, readiness `/actuator/health/
 
 ### 3.1 PostgreSQL (RDS)
 
-- Databases: `mde`, `incident`, `temporal` — one role per DB.
+- Instance: RDS PostgreSQL 15, `db.r6g.large`.
+- Databases: `instrument_master` (instruments + fundamentals), `alert_engine`, `scheduler_service` (premarket + corporate actions), `ops_service` (incidents + recon), `temporal` -- one role per DB.
 - Flyway migrations run in-service on boot.
 - Backups: automated daily snapshots, 7-day retention.
 - Max connections: 100.
 
-### 3.2 Kafka
+### 3.2 Kafka (MSK)
 
-- Topics to pre-create (retention `7 200 000 ms` = 2 h for tick topics; `604 800 000 ms` = 7 d for event topics):
+- MSK cluster: 3 brokers, `m5.large`.
+- 8 topics to pre-create:
 
-| Topic | Partitions | RF | cleanup |
-| --- | --- | --- | --- |
-| `pml-marketfeed-nse-equity-ticks` | 6 | 1 | delete |
-| `pml-marketfeed-nse-fno-ticks` | 12 | 1 | delete |
-| `pml-marketfeed-nse-index-ticks` | 3 | 1 | delete |
-| `pml-marketfeed-bse-equity-ticks` | 3 | 1 | delete |
-| `pml-marketfeed-bse-fno-ticks` | 3 | 1 | delete |
-| `pml-marketfeed-bse-index-ticks` | 3 | 1 | delete |
-| `mde-instrument-master-events` | 3 | 1 | compact |
-| `mde-corporate-actions` | 3 | 1 | compact |
-| `mde-recon-reports` | 3 | 1 | delete |
-| `mde-incident-alerts` | 3 | 1 | compact |
+| Topic | Partitions | RF | Retention | Cleanup |
+| --- | --- | --- | --- | --- |
+| `pml-marketfeed-nse-equity-ticks` | 6 | 3 | 7 days | delete |
+| `pml-marketfeed-nse-fno-ticks` | 12 | 3 | 7 days | delete |
+| `pml-marketfeed-nse-index-ticks` | 3 | 3 | 7 days | delete |
+| `pml-marketfeed-bse-equity-ticks` | 3 | 3 | 7 days | delete |
+| `mde-candles-1m` | 6 | 3 | 30 days | delete |
+| `mde-instrument-master-events` | 3 | 3 | 7 days | compact |
+| `mde-alert-events` | 3 | 3 | 7 days | delete |
+| `mde-status-events` | 3 | 3 | 7 days | compact |
 
 ### 3.3 ClickHouse
 
+- Deployment: ClickHouse Keeper (3-node cluster) or managed ClickHouse Cloud.
+- Storage: EBS gp3, 500GB initial.
 - Database: `mde`.
-- Engines: `MergeTree` (single-replica) for `candles_1m`; `AggregatingMergeTree` for `candles_5m/15m/1h/1d`. No `ReplicatedMergeTree`, no ZooKeeper.
+- Tables:
+  - `candles_1m` -- ReplacingMergeTree, partitioned by `toYYYYMMDD(timestamp)`.
+  - 4 materialized view rollup tables: `candles_5m`, `candles_15m`, `candles_1h`, `candles_1d`.
 - Materialized views auto-populate the rollup tables from `candles_1m`.
-- TTL: 60 d for `candles_1m` and `candles_5m`, 180 d for `candles_15m`/`candles_1h`, 1 y for `candles_1d`.
-- Daily `clickhouse-backup` → S3 `mde-staging-backups/clickhouse/` (14-d retention).
+- Retention: `candles_1m` = 2 years, rollups (`5m`, `15m`, `1h`, `1d`) = 5 years.
+- Backup: daily S3 backup via `clickhouse-backup` to `mde-staging-backups/clickhouse/` (14-day retention).
 
-### 3.4 Redis Cluster 1 — Feed (cache.r7g.xlarge, 1 primary + 1 replica)
+### 3.4 Redis Cluster 1 (C1) — Real-time Snapshots
 
-- `maxmemory-policy volatile-lru`, `appendonly yes`, `appendfsync everysec`.
+- Instance: 3 masters, 3 replicas, `cache.r6g.large`, maxmemory 8GB.
+- `maxmemory-policy volatile-lru`.
+- Persistence: RDB snapshots every 5 min.
 - Key patterns:
 
-| Pattern | TTL |
-| --- | --- |
-| `CANDLE:RUN:5s\\|15s\\|30s\\|1m:{token}` | 120 s |
-| `CANDLE:1m:{token}:{epoch_min}` + index ZSET | 3 h |
-| `CANDLE:5m:{token}:{epoch_5m}` + index | 6 h |
-| `CANDLE:15m:...` + index | 1 d |
-| `CANDLE:1h:...` + index | 7 d |
-| `FEED_PP_NSE_E:{pmlId}` | 8 h |
-| `MGR_NSE_E_OHLC\\|PC\\|LC_UC:{pmlId}` | 8 h |
-| `MGR_NSE_E_52_WK_HL:{pmlId}` | 24 h |
+| Pattern | TTL | Description |
+| --- | --- | --- |
+| `FEED_PP_{exchange}_{segment}:{pmlId}` | 8 h | Feed price packet |
+| `OHLC_{exchange}_{segment}:{pmlId}` | 8 h | OHLC data |
+| `PC_{exchange}_{segment}:{pmlId}` | 8 h | Previous close |
+| `LC_UC_{exchange}_{segment}:{pmlId}` | 8 h | Circuit limits |
+| `52WK_{exchange}_{segment}:{pmlId}` | 24 h | 52-week high/low |
+| `DEPTH_{exchange}_{segment}:{pmlId}` | 8 h | Market depth |
+| `MKT_STATUS:{exchange}:{segment}` | 8 h | Market status |
 
-- Daily snapshot to S3 (ElastiCache automatic, 7-d retention).
+- Daily snapshot to S3 (ElastiCache automatic, 7-day retention).
 
-### 3.5 Redis Cluster 2 — API (cache.r7g.medium, single node)
+### 3.5 Redis Cluster 2 (C2) — Candles + Movers + FNO + Alerts
 
+- Instance: 3 masters, 3 replicas, `cache.r6g.xlarge`, maxmemory 16GB.
 - `maxmemory-policy noeviction` — writers trim ZSETs explicitly.
-- Holds `MOVERS:MOST_ACTIVE`, `MOVERS:TOP_GAINERS`, `MOVERS:TOP_LOSERS` + charts-api response cache with 60-s TTL.
+- Persistence: AOF (`appendfsync everysec`) — critical for candle durability.
+- **Why AOF on C2**: 1-minute candles are the hot data store and must survive restarts without data loss. RDB snapshots (used on C1) can lose up to 5 minutes of data. AOF with everysec provides at most 1 second of data loss.
+- Key patterns:
+
+| Pattern | TTL | Description |
+| --- | --- | --- |
+| `candle:1m:{token}:{epoch_min}` | 3 h | 1-minute candle hash |
+| `candle:idx:{token}` | 3 h | Candle ZSET index |
+| `MOVERS:{category}:{exchange}:{segment}` | 8 h | Market movers ZSET |
+| `FNO:{type}:{exchange}:{expiry}` | 8 h | FNO analytics |
+| `ALERT:IDX:{userId}` | no TTL | Alert Redis index |
+| `BOD:GUARD:{date}` | 24 h | BOD preload guard key |
 
 ### 3.6 Temporal
 
-- Schedules: `im-daily-sync`, `recon-post-market-daily`, `bod-preload-daily`.
+- Schedules: `im-daily-sync`, `bod-preload-daily`, `recon-post-market-daily`, `corporate-action-precompute`.
 - Persistence: `temporal` DB on the shared RDS instance.
 - Namespace: `default`.
+- Task queues: `scheduler-queue` (BOD/premarket), `ops-queue` (recon/incidents).
 
 ---
 
@@ -137,19 +150,19 @@ All services: liveness `/actuator/health/liveness`, readiness `/actuator/health/
 
 | Secret | Consumer |
 | --- | --- |
-| `mde-staging-postgres-mde` | instrument-master, recon-service |
-| `mde-staging-postgres-incident` | incident-manager |
+| `mde-clickhouse-credentials` | charts-service |
+| `mde-redis-c1-auth` | publisher, broadcast-service, feed-handler |
+| `mde-redis-c2-auth` | charts-service, market-movers-writer, fno-data-writer, alert-engine |
+| `mde-postgresql-credentials` | instrument-master, alert-engine, scheduler-service, ops-service |
 | `mde-staging-postgres-temporal` | Temporal |
-| `mde-staging-redis-feed-auth` | publisher, broadcast-service, charts-api, candle-writer |
-| `mde-staging-redis-api-auth` | charts-api, market-movers-writer, fno-data-writer |
-| `mde-staging-clickhouse-mde` | candle-writer, charts-api |
 | `mde-staging-kafka-scram` | all Kafka producers + consumers |
 | `mde-staging-slack-webhook` | AlertManager |
+| `mde-staging-s3-access` | instrument-master (bhavcopy), ops-service (recon reports) |
 
 IRSA roles for S3 + Secrets Manager access:
 
 - `mde-instrument-master-sa` — R/W `mde-staging-scripmaster`, R Secrets Manager
-- `mde-candle-writer-sa`, `mde-charts-api-sa`, `mde-publisher-sa`, `mde-broadcast-service-sa`, `mde-recon-service-sa`, `mde-incident-manager-sa` — R Secrets Manager
+- `mde-charts-service-sa`, `mde-publisher-sa`, `mde-broadcast-service-sa`, `mde-ops-service-sa`, `mde-scheduler-service-sa` — R Secrets Manager
 
 ---
 
@@ -161,20 +174,51 @@ IRSA roles for S3 + Secrets Manager access:
 - Route 53 private zone `mde-staging.internal.ap-south-1.staging.lending-v2.risk.pai.mypaytm.com`.
 - Hosts:
 
-- `mde-dashboard.<zone>` → instrument-master
-- `mde-charts-api.<zone>` → charts-api
-- `mde-broadcast.<zone>` → broadcast-service (WebSocket)
-- `mde-grafana.<zone>` → Grafana
-- `mde-temporal.<zone>` → Temporal UI
+- `mde-dashboard.<zone>` -> instrument-master
+- `mde-charts.<zone>` -> charts-service
+- `mde-broadcast.<zone>` -> broadcast-service (WebSocket)
+- `mde-grafana.<zone>` -> Grafana
+- `mde-temporal.<zone>` -> Temporal UI
 
 ---
 
 ## 6. Observability
 
-- Prometheus: scrape interval 15 s, retention 7 d, 30 GB PVC.
-- Grafana: Okta SSO, 7 pre-provisioned dashboards (MDE Overview, Feed Handler Flow, Publisher & Redis, Charts Pipeline, Broadcast & WebSocket, MDE Firing Alerts, Candles v2 Redis-vs-ClickHouse).
-- Loki: 7-d retention, 20 GB PVC.
-- AlertManager routes: Slack `#mde-staging-alerts` for warnings; webhook → incident-manager for critical.
+### 6.1 Prometheus
+
+- Scrape interval 15s, retention 7d, 30 GB PVC.
+- All 10 services expose metrics via Micrometer on management port (9xxx).
+- Metric naming convention: `mde_{service}_{metric}` (e.g., `mde_feed_handler_packets_received_total`, `mde_charts_service_clickhouse_insert_latency`).
+
+### 6.2 Grafana Dashboards (8 dashboards)
+
+| # | Dashboard | Key Panels |
+| --- | --- | --- |
+| 1 | **MDE Overview** (single pane of glass) | 10 service health status, key TPS gauges, data flow diagram, error rate heatmap |
+| 2 | **Feed Handler & Publisher** | Packets/sec by exchange, decode errors, LZO decompression latency, Redis C1 write latency, dedup ratio |
+| 3 | **Charts Pipeline** | Candles/min aggregated, ClickHouse batch insert rate, API query latency (p50/p95/p99), cache hit ratio |
+| 4 | **Market Movers & FNO** | Signals/sec, ZSET writes/sec, Greeks compute duration, IV solver iterations, max pain calculation time |
+| 5 | **Broadcast Service** | WebSocket active connections, messages/sec, slow consumer evictions, Kafka consumer lag, HPA replica count |
+| 6 | **Alerts & Operations** | Active alerts gauge, alerts triggered/min, recon mismatches, auto-heal actions taken, incident MTTR |
+| 7 | **Infrastructure** | Kafka broker health + consumer lag, Redis C1/C2 memory + ops/sec, ClickHouse query latency + merge rate, PostgreSQL connections + slow queries, JVM heap + GC metrics |
+| 8 | **Business KPIs** | Live instrument count, data freshness (last tick age), BOD completeness percentage, market hours timeline, candle coverage percentage |
+
+### 6.3 Distributed Tracing
+
+- Micrometer Tracing + Brave/Zipkin propagation across all services.
+- Kafka message headers carry `traceId` for log correlation.
+- Trace context propagated through Redis pub/sub and Temporal workflows.
+
+### 6.4 Structured Logging
+
+- Format: JSON via Logstash Logback encoder.
+- MDC fields: `service`, `traceId`, `spanId`, `instrumentToken`.
+- Separate marker-based appenders for key packet types (TRADE, INDEX, OHLC, MBP, MKT_STATUS).
+- Loki: 7-day retention, 20 GB PVC.
+
+### 6.5 Alerting
+
+- AlertManager routes: Slack `#mde-staging-alerts` for warnings; webhook -> ops-service for critical.
 
 ---
 
@@ -185,40 +229,44 @@ ap-south-1, on-demand, 730 h/month.
 | Line item | Spec | Monthly (US $) |
 | --- | --- | --- |
 | EKS control plane | managed | 73 |
-| Worker nodes | 2 × m6i.xlarge | 294 |
-| RDS PostgreSQL | db.t4g.medium single-AZ | 50 |
-| RDS storage | 50 GB gp3 | 6 |
-| Kafka storage | 20 GB gp3 | 2 |
-| ClickHouse storage | 200 GB gp3 | 18 |
-| **Redis Cluster 1 (feed)** | 2 × cache.r7g.xlarge | **732** |
-| Redis Cluster 2 (API) | 1 × cache.r7g.medium | 92 |
-| Observability storage | 50 GB gp3 | 5 |
-| S3 | 130 GB | 3 |
-| Secrets Manager | 8 secrets × $0.40 | 3 |
-| ECR | 20 GB stored | 2 |
-| NAT Gateway | 1 × + ~100 GB data processing | 37 |
-| ALB | 1 × internal | 20 |
+| Worker nodes | 2 x m6i.xlarge (~10 pods total) | 294 |
+| RDS PostgreSQL | db.r6g.large single-AZ, 50 GB gp3 | 180 |
+| ClickHouse cluster | 3 nodes, 500 GB gp3 EBS | 350 |
+| **Redis Cluster 1 (C1 — snapshots)** | 6 nodes (3 masters + 3 replicas) r6g.large | **540** |
+| **Redis Cluster 2 (C2 — candles/movers/FNO/alerts)** | 6 nodes (3 masters + 3 replicas) r6g.xlarge | **900** |
+| MSK Kafka | 3 x m5.large brokers | 280 |
+| S3 | 130 GB (scripmaster + backups) | 3 |
+| Secrets Manager | 8 secrets x $0.40 | 3 |
+| ECR | 10 repos, ~20 GB stored | 2 |
+| NAT Gateway | 1 x + ~100 GB data processing | 37 |
+| ALB | 1 x internal | 20 |
 | Route 53 | 1 zone | 1 |
+| Observability (Prometheus + Grafana + Loki) | 50 GB gp3 | 5 |
 | Cross-AZ data transfer | minimal (single-AZ) | 5 |
 | CloudWatch | logs + metrics | 10 |
-| **Total** |   | **US $1,353 / month** |
+| **Total** |   | **US $2,703 / month** |
+
+<Note>
+Cost increase vs previous estimate is due to: (1) Redis cluster mode with replicas on both clusters (was single-node C2 previously), (2) ClickHouse 3-node Keeper cluster (was single-instance), (3) MSK 3-broker cluster (was single Strimzi broker), (4) RDS upgraded to r6g.large for 5 databases. These are production-like sizing -- staging can start smaller and scale up.
+</Note>
 
 ---
 
 ## 8. Pre-flight checklist
 
 - [ ] `mde-staging` namespace + NetworkPolicy scoped to the namespace
-- [ ] RDS PostgreSQL with empty `mde`, `incident`, `temporal` databases + 3 roles
-- [ ] Redis Cluster 1 (2×cache.r7g.xlarge) and Cluster 2 (cache.r7g.medium) provisioned
-- [ ] Kafka broker up + 10 topics pre-created with specified partition counts
-- [ ] ClickHouse pod up + `mde` database accessible
+- [ ] RDS PostgreSQL 15 with empty `instrument_master`, `alert_engine`, `scheduler_service`, `ops_service`, `temporal` databases + 5 roles
+- [ ] Redis Cluster 1 (C1): 3 masters + 3 replicas, r6g.large, RDB persistence, maxmemory 8GB
+- [ ] Redis Cluster 2 (C2): 3 masters + 3 replicas, r6g.xlarge, AOF persistence, maxmemory 16GB
+- [ ] ClickHouse 3-node Keeper cluster up + `mde` database + `candles_1m` table + 4 MV rollup tables
+- [ ] MSK Kafka 3-broker cluster + 8 topics pre-created with specified partition counts
 - [ ] S3 buckets `mde-staging-scripmaster` and `mde-staging-backups` with lifecycle rules
-- [ ] Secrets Manager populated (§4)
+- [ ] Secrets Manager populated (see section 4)
 - [ ] IRSA roles attached to ServiceAccounts
-- [ ] ECR repositories created for 11 services
+- [ ] ECR repositories created for 10 services (`mde/<service>`)
 - [ ] Route 53 private zone + cert-manager issuers
-- [ ] Prometheus + Grafana + Loki deployed + 7 dashboards loaded
-- [ ] AlertManager webhook to `#mde-staging-alerts` + incident-manager
+- [ ] Prometheus + Grafana + Loki deployed + 8 dashboards loaded
+- [ ] AlertManager webhook to `#mde-staging-alerts` + ops-service
 - [ ] ArgoCD app pointing at `deploy/staging/`
 - [ ] Feed simulator container image in ECR
 
@@ -229,16 +277,3 @@ ap-south-1, on-demand, 730 h/month.
 - **Owner**: [girish3.kumar@paytm.com](mailto:girish3.kumar@paytm.com)
 - **Oncall**: `#mde-oncall` Slack
 - **Related pages**: Confluence 697729116 (staging deployment), 698482697 (Candles v2 design), 697860144 (Kafka vs Redis defense), 698482839 (v2 Oncall Runbook), 698056921 (v2 Production Readiness Checklist)
-
----
-
-## Appendix — live verification (2026-04-20)
-
-Proof that v2 code shipped to `main` works end-to-end. DevOps can use this as the spec-vs-reality bake-off target when provisioning staging to match §1 and §3.
-
-- **11/12 services live on local Mac stack** — reference doc: Confluence 698482697 (Candles v2 design).
-- **ClickHouse** `mde.candles_1m` — at **7,000+ rows** and growing via the ReplacingMergeTree + 4 MV rollups per §3.3.
-- **Redis Cluster 1** — `CANDLE:RUN:5s:*` running-candle hashes populating at 1 s flush cadence; closed `CANDLE:1m:*` hashes + ZSET indexes populating on minute rollover, matching the key patterns in §3.4.
-- **All 4 charts-api endpoints smoke-verified** — `GET /v1/candles`, `GET /v1/candles?source=redis|clickhouse|auto`, `GET /v1/running-candles`, `POST /v1/price-charts` (UDF-compat).
-- **Shipped SHAs on **`main`: `35560c0`, `cf966ec`, `22b566c`, `bb3f8ff`, `a9863de`, `22e3db6`, `1e4312a`, `dbab118` — see top-of-page callout for per-commit description.
-- **Next step**: DevOps provisions staging to match §1 (infra) and §3 (database strategies). Local stack is the reference for what "healthy" looks like post-provisioning.

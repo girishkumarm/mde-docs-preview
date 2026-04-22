@@ -3,161 +3,399 @@ title: "Market Data Engine — Components Part 2 (FNO, Market Movers, Alerts, Op
 ---
 
 <Info>
-**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+**April 2026 — pre-production draft.** Covers FNO Data Writer (Greeks, Max Pain, ATM Straddle, PCR, day-over-day changes, BSE F&O), Market Movers (candle-driven architecture), Alert Engine (restart reconciliation, BOD reference), Corporate Actions (T-1 pre-computation with ClickHouse shadow tables), Autonomous Ops Hub (market-hours aware self-healing), Resilience (zero-error UX, circuit breakers, feature flags, request hedging).
 </Info>
 
-## 6. Component Deep Dives — Part 2 (FNO → Expiry → Resilience → Incident Manager)
+## 6. Component Deep Dives — Part 2 (FNO, Movers, Alerts, Scheduler, Corporate Actions, Ops, Resilience)
 
 ### 6.12 FNO Data Writer
 
-**What it does:** Consumes F&O tick data from Kafka, computes option analytics + Greeks, stores in Redis Cluster 2. Handles **all F&O instrument types** — futures AND options.
+**What it does:** Consumes F&O tick data from Kafka, computes option analytics (Greeks, IV, Max Pain, ATM Straddle, PCR, day-over-day changes), stores enriched data in Redis Cluster 2. Handles **all F&O instrument types** across NSE and BSE -- futures AND options.
 
-**Input:** Kafka topics (`pml-marketfeed-nse-derivative-ticks`, `pml-marketfeed-bse-derivative-ticks`) **Output:** Redis Cluster 2 (option chain, option insights, futures data)
+**Input:** Kafka topics (`mde-ticks-nse-derivative`, `mde-ticks-bse-derivative`) **Output:** Redis Cluster 2 (option chain, option insights, futures data)
 
-**FNO data Redis schema (matching current):**
+<AccordionGroup>
+  <Accordion title="FNO Data Redis Schema (per contract)">
+    ```
+    Fields per instrument (stored in Redis Hash):
+        instrumentToken     String    Unique instrument identifier (e.g., NSE:NIFTY:25APR2026:22500:CE)
+        exchange            String    Exchange code (NSE, BSE)
+        segment             String    Market segment (NSE_DERIVATIVE, BSE_DERIVATIVE)
+        securityId          Integer   Exchange-assigned security identifier
+        name                String    Security name
+        instrument          String    Instrument type (FUTSTK, FUTIDX, OPTSTK, OPTIDX)
+        symbol              String    Trading symbol
+        lotSize             Integer   Contract lot size
+        expiryDate          String    Contract expiry date (yyyy-MM-dd)
+        strikePrice         Double    Option strike price (NULL for futures)
+        optionType          String    CE / PE (NULL for futures)
+        underlyingScripCode Long      Underlying security code
+        underlyingSymbol    String    Underlying trading symbol
+        ltp                 Float     Last traded price
+        volume              Long      Traded volume
+        oi                  Long      Open interest
+        ltt                 Long      Last trade time (epoch ms)
+        tradedContracts     Long      Number of contracts traded
+        pClose              Float     Previous day close price
+        pOi                 Long      Previous day open interest
+        oiChange            Long      Current OI - previous day OI
+        oiChangePct         Double    (oiChange / pOi) x 100
+        volumeChange        Long      Current volume - previous day volume
+        priceChange         Float     Current LTP - previous day close
+        priceChangePct      Double    (priceChange / pClose) x 100
+        spotPrice           Float     Underlying spot price
+        delta               Double    Delta -- price sensitivity
+        gamma               BigDecimal  Gamma -- delta sensitivity
+        vega                Double    Vega -- volatility sensitivity
+        theta               Double    Theta -- time decay
+        rho                 Double    Rho -- interest rate sensitivity
+        iv                  Double    Implied volatility
+        feedReceiveTime     Long      Server-side feed receive timestamp
+    ```
+  </Accordion>
 
-```
-Fields per instrument:
-    pmlId           Long      Unique record identifier
-    exchange        String    Exchange code (NSE, BSE)
-    segment         String    Market segment
-    securityId      Integer   Security identifier
-    name            String    Security name
-    instrument      String    Instrument type (FUTSTK, FUTIDX, OPTSTK, OPTIDX)
-    symbol          String    Trading symbol
-    lotSize         Integer   Contract lot size
-    expiryDate      String    Contract expiry date
-    strikePrice     Double    Option strike price (NULL for futures)
-    optionType      String    CE / PE (NULL for futures)
-    underlyingScripCode  Long    Underlying security code
-    underlyingSymbol     String    Underlying trading symbol
-    ltp             Float     Last traded price
-    volume          Long      Traded volume
-    oi              Long      Open interest
-    ltt             Long      Last trade time (epoch ms)
-    tradedContracts Long      Number of contracts traded
-    pClose          Float     Previous day close price
-    pOi             Long      Previous day open interest
-    netChgPrc       Double    Net change in price
-    percChgPrc      Double    % change in price
-    netChgVol       Long      Net change in volume
-    percChgVol      Double    % change in volume
-    netChgOi        Long      Net change in open interest
-    percChgOi       Double    % change in open interest
-    percChgIv       Double    % change in implied volatility
-    spotPrice       Float     Underlying spot price
-    delta           Double    Delta — price sensitivity
-    gamma           BigDecimal  Gamma — delta sensitivity
-    vega            Double    Vega — volatility sensitivity
-    theta           Double    Theta — time decay
-    iv              Double    Implied volatility
-    feedReceiveTime Long      Server-side feed receive timestamp
-    metadata        Map<String,Object>  Additional key-value pairs
-```
+  <Accordion title="Option Insights Redis Schema (per underlying + expiry)">
+    ```
+    FNO:ATM_STRADDLE:{underlying}:{expiry}
+        strike              Integer   ATM strike (closest to spot)
+        cePrice             Float     CE premium at ATM strike
+        pePrice             Float     PE premium at ATM strike
+        premium             Float     cePrice + pePrice
+        ceIV                Double    CE implied volatility at ATM
+        peIV                Double    PE implied volatility at ATM
+        avgIV               Double    (ceIV + peIV) / 2
+        updatedAt           String    ISO-8601 timestamp
 
-**Option Insights Redis schema:**
+    FNO:PCR:{underlying}:{expiry}
+        pcrOI               Double    Total Put OI / Total Call OI
+        pcrVol              Double    Total Put Volume / Total Call Volume
+        totalCallOI         Long      Sum of all call open interest
+        totalPutOI          Long      Sum of all put open interest
+        totalCallVol        Long      Sum of all call volume
+        totalPutVol         Long      Sum of all put volume
+        updatedAt           String    ISO-8601 timestamp
 
-```
-Fields:
-    exchange        String    Exchange code
-    symbol          String    Trading symbol (underlying)
-    instrumentType  String    Instrument type
-    expiryDate      Date      Contract expiry date (IST)
-    spotPrice       Float     Underlying spot price
-    atmStraddle     Double    ATM straddle value
-    pcrOI           Double    Put-Call ratio (open interest)
-    pcrVolume       Double    Put-Call ratio (volume)
-    cprOI           Double    Call-Put ratio (open interest)
-    cprVolume       Double    Call-Put ratio (volume)
-    maxPain         Double    Max pain strike price
-    startTime       Date      Candle start time (IST)
-```
+    FNO:MAX_PAIN:{underlying}:{expiry}
+        strike              Integer   Max Pain strike (where option writers lose least)
+        totalPain           Long      Total pain value at the max pain strike
+        updatedAt           String    ISO-8601 timestamp
+    ```
+  </Accordion>
+</AccordionGroup>
 
-**Computed fields & recomputation frequency:**
+#### Greeks Pricing Models
 
-| Field | Formula | Frequency |
+Two distinct pricing models are used, selected based on the underlying instrument type:
+
+<Tabs>
+  <Tab title="Black-Scholes-Merton (BSM)">
+    **Used for:** EQUITY stock options (RELIANCE, TCS, INFY, etc. -- `OPTSTK` instrument type)
+
+    **Inputs:**
+    - S = spot price of the underlying stock
+    - K = option strike price
+    - T = time to expiry (in years, computed from market close timestamp)
+    - sigma = implied volatility (solved iteratively)
+    - r = risk-free rate (91-day T-bill rate, refreshed daily from RBI data)
+    - q = continuous dividend yield (annualized, from corporate action data)
+
+    **Outputs (per contract):** delta, gamma, theta, vega, rho for both CE and PE
+
+    **Why BSM:** Stock options settle against the spot price of the underlying equity. The dividend yield `q` adjusts for expected cash flows during the option's life.
+  </Tab>
+  <Tab title="Black-76">
+    **Used for:** INDEX options (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY, SENSEX -- `OPTIDX` instrument type)
+
+    **Inputs:**
+    - F = futures price of the underlying index (from the nearest-expiry futures contract)
+    - K = option strike price
+    - T = time to expiry (in years)
+    - sigma = implied volatility (solved iteratively)
+    - r = risk-free rate (91-day T-bill rate)
+
+    **Key difference from BSM:** Uses futures price F instead of spot S, and has no dividend yield q parameter.
+
+    **Why Black-76:** Index options on NSE/BSE settle against the futures price, not the spot index value. Using the futures price directly eliminates the need to model the cost-of-carry and dividend expectations that are already embedded in the futures price.
+  </Tab>
+  <Tab title="IV Solver">
+    **Newton-Raphson (primary):** Fast quadratic convergence for near-ATM options. Typically converges in 3-5 iterations. Uses vega (the partial derivative of option price with respect to volatility) as the Jacobian.
+
+    **Brent method (fallback):** Robust bisection-secant hybrid for deep ITM/OTM options where Newton-Raphson may diverge due to near-zero vega. Guaranteed convergence within the bounded interval.
+
+    **Configuration:**
+    - IV bounds: [0.01, 5.0] (1% to 500% annualized volatility)
+    - Max iterations: 100
+    - Convergence tolerance: 1e-8
+    - Fallback trigger: Newton-Raphson fails to converge within 20 iterations or steps outside bounds
+  </Tab>
+</Tabs>
+
+#### Computed Fields and Recomputation Frequency
+
+| Field | Formula / Source | Frequency |
 | --- | --- | --- |
-| Greeks (Delta, Gamma, Theta, Vega) | Black-Scholes | ATM ±5: every tick. Rest: every 5–30s |
-| Implied Volatility (IV) | Black-Scholes inverse | Same as Greeks |
-| PCR (OI) | Total Put OI / Total Call OI | Every 5 seconds |
-| PCR (Volume) | Total Put Vol / Total Call Vol | Every 5 seconds |
-| CPR (OI/Volume) | Inverse of PCR | Every 5 seconds |
-| Max Pain | Strike where total buyer loss is maximum | Every 30 seconds |
-| ATM Straddle | ATM Call LTP + ATM Put LTP | On every underlying tick |
-| Net/% Change fields | Compare with previous close/OI | On every tick |
+| Greeks (Delta, Gamma, Theta, Vega, Rho) | BSM for equity options, Black-76 for index options | ATM +/-5 strikes: every tick. Rest: every 5-30s adaptive |
+| Implied Volatility (IV) | Newton-Raphson with Brent fallback | Same as Greeks |
+| Max Pain | For each strike K: totalPain = sum(call_OI x max(0, K - strike_i)) + sum(put_OI x max(0, strike_i - K)). Max Pain = K that minimizes totalPain | Throttled to once per 5 seconds per underlying |
+| ATM Straddle | CE price + PE price at strike closest to spot. ATM IV = avg(CE IV, PE IV) | On every underlying spot tick |
+| PCR (OI) | Total Put OI / Total Call OI (guard: if denominator = 0, PCR = 0) | Every 5 seconds |
+| PCR (Volume) | Total Put Volume / Total Call Volume (guard: if denominator = 0, PCR = 0) | Every 5 seconds |
+| Day-over-day OI change | oiChange = current OI - previous day OI (from scheduler-service F&O bhavcopy BOD data) | On every tick |
+| Day-over-day price change | priceChange = current LTP - previous day close; priceChangePct = (priceChange / pClose) x 100 | On every tick |
+| Day-over-day volume change | volumeChange = current volume - previous day volume | On every tick |
+
+<Note>
+Day-over-day change fields (TASK-28) depend on TASK-04 (NSE F&O bhavcopy parsing by scheduler-service) for previous day reference data. The `pOi`, `pClose`, and previous day volume are loaded into Redis by scheduler-service during BOD (06:00 IST) and read by fno-data-writer at startup.
+</Note>
+
+#### Max Pain Calculation (TASK-25)
+
+For each underlying (NIFTY, BANKNIFTY, RELIANCE, etc.) and expiry date:
+
+<Steps>
+  <Step title="Enumerate all strikes">
+    Load the full option chain for the underlying + expiry from Redis.
+  </Step>
+  <Step title="Compute total pain at each strike K">
+    For each candidate strike K in the chain:
+    ```
+    totalPain(K) = SUM(call_OI_i * max(0, K - strike_i))    // calls expire worthless below K
+                 + SUM(put_OI_i  * max(0, strike_i - K))     // puts expire worthless above K
+    ```
+    where the sum runs over all strikes `i` in the chain.
+  </Step>
+  <Step title="Select Max Pain strike">
+    Max Pain strike = K that **minimizes** totalPain (the strike where option writers collectively lose the least money).
+  </Step>
+  <Step title="Write to Redis">
+    Key: `FNO:MAX_PAIN:{underlying}:{expiry}`
+    Value: `{"strike": 22500, "totalPain": 1234567890, "updatedAt": "..."}`
+  </Step>
+</Steps>
+
+**Throttling:** Recomputed on every OI update, throttled to once per 5 seconds per underlying to avoid excessive computation.
+
+**REST API:** `GET /v1/max-pain/{underlying}?expiry={date}`
+
+#### ATM Straddle Computation (TASK-26)
+
+<Steps>
+  <Step title="Find ATM strike">
+    ATM strike = strike closest to the current spot price of the underlying.
+  </Step>
+  <Step title="Compute straddle premium">
+    ATM Straddle premium = CE price at ATM strike + PE price at ATM strike.
+  </Step>
+  <Step title="Compute straddle IV">
+    ATM Straddle IV = average of CE IV and PE IV at ATM strike.
+  </Step>
+  <Step title="Write to Redis">
+    Key: `FNO:ATM_STRADDLE:{underlying}:{expiry}`
+    Value: `{"strike": 22500, "cePrice": 150.5, "pePrice": 120.3, "premium": 270.8, "ceIV": 0.15, "peIV": 0.14, "avgIV": 0.145}`
+  </Step>
+</Steps>
+
+**Trigger:** Recomputed on every tick update for the underlying spot price.
+
+**REST API:** `GET /v1/atm-straddle/{underlying}?expiry={date}`
+
+#### Put-Call Ratio (TASK-27)
+
+For each underlying + expiry combination:
+
+```
+PCR_OI  = total_put_OI  / total_call_OI    (all strikes summed)
+PCR_VOL = total_put_volume / total_call_volume
+```
+
+**Guard:** If denominator is 0, set PCR to 0 (prevents division-by-zero during pre-open or for illiquid expiries).
+
+**Redis key:** `FNO:PCR:{underlying}:{expiry}` with value:
+```json
+{
+  "pcrOI": 1.23,
+  "pcrVol": 0.95,
+  "totalCallOI": 12500000,
+  "totalPutOI": 15375000,
+  "totalCallVol": 890000,
+  "totalPutVol": 845500,
+  "updatedAt": "2026-04-22T10:30:00+05:30"
+}
+```
+
+**REST API:** `GET /v1/pcr/{underlying}?expiry={date}`
+
+#### BSE F&O Support (TASK-29)
+
+BSE has an F&O segment with options on SENSEX and other BSE indices.
+
+- **instrument-master:** Extended to serve BSE F&O tokens (parsed from BSE F&O contract files during daily sync).
+- **feed-handler:** Extended to decode BSE F&O MBP packets (BSE binary protocol, same LZO decompression pipeline as BSE equity).
+- **fno-data-writer:** Processes BSE F&O ticks identically to NSE F&O. The computation pipeline is exchange-agnostic -- it routes to the correct pricing model based on instrument type, not exchange.
+- **Pricing model:** Black-76 for SENSEX index options (same as NIFTY/BANKNIFTY -- all are index options).
+- **Redis keys:** Same pattern with BSE tokens: `FNO:CHAIN:{bse_underlying}:{expiry}`, `FNO:MAX_PAIN:{bse_underlying}:{expiry}`, etc.
 
 ---
 
 ### 6.13 FNO Dashboard API
 
-**What it does:** Serves option chain, option insights, and F&O analytics. **API contract unchanged.**
+**What it does:** Serves option chain, option insights, and F&O analytics. The FNO Dashboard API endpoints are served directly by fno-data-writer (single service, no separate API service).
 
-**API (matching current):**
+**API endpoints:**
 
-```
-GET /fno/dashboard/internal/api/v2/option-chain
-    ?type=CALL&symbol=NIFTY&expiry=23-12-2025&exchange=NSE
-
-GET /fno/dashboard/api/v1/option-insights
-    ?symbol=NIFTY&expiry=2026-04-24&exchange=NSE
-
-GET /fno/dashboard/api/v1/futures
-    ?symbol=RELIANCE&exchange=NSE
-```
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/v1/fno-chain` | GET/POST | Option chain with Greeks, IV, OI for a given underlying + expiry |
+| `/v1/max-pain/{underlying}` | GET | Max Pain strike and total pain value. Param: `expiry` |
+| `/v1/atm-straddle/{underlying}` | GET | ATM Straddle premium, IV, breakeven. Param: `expiry` |
+| `/v1/pcr/{underlying}` | GET | Put-Call Ratio (OI and Volume). Param: `expiry` |
+| `/v1/oi-buildup` | GET | OI buildup analytics (long/short buildup classification) |
+| `/v1/expiry-calendar` | GET | Expiry dates by underlying |
 
 ---
 
 ### 6.14 Market Movers Writer
 
-**What it does:** Consumes tick data from Kafka, computes real-time market mover rankings for **all instrument types** (equity, ETF, index, derivatives), stores in Redis Cluster 2 Sorted Sets.
+<Info>
+**Architecture change (TASK-24):** Market movers computation was redesigned from raw ticks to closed 1-minute candles. The old architecture consumed raw ticks from `mde-ticks-*` topics (~50K ticks/sec) and used a CoalescingDispatcher to throttle. The new architecture consumes `mde-candles-1m` from charts-service (~120 candles/min for ~7K equity instruments), dramatically reducing processing load and eliminating CoalescingDispatcher entirely.
+</Info>
 
-**Input:** All 6 Kafka tick topics **Output:** Redis Cluster 2 Sorted Sets
+**What it does:** Consumes closed 1-minute candles from Kafka, computes real-time market mover rankings for **equity instruments only** (~7K), stores in Redis Cluster 2 Sorted Sets with index bucketing.
 
-**Categories:**
+**Input:** Kafka topic `mde-candles-1m` (from charts-service) **Output:** Redis Cluster 2 Sorted Sets
 
-- Top Gainers (by % change from previous close)
-- Top Losers (by % change)
-- Volume Gainers (by % change vs average)
-- Value Gainers (by total traded value)
-- 52-Week High hitters
-- 52-Week Low hitters
+#### Why Candles Instead of Ticks
+
+| Aspect | Old (raw ticks) | New (1-minute candles) |
+| --- | --- | --- |
+| Input volume | ~50K ticks/sec across 6 topics | ~120 candles/min for ~7K equity instruments |
+| Instrument scope | All 90K+ instruments (equity, F&O, indices) | Equity only (~7K NSE_CASH + BSE_CASH) |
+| Throttling | CoalescingDispatcher (complex, memory-intensive) | Not needed (candle cadence is naturally throttled) |
+| Accuracy | % change computed from latest tick vs prevClose (noisy) | % change computed from candle.close vs prevClose (stable) |
+| Processing overhead | High (deduplicate, coalesce, compute per tick) | Low (one computation per instrument per minute) |
+
+#### Mover Categories
+
+| Category | Signal Computation | Score (ZADD) |
+| --- | --- | --- |
+| `TOP_GAINERS` | `pctChange = ((candle.close - prevClose) / prevClose) x 100` | pctChange (positive, descending) |
+| `TOP_LOSERS` | Same formula as gainers | pctChange (negative, ascending) |
+| `MOST_ACTIVE` | `candle.volume` | volume (descending) |
+| `VOLUME_SPIKE` | `candle.volume > 2x EMA(20)` rolling average | volume / EMA(20) ratio |
+| `BREAKOUT_HIGH` | `candle.high > 52-week high` (from Redis `52WK:{token}`) | pctChange above 52W high |
+| `BREAKOUT_LOW` | `candle.low < 52-week low` (from Redis `52WK:{token}`) | pctChange below 52W low |
+| `UPPER_CIRCUIT` | `candle.high >= upper circuit limit` (from Redis `LC_UC:{token}`) | pctChange |
+| `LOWER_CIRCUIT` | `candle.low <= lower circuit limit` (from Redis `LC_UC:{token}`) | pctChange |
+
+- `prevClose` is loaded from Redis C1 BOD data (written by scheduler-service).
+- `52WK` and `LC_UC` keys are maintained by publisher (intraday) and scheduler-service (BOD).
+
+#### Index Bucketing
+
+Each signal is computed separately for multiple index groups:
+
+| Index Bucket | Source |
+| --- | --- |
+| `NIFTY_50` | Constituents from instrument-master `/v1/indices/NIFTY_50/constituents` |
+| `NIFTY_NEXT_50` | Constituents from instrument-master |
+| `NIFTY_100` | Constituents from instrument-master |
+| `NIFTY_200` | Constituents from instrument-master |
+| `NIFTY_500` | Constituents from instrument-master |
+| `NIFTY_MIDCAP_50` | Constituents from instrument-master |
+| `BANKNIFTY` | Constituents from instrument-master |
+| `ALL` | All equity instruments (~7K) |
+
+Constituent lists are loaded from instrument-master API at startup and refreshed periodically (every 6 hours).
+
+#### Redis Writes
 
 ```
-Redis Sorted Sets:
-    Key: mkt_mvs_{category}_{exchange}_{index_id}
-    Score: ranking metric
-    Member: instrumentToken
-
-Query params: movers category + exchange + index
-Recomputation: every 5 seconds during market hours
+ZADD MOVERS:{category}:{index} {score} {instrumentToken}
+ZREMRANGEBYRANK MOVERS:{category}:{index} 0 -{N+1}      // keep top N (default 20)
+EXPIRE MOVERS:{category}:{index} 86400                   // 1-day TTL
 ```
+
+**Flush cycle:** Every 60 seconds, aligned with candle production from charts-service.
+
+**Instrument filter:** Only instruments where segment = `NSE_CASH` or `BSE_CASH` are processed. F&O instruments (82K+), indices (100+), and all other segment types are skipped.
 
 ---
 
 ### 6.15 Market Movers API
 
-**What it does:** Serves market mover rankings. **API contract unchanged.**
+**What it does:** Serves market mover rankings. Endpoints are served directly by market-movers-writer (single service).
 
-**API (matching current):**
+**API endpoints:**
 
-```
-GET /marketmovers/api/v1/value-gainers?exchange=nse&index=all&count=3
-GET /marketmovers/api/v1/top-gainers?exchange=nse&index=NIFTY50&count=10
-GET /marketmovers/api/v1/top-losers?exchange=bse&index=all&count=10
-GET /marketmovers/api/v1/volume-gainers?exchange=nse&index=all&count=10
-GET /marketmovers/api/v1/52wk-high?exchange=nse&index=all&count=10
-GET /marketmovers/api/v1/52wk-low?exchange=nse&index=all&count=10
-```
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/v1/movers` | GET | Ranked movers. Params: `category`, `exchange`, `index`, `limit` (default 20) |
+| `/v1/movers/{category}` | GET | Single category with pagination |
 
 ---
 
 ### 6.16 Alert Engine
 
-**What it does:** Monitors ticks against user-defined alert conditions. Runs asynchronously — never delays the tick pipeline.
+**What it does:** Monitors ticks against user-defined alert conditions. Runs asynchronously -- never delays the tick pipeline.
 
 **Alert types:** Price cross (above/below), % change, volume spike, IV change, circuit hit, 52-week H/L, price band, spread alert.
 
 Alerts are one-shot by default (trigger once, deactivate). User can set "recurring" to re-arm.
+
+#### Redis Index Reconciliation on Restart (TASK-30)
+
+<Warning>
+**P0 blocker.** If alert-engine pod restarts, the in-memory Redis index (`token -> Set<alertId>`) is empty. But alerts still exist in PostgreSQL, and Redis C2 may have stale index keys. Without reconciliation, no alerts fire after a restart.
+</Warning>
+
+**Solution:** `AlertIndexService` implements `SmartLifecycle` to ensure correct startup ordering:
+
+<Steps>
+  <Step title="Wait for dependencies">
+    SmartLifecycle ensures this runs AFTER Redis and PostgreSQL connections are established but BEFORE Kafka consumers start processing ticks.
+  </Step>
+  <Step title="Load all ACTIVE alerts from PostgreSQL">
+    ```sql
+    SELECT id, instrument_token, condition_type, threshold, user_id
+    FROM alerts
+    WHERE status = 'ACTIVE'
+    ```
+  </Step>
+  <Step title="Rebuild in-memory index">
+    Construct `Map<instrumentToken, Set<alertId>>` from the loaded alerts.
+  </Step>
+  <Step title="Reconcile with Redis C2">
+    - Scan Redis for existing `ALERT_IDX:*` keys.
+    - Delete orphaned Redis keys (alerts that no longer exist in PostgreSQL).
+    - Add missing Redis keys (alerts that exist in PostgreSQL but are absent from Redis).
+    - Update stale entries (alert definitions that changed while the pod was down).
+  </Step>
+  <Step title="Start Kafka consumers">
+    Only after reconciliation completes do the `@KafkaListener` methods begin processing ticks. This ensures no alerts are evaluated against a stale or incomplete index.
+  </Step>
+</Steps>
+
+#### Fix 52-Week and Circuit Alert Conditions Using BOD Reference Data (TASK-31)
+
+**Problem:** `52W_HIGH`, `52W_LOW`, and `CIRCUIT_HIT` alert conditions previously relied on tick proto fields which may be stale or absent (e.g., the first tick of the day has no 52-week data embedded).
+
+**Solution:** Maintain a BOD (Beginning-of-Day) reference data store in-memory:
+
+- **On startup + daily refresh at 06:30 IST:** Load from Redis keys:
+  - `52WK:{segment}:{instrumentToken}` -- 52-week high and low
+  - `LC_UC:{segment}:{instrumentToken}` -- upper and lower circuit limits
+- **Store in:** `ConcurrentHashMap<instrumentToken, BodReference>` with fields:
+  - `high52w` -- 52-week high price
+  - `low52w` -- 52-week low price
+  - `upperCircuit` -- upper circuit limit for the day
+  - `lowerCircuit` -- lower circuit limit for the day
+- **Alert evaluation:** Uses this in-memory store instead of tick fields for 52W and circuit conditions.
+
+| Condition | Evaluation |
+| --- | --- |
+| `52W_HIGH` | `tick.ltp >= bodRef.high52w` |
+| `52W_LOW` | `tick.ltp <= bodRef.low52w` |
+| `CIRCUIT_HIT` | `tick.ltp >= bodRef.upperCircuit` OR `tick.ltp <= bodRef.lowerCircuit` |
 
 ---
 
@@ -165,7 +403,7 @@ Alerts are one-shot by default (trigger once, deactivate). User can set "recurri
 
 **What it does:** Continuously monitors every component and auto-recovers from failures.
 
-**Health checks — differentiated by instrument type:**
+**Health checks -- differentiated by instrument type:**
 
 | Instrument Type | Stale Threshold | Rationale |
 | --- | --- | --- |
@@ -182,11 +420,240 @@ Alerts are one-shot by default (trigger once, deactivate). User can set "recurri
 
 ---
 
-### 6.18 Corporate Action Processor
+### 6.18 Scheduler-Service / Pre-Market Gaps
 
-Temporal workflow triggered at 8 PM IST daily + event-driven for intraday corporate actions.
+**What it does:** Temporal workflow worker operating on two task queues. Runs all scheduled jobs: beginning-of-day data preparation and corporate action processing. Merges the former premarket-scheduler and corporate-action-processor.
 
-Handles: splits, bonus, dividends, rights, mergers. Adjusts historical candles in TimescaleDB (`candles_1m` rewrites; continuous aggregates auto-refresh), updates circuit limits, notifies Portfolio Engine via Kafka.
+#### BOD Task Queue: `premarket-scheduler-jobs` (06:00 IST)
+
+<AccordionGroup>
+  <Accordion title="TASK-01: Direct Download from Exchange URLs">
+    Instead of downloading bhavcopies from S3 (legacy PML dependency), download directly from exchange websites:
+
+    | Source | URL Pattern |
+    | --- | --- |
+    | NSE Equity Bhavcopy | `https://www.nseindia.com/content/historical/EQUITIES/{DD}{MON}{YYYY}/cm{DD}{MON}{YYYY}bhav.csv.zip` |
+    | BSE Equity Bhavcopy | `https://www.bseindia.com/download/BhsavCopy/Equity/EQ_ISINCODE_{DDMMYY}.zip` |
+
+    **Retry:** Exponential backoff (1s, 2s, 4s, 8s, 16s) -- exchange sites can be slow during early morning hours.
+
+    **Fallback:** If direct download fails after 5 retries, fall back to S3 mirror (legacy path, still available as safety net).
+  </Accordion>
+
+  <Accordion title="TASK-02: Fix instrumentToken Key Identifier (P0 blocker)">
+    Redis keys currently use `pmlId` which is a legacy PML concept not present in MDE's instrument-master.
+
+    **Fix:** Replace `pmlId` with `instrumentToken` (exchange-assigned, e.g., `NSE:RELIANCE:EQ`) as the key identifier.
+
+    **Affected Redis keys:** ALL keys written during BOD:
+    - `FEED_PP:{segment}:{instrumentToken}` (was `FEED_PP_{segment}:{pmlId}`)
+    - `OHLC:{segment}:{instrumentToken}` (was `MGR_{exchange}_{segment}_OHLC:{pmlId}`)
+    - `52WK:{segment}:{instrumentToken}` (was `MGR_{exchange}_{segment}_52_WK_HL:{pmlId}`)
+    - `LC_UC:{segment}:{instrumentToken}` (was `MGR_{exchange}_{segment}_LC_UC:{pmlId}`)
+    - `PC:{segment}:{instrumentToken}` (was `MGR_{exchange}_{segment}_PC:{pmlId}`)
+  </Accordion>
+
+  <Accordion title="TASK-03: BSE Bhavcopy Support">
+    Parse BSE bhavcopy CSV format (different column layout from NSE):
+
+    | BSE Column | Mapped Field |
+    | --- | --- |
+    | `SC_CODE` | Security code (maps to instrumentToken via instrument-master) |
+    | `PREVCLOSE` | Previous close price |
+    | `OPEN` | Open price |
+    | `HIGH` | Day high |
+    | `LOW` | Day low |
+    | `CLOSE` | Closing price |
+    | `NET_TURNOV` | Volume/turnover |
+
+    Writes BOD data to Redis for all BSE instruments: `PC`, `OHLC`, `52WK` keys.
+  </Accordion>
+
+  <Accordion title="TASK-04: NSE F&O Bhavcopy Support">
+    Parse NSE F&O bhavcopy CSV format. Critical dependency for TASK-28 (day-over-day changes in FNO chain).
+
+    **Extracted fields per contract:**
+    - Previous day OI (`OPEN_INT` column)
+    - Previous day close price (`CLOSE` column)
+    - Previous day volume (`CONTRACTS` column)
+
+    **Written to Redis C2:** Keyed by F&O instrument token, consumed by fno-data-writer for day-over-day change calculations.
+  </Accordion>
+
+  <Accordion title="TASK-05: F&O Security Ban List">
+    NSE publishes a daily ban list for securities in the F&O segment that have breached the market-wide position limit (MWPL).
+
+    **Workflow:**
+    1. Download ban list from NSE at 06:15 IST
+    2. Parse CSV: extract symbol, underlying, ban reason
+    3. Write to Redis: `FNO:BAN:{instrumentToken}` with value `{"banned": true, "reason": "MWPL breach", "date": "2026-04-22"}`
+    4. fno-data-writer and broadcast-service read this flag to annotate banned securities in the option chain and WebSocket stream
+
+    **TTL:** 1 day (auto-expires, refreshed next BOD).
+  </Accordion>
+
+  <Accordion title="TASK-06: BSE Circuit Limits from DP File">
+    BSE publishes a Daily Price (DP) file with circuit limits for each instrument.
+
+    **Workflow:**
+    1. Download BSE DP file during BOD (06:00 IST)
+    2. Parse: extract upper/lower circuit limit for each BSE instrument
+    3. Write to Redis C1: `LC_UC:{BSE_CASH}:{instrumentToken}` with `{upper, lower}`
+    4. Complements intraday circuit limit updates from BSE MBP packets (extracted by publisher)
+
+    <Note>
+    NSE circuit limits arrive via the MBP packet during market hours (publisher extracts them). BSE requires this separate DP file download because BSE MBP does not always carry circuit limits for all instruments.
+    </Note>
+  </Accordion>
+</AccordionGroup>
+
+#### BOD Workflow Execution Order
+
+```
+06:00 IST — BOD workflow starts
+    |
+    +-- Step 1: Set TRD_DAY flag (check holiday calendar)
+    +-- Step 2: Download bhavcopies in parallel:
+    |       NSE Equity bhavcopy (TASK-01)
+    |       BSE Equity bhavcopy (TASK-01, TASK-03)
+    |       NSE F&O bhavcopy (TASK-04)
+    |       BSE DP file (TASK-06)
+    |       NSE F&O ban list (TASK-05)
+    +-- Step 3: Parse all files, write BOD Redis keys:
+    |       PC:{segment}:{instrumentToken}     (previous close)
+    |       OHLC:{segment}:{instrumentToken}   (seed with prev close as open)
+    |       52WK:{segment}:{instrumentToken}   (52-week high/low)
+    |       LC_UC:{segment}:{instrumentToken}  (circuit limits)
+    |       FNO:BAN:{instrumentToken}          (F&O ban list)
+    +-- Step 4: Verify key counts match expected instrument count
+    |
+06:30 IST — BOD workflow complete
+```
+
+---
+
+### 6.18.1 Corporate Action Processing (TASK-07)
+
+<Info>
+**Full pre-computation design.** Corporate actions (splits, bonus, consolidation, rights, dividends) require historical price adjustment. MDE uses a T-1 pre-computation + T-0 atomic flip strategy with ClickHouse shadow tables, ensuring zero-downtime adjustments.
+</Info>
+
+#### T-1 Pre-Computation (Evening Before Ex-Date)
+
+**Trigger:** Temporal cron workflow `PreComputeAdjustmentWorkflow` at 19:30 IST daily (same task queue as existing CA workflow: `corporate-action-jobs`).
+
+<Steps>
+  <Step title="Query upcoming corporate actions">
+    ```sql
+    SELECT * FROM corporate_actions
+    WHERE ex_date = CURRENT_DATE + INTERVAL '1 day'
+      AND status = 'PENDING'
+    ```
+  </Step>
+  <Step title="Compute adjustment factor">
+    | Action Type | Example | Factor | Applied To |
+    | --- | --- | --- | --- |
+    | Stock Split | 1:5 (1 share becomes 5) | 0.2 | Multiply all historical OHLC prices by 0.2 |
+    | Bonus Issue | 1:2 (1 bonus for 2 held) | 0.667 (= 2/3) | Multiply all historical OHLC prices by 0.667 |
+    | Consolidation / Reverse Split | 5:1 (5 shares become 1) | 5.0 | Multiply all historical OHLC prices by 5.0 |
+    | Rights Issue | Complex | Manual | Requires manual approval (price depends on rights price, ratio, market conditions) |
+    | Dividend | Cash payout | (price - dividend) / price | Applied only for special dividends > 5% of price |
+  </Step>
+  <Step title="Read historical candles from ClickHouse">
+    Read from `candles_1m` and all rollup tables (`candles_5m_mv`, `candles_15m_mv`, `candles_1h_mv`, `candles_1d_mv`) for the affected instrument token.
+  </Step>
+  <Step title="Apply adjustment factor to all OHLC prices">
+    ```sql
+    INSERT INTO candles_1m_shadow
+    SELECT
+        instrument_token,
+        timestamp,
+        open * {factor} AS open,
+        high * {factor} AS high,
+        low * {factor} AS low,
+        close * {factor} AS close,
+        volume * (1 / {factor}) AS volume,  -- volume adjusts inversely
+        updated_at
+    FROM candles_1m
+    WHERE instrument_token = '{token}'
+    ```
+    Shadow tables (`candles_1m_shadow`, etc.) are structurally identical to production tables.
+  </Step>
+  <Step title="Verify shadow table integrity">
+    - Row count in shadow matches original.
+    - Spot-check: random sample of 100 candles verified against expected adjusted values.
+    - No NULL or negative prices after adjustment.
+  </Step>
+  <Step title="Mark status: PRE_COMPUTED">
+    ```sql
+    UPDATE corporate_actions SET status = 'PRE_COMPUTED' WHERE id = {actionId}
+    ```
+  </Step>
+</Steps>
+
+#### T-0 Atomic Flip (Midnight on Ex-Date)
+
+**Trigger:** `ApplyAdjustmentWorkflow` at 00:01 IST on ex-date.
+
+<Steps>
+  <Step title="Verify pre-computation completed">
+    Check that all corporate actions for today's ex-date have `status = 'PRE_COMPUTED'`.
+  </Step>
+  <Step title="Atomic partition swap in ClickHouse">
+    ```sql
+    ALTER TABLE candles_1m REPLACE PARTITION '{partition_id}'
+        FROM candles_1m_shadow
+    ```
+    ClickHouse partition replacement is atomic and zero-downtime. Readers see either old or new data, never a mix.
+  </Step>
+  <Step title="Update BOD Redis keys">
+    - `PC:{segment}:{instrumentToken}` -- adjust previous close by factor
+    - `52WK:{segment}:{instrumentToken}` -- adjust 52-week high and low by factor
+    - `OHLC:{segment}:{instrumentToken}` -- seed new day's OHLC with adjusted previous close
+  </Step>
+  <Step title="Mark status: APPLIED">
+    ```sql
+    UPDATE corporate_actions SET status = 'APPLIED', applied_at = NOW() WHERE id = {actionId}
+    ```
+  </Step>
+</Steps>
+
+#### T-0 Verification (Morning)
+
+**Trigger:** `VerifyAdjustmentWorkflow` at 06:00 IST (before market open at 09:15 IST).
+
+<Steps>
+  <Step title="Sample and verify">
+    Select 100 random candles for each adjusted instrument. Verify that adjusted price = original price x factor within floating-point tolerance (1e-4).
+  </Step>
+  <Step title="Cross-check with exchange data">
+    Compare adjusted previous close against the exchange's adjusted close from bhavcopy (if available).
+  </Step>
+  <Step title="Decision">
+    - **Verification passes:** Mark status `VERIFIED`. Corporate action complete.
+    - **Verification fails:** Auto-rollback -- swap partition back from backup. Mark status `ROLLBACK`. Alert ops team.
+  </Step>
+</Steps>
+
+#### Auto-Approve Matrix
+
+| Action Type | Auto-Approve? | Rationale |
+| --- | --- | --- |
+| Stock split | Yes | Simple ratio, high confidence, fully reversible |
+| Bonus issue | Yes | Simple ratio, fully reversible |
+| Consolidation / reverse split | Yes, if volume impact < 5% | Simple ratio, verify volume adjustment is clean |
+| Rights issue | No -- manual approval required | Complex pricing depends on rights price, ratio, market conditions |
+| Dividend (regular) | No adjustment needed | Regular dividends do not require historical price adjustment |
+| Dividend (special > 5% of price) | No -- manual approval required | Special dividends affect historical comparability |
+
+#### Fallback: Morning Batch Mode
+
+If T-1 pre-computation fails (e.g., ClickHouse maintenance window, network issue):
+
+- Fall back to T-0 morning batch (legacy mode, similar to how Zerodha handles corporate actions).
+- Morning batch triggers at 06:00 IST, before market open at 09:15 IST.
+- Takes approximately 30 minutes for full history adjustment -- still completes well before market open.
+- Ops team is alerted that T-1 pre-computation failed and morning batch is running.
 
 ---
 
@@ -206,39 +673,40 @@ Timeout: 5 minutes
 Expected completion: < 30 seconds
 
 Step 1: Identify expiring contracts from PostgreSQL
-    → SELECT * FROM instruments
+    -> SELECT * FROM instruments
       WHERE expiry_date = CURRENT_DATE
         AND scrip_type IN ('OPTION', 'FUTURE')
         AND status = 'ACTIVE'
-    → Typically 2,000–5,000 contracts on weekly expiry
-    → Up to 20,000 contracts on monthly expiry (all stock options)
+    -> Typically 2,000-5,000 contracts on weekly expiry
+    -> Up to 20,000 contracts on monthly expiry (all stock options)
 
 Step 2: Mark as EXPIRED in PostgreSQL
-    → UPDATE instruments SET status = 'EXPIRED' WHERE id IN (...)
-    → Prevents Feed Handler from processing stale ticks for these instruments
+    -> UPDATE instruments SET status = 'EXPIRED' WHERE id IN (...)
+    -> Prevents Feed Handler from processing stale ticks for these instruments
 
 Step 3: Clean expired data from Redis Cluster 2
-    → Remove expired instruments from FNO option chain hashes
-    → Remove expired instruments from Market Movers sorted sets
-    → Remove expired instruments from option insights hashes
-    → HDEL / ZREM operations, batched
+    -> Remove expired instruments from FNO option chain hashes
+    -> Remove expired instruments from Market Movers sorted sets
+    -> Remove expired instruments from option insights hashes
+    -> Remove from FNO:MAX_PAIN, FNO:ATM_STRADDLE, FNO:PCR keys for affected expiries
+    -> HDEL / ZREM operations, batched
 
 Step 4: Stop FNO Data Writer from computing Greeks for expired contracts
-    → Publish expiry event to Kafka (topic: instrument-expiry-events)
-    → FNO Data Writer removes expired instruments from its in-memory computation set
-    → No more Black-Scholes calculations for expired strikes
+    -> Publish expiry event to Kafka (topic: instrument-expiry-events)
+    -> FNO Data Writer removes expired instruments from its in-memory computation set
+    -> No more Black-Scholes/Black-76 calculations for expired strikes
 
 Step 5: Recalculate PCR / Max Pain using only live contracts
-    → Trigger FNO Data Writer to recompute option insights for affected underlyings
-    → PCR (OI/Volume) recalculated excluding expired contracts
-    → Max Pain recalculated with remaining strikes only
-    → ATM Straddle updated if ATM strike was an expiring contract
+    -> Trigger FNO Data Writer to recompute option insights for affected underlyings
+    -> PCR (OI/Volume) recalculated excluding expired contracts
+    -> Max Pain recalculated with remaining strikes only
+    -> ATM Straddle updated if ATM strike was an expiring contract
 
 Step 6: Propagate settlement prices to Portfolio/Ledger Engine via Kafka
-    → Publish settlement event: {instrumentToken, settlementPrice, expiryDate}
-    → Topic: instrument-settlement-events
-    → Portfolio Engine uses this for P&L calculation
-    → Ledger Engine uses this for margin release
+    -> Publish settlement event: {instrumentToken, settlementPrice, expiryDate}
+    -> Topic: instrument-settlement-events
+    -> Portfolio Engine uses this for P&L calculation
+    -> Ledger Engine uses this for margin release
 ```
 
 **Applies to:**
@@ -250,19 +718,303 @@ Step 6: Propagate settlement prices to Portfolio/Ledger Engine via Kafka
 
 ---
 
----
-
-### 6.20 Resilience & Zero-Error User Experience
+### 6.20 Broadcast Service Gaps (TASK-16 through TASK-20)
 
 <Info>
-**New.** This section codifies the platform-wide promise that **users should NEVER see an error**. If a backend component fails, the system degrades silently. The user always sees data — possibly slightly stale, possibly partial — never an error popup, never a red modal, never a "Something went wrong" screen.
+The following tasks address gaps in broadcast-service's WebSocket streaming capabilities.
+</Info>
+
+<AccordionGroup>
+  <Accordion title="TASK-16: Market Depth (L5) Streaming">
+    broadcast-service currently streams only LTP/OHLC snapshots. Market depth (top 5 bid/ask levels) must be added to the WebSocket stream.
+
+    - **Source:** Publisher writes `DEPTH:{segment}:{instrumentToken}` to Redis C1 on every MBP tick.
+    - **Stream:** broadcast-service includes depth data in the Protobuf WebSocket frame when the client subscribes with `depth=true`.
+    - **Throttle:** Depth updates are sent at most once per 500ms per instrument to limit bandwidth.
+    - **Payload:** 5 bid levels + 5 ask levels, each with price, quantity, and order count.
+  </Accordion>
+
+  <Accordion title="TASK-17: Index Tick Streaming">
+    Index ticks (NIFTY, SENSEX, etc.) must be streamed via WebSocket alongside equity ticks.
+
+    - **Source:** Kafka topics `mde-ticks-nse-index`, `mde-ticks-bse-index`.
+    - broadcast-service subscribes to index tick topics in addition to equity/derivative topics.
+    - Client subscription: `subscribe({tokens: ["NSE:NIFTY_50:INDEX", ...], depth: false})`.
+    - Cold-start snapshot from Redis C1 `FEED_PP:{segment}:{instrumentToken}` for indices.
+  </Accordion>
+
+  <Accordion title="TASK-18: F&O Ban List Annotation">
+    When an instrument is in the F&O security ban list (TASK-05), broadcast-service annotates the WebSocket tick frame with `banned: true`.
+
+    - On startup: load all `FNO:BAN:*` keys from Redis C1 into a local `Set<instrumentToken>`.
+    - On each F&O tick: check if instrument is in the ban set. If yes, set `banned = true` in the Protobuf frame.
+    - Refresh ban set at 06:30 IST daily (after scheduler-service BOD completes).
+  </Accordion>
+
+  <Accordion title="TASK-19: Market Status Broadcast">
+    Broadcast market status changes (PRE_OPEN, OPEN, CLOSE, POST_CLOSE) to all connected WebSocket clients.
+
+    - Publisher writes `MARKET_STATUS` to Redis C1 on every status transition.
+    - broadcast-service polls `MARKET_STATUS` every 5 seconds and broadcasts to all clients on change.
+    - Client receives: `{"type": "MARKET_STATUS", "status": "OPEN", "timestamp": "..."}`
+  </Accordion>
+
+  <Accordion title="TASK-20: Heartbeat and Idle Connection Cleanup">
+    Server-to-client heartbeat for detecting and cleaning up idle/zombie connections.
+
+    - Server sends `PING` frame every 30 seconds to each connected client.
+    - If no `PONG` response within 10 seconds, connection is marked stale.
+    - After 3 consecutive missed PONGs (90 seconds total), connection is force-closed.
+    - Metrics: `ws_connections_active`, `ws_connections_closed_idle` Prometheus counters.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+### 6.21 Autonomous Ops Hub (ops-service)
+
+<Info>
+**Evolved from basic incident manager.** The ops-service (merged from incident-manager + recon-service) is the autonomous operations hub for the entire MDE platform. It detects incidents before users notice, understands market hours, auto-remediates known patterns outside trading hours, and requires human approval during market hours.
+</Info>
+
+**Purpose:** Detect anomalies in seconds, gather context-rich evidence, auto-remediate known patterns (outside market hours), and provide fully-prepared analysis for human operators. MTTR drops from hours to minutes.
+
+#### Detection Layer
+
+<CardGroup cols={2}>
+  <Card title="Health Monitor" icon="heart-pulse">
+    Polls all 9 MDE services `/actuator/health` every 30 seconds. Tracks consecutive failures, response time trends, and downstream dependency health (Redis, ClickHouse, Kafka, PostgreSQL).
+  </Card>
+  <Card title="Data Flow Monitor" icon="wave-pulse">
+    Checks Kafka consumer lag (per topic, per consumer group), Redis key freshness (staleness detection), and ClickHouse insert rate (candle write throughput). Alerts on any sustained deviation > 2x baseline.
+  </Card>
+  <Card title="Anomaly Detector" icon="chart-scatter">
+    Statistical anomaly detection on TPS, latency, error rates using EWMA (Exponentially Weighted Moving Average) baselines. Sudden drop > 50% in TPS = immediate alert. Z-score > 3 sustained for 60 seconds = investigation trigger.
+  </Card>
+  <Card title="Recon Engine" icon="scale-balanced">
+    Cross-validates Redis vs ClickHouse vs Kafka. Ensures candle counts match, OHLCV values are consistent, and no data loss occurred in the pipeline. Runs as Temporal workflow at end-of-day (15:45 IST) and on-demand.
+  </Card>
+</CardGroup>
+
+#### Market-Hours Awareness (TASK-32)
+
+<Tabs>
+  <Tab title="During Market Hours (09:00-15:45 IST)">
+    **Detection only. NO auto-remediation.**
+
+    - All anomalies are detected and classified.
+    - Alerts sent to ops team via Slack `#incidents-p0` / `#incidents-p1`.
+    - Manual approval required for ANY remediation action.
+    - Rationale: during trading hours, any automated action (pod restart, cache rebuild) could cause data gaps or flash-crashes in downstream consumers.
+
+    ```
+    INCIDENT DETECTED
+        |
+        v
+    CLASSIFY (P0 / P1 / P2)
+        |
+        v
+    NOTIFY (Slack / PagerDuty)
+        |
+        v
+    WAIT FOR HUMAN APPROVAL
+        |
+        v
+    EXECUTE APPROVED ACTION (logged + audited)
+    ```
+  </Tab>
+  <Tab title="Outside Market Hours (15:45-09:00 IST)">
+    **Full auto-remediation enabled.**
+
+    - Automatic pod restarts, cache rebuilds, data backfills.
+    - Self-healing playbooks execute without human intervention.
+    - All actions are logged to immutable audit table (`incident_actions`) for post-hoc review.
+    - If auto-remediation fails after 3 attempts, escalate to human via PagerDuty.
+
+    ```
+    INCIDENT DETECTED
+        |
+        v
+    CLASSIFY (P0 / P1 / P2)
+        |
+        v
+    MATCH PLAYBOOK
+        |
+        v
+    AUTO-EXECUTE REMEDIATION
+        |
+        v
+    VERIFY RECOVERY (monitor metrics for 5 min)
+        |
+        +-- Recovered: close incident
+        +-- Not recovered: escalate to human
+    ```
+  </Tab>
+</Tabs>
+
+#### Remediation Playbooks
+
+| Playbook | Trigger | Action | Reversible? |
+| --- | --- | --- | --- |
+| `RESTART_POD` | Pod memory or CPU over threshold for 2 min | `kubectl rollout restart deployment/{service} -n market-data` | Yes |
+| `REBUILD_CACHE` | Redis key staleness > threshold | Trigger scheduler-service BOD reload for affected keys | Yes |
+| `BACKFILL_CANDLES` | ClickHouse candle count mismatch detected by recon | Replay from Kafka (consumer offset reset to gap start) | Yes (idempotent via ReplacingMergeTree) |
+| `SCALE_UP` | Kafka consumer lag > 2x threshold for 5 min | `kubectl scale deployment/{service} --replicas=+2 -n market-data` | Yes (scale back down after lag clears) |
+| `CLEAR_DEAD_CONNECTIONS` | WebSocket idle connection count > threshold | Force-close zombie WebSocket connections in broadcast-service via internal admin API | Yes |
+
+**Safety rails:**
+- No remediation triggered for same service more than 3 times in 30 minutes (prevents flap loops).
+- Every auto-remediation logged to immutable `incident_actions` PostgreSQL table.
+- All auto-remediations posted to `#incidents-audit` Slack channel for human review post-hoc.
+- Database writes, deletes, schema changes are NEVER auto-remediated.
+
+#### PR Creation for Config Changes
+
+If remediation requires a config change (e.g., increase memory limit, change timeout, adjust HPA thresholds):
+
+<Steps>
+  <Step title="Generate change">
+    ops-service generates the specific YAML/properties change needed.
+  </Step>
+  <Step title="Create PR to Bitbucket">
+    Auto-create a PR to the `market-data-engine` repo with the proposed change. PR description includes: incident ID, root cause, metric evidence, expected impact.
+  </Step>
+  <Step title="Require human approval">
+    PR requires at least one human approval before merge. ops-service posts a Slack notification with the PR link.
+  </Step>
+  <Step title="Post-merge deployment">
+    ArgoCD auto-deploys the merged change to the affected environment.
+  </Step>
+</Steps>
+
+#### Canary Deployment at 1%
+
+When deploying new service versions:
+
+| Phase | Traffic | Duration | Criteria |
+| --- | --- | --- | --- |
+| Canary | 1% of traffic to canary pod | 15 minutes | Error rate < 0.1%, p99 latency < 2x baseline, no business metric regression |
+| Promote | If canary passes, proceed to full rollout | Rolling (2 min per pod) | Same criteria, monitored continuously |
+| Rollback | If canary fails, auto-rollback | Immediate | `kubectl rollout undo` |
+
+**Metrics monitored during canary:**
+- Error rate (HTTP 5xx)
+- p99 latency
+- Kafka consumer lag (for consumer services)
+- Redis write latency (for writer services)
+- ClickHouse insert rate (for charts-service)
+- WebSocket disconnect rate (for broadcast-service)
+
+#### Knowledge Base
+
+- Store all incidents, root causes, and remediations in PostgreSQL `incidents` table with full timeline.
+- LLM-powered search (Claude Sonnet 4.5): "What caused the last Redis timeout?" retrieves relevant incident with full context.
+- Trend analysis: recurring incidents (same service, same symptom, 3+ occurrences in 30 days) trigger preventive recommendations.
+- Runbook auto-generation: after an incident is resolved, ops-service generates a runbook entry for similar future incidents.
+
+#### Detection Signals
+
+| Signal Source | Examples | Threshold |
+| --- | --- | --- |
+| **Prometheus** | p99 latency, error rate, queue depth, GC pause frequency, JVM heap | Z-score > 3 sustained for 60 seconds |
+| **Application Logs** | ERROR-level log spike, new stack traces, OutOfMemoryError | >10x baseline in 1 minute, OR any never-before-seen stack trace |
+| **Kafka** | Consumer lag growth | >5 seconds sustained for 30 seconds OR >2x normal lag for 2 minutes |
+| **Redis** | Slow query log, evicted keys, replica lag | >1 slow query per 10 seconds, OR any noeviction-induced write failure |
+| **Feed Health** | Heartbeat missing, sequence gaps | >3 seconds silence on any UDP stream, OR sequence gap > 100 with no fill |
+| **Synthetic Probes** | Service health endpoints (all 9 services) | 3 consecutive failures within 60 seconds |
+| **WebSocket** | Disconnect rate spike, snapshot fetch latency | Disconnect rate > 5x baseline OR snapshot fetch p99 > 200ms |
+| **ClickHouse** | Insert rate drop, query latency spike | Insert rate < 50% of baseline for 2 minutes, OR query p99 > 500ms |
+
+**Correlation engine:** Anomalies that cluster in time and space (same service, same datacenter, same dependency chain) are merged into a single incident. Example: if charts-service CPU spikes AND its Kafka consumer lag grows AND ClickHouse ingest latency rises -- that is ONE incident, not three.
+
+#### LLM-Powered Debugging Workflow
+
+```
+1. INCIDENT DETECTED (anomaly + correlation)
+       |
+       v
+2. SIGNAL COLLECTOR snapshots:
+       - Last 5 minutes of metrics from affected services
+       - Last 5 minutes of ERROR-level logs
+       - Distributed traces (Tempo/Jaeger) for failing requests
+       - Recent deploys (ArgoCD history)
+       - Service topology (which services depend on which)
+       |
+       v
+3. CONTEXT ASSEMBLY:
+       - Known-good baselines for each metric
+       - Recent code changes (git diff for last 3 deploys)
+       - Similar past incidents from knowledge base
+       |
+       v
+4. LLM ANALYSIS (Claude Sonnet 4.5):
+       - Root-cause hypothesis (top 3, ranked by confidence)
+       - Evidence supporting each hypothesis
+       - Suggested fix steps for each hypothesis
+       - Risk assessment (reversible? data-impacting?)
+       - Relevant past incidents and runbook references
+       |
+       v
+5. POST TO SLACK CHANNEL #incident-{id}:
+       - Summary (1-line)
+       - Top hypothesis with evidence
+       - Suggested fix
+       - "Approve & execute" / "Investigate further" buttons
+       |
+       v
+6. MARKET-HOURS GATE:
+       If outside market hours AND confidence > 90% AND fix in allowlist:
+           -> Auto-execute fix
+           -> Monitor 5 min; if recovered, close incident
+           -> If not recovered, escalate to human
+       If during market hours:
+           -> Wait for human approval in Slack
+           -> Execute approved fix on click
+       |
+       v
+7. OUTCOME LOGGING:
+       - Whether the LLM hypothesis was correct
+       - Whether the fix worked
+       - Time-to-detection, time-to-mitigation
+       - Feeds back into knowledge base
+```
+
+#### Severity Classification
+
+| Severity | Definition | Examples | Notification |
+| --- | --- | --- | --- |
+| **P0** | User-impacting now or imminently | Both feeds down; Charts API completely failing; broadcast-service pods crashlooping | PagerDuty page + Slack `#incidents-p0` + LLM analysis |
+| **P1** | Single component degraded; no user impact yet (fallback active) | NSE Direct feed down (Omnenest sole source); ClickHouse insert lag; fno-data-writer slow | Slack `#incidents-p1` + auto-create Jira |
+| **P2** | Operational concern, no functional impact | Redis memory at 75%; Kafka topic close to retention boundary; Prometheus scrape latency rising | Jira ticket only |
+
+#### Integration Points
+
+| System | Direction | Purpose |
+| --- | --- | --- |
+| Prometheus AlertManager | ops-service subscribes | Receive metric-based alerts |
+| Loki / Elasticsearch | ops-service queries | Pull logs for context assembly |
+| Tempo / Jaeger | ops-service queries | Pull traces for failing requests |
+| Slack webhooks | ops-service posts | Per-severity channel routing |
+| Jira API | ops-service creates tickets | Auto-create with LLM analysis as description; auto-close on metric recovery |
+| PagerDuty | ops-service pages | P0 only |
+| Kubernetes API | ops-service executes | Auto-restart, auto-scale, rollout undo |
+| Bitbucket | ops-service reads + creates PRs | Recent commits + diffs for LLM context; config change PRs |
+| Unleash (feature flags) | ops-service toggles | Silent feature degradation per section 6.22 |
+| ArgoCD | ops-service reads | Recent deploy history for LLM context |
+
+---
+
+### 6.22 Resilience & Zero-Error User Experience
+
+<Info>
+This section codifies the platform-wide promise that **users should NEVER see an error**. If a backend component fails, the system degrades silently. The user always sees data -- possibly slightly stale, possibly partial -- never an error popup, never a red modal, never a "Something went wrong" screen.
 </Info>
 
 **Design Principle:** "Users should NEVER see an error. If a backend component fails, the system degrades silently."
 
-This is not a soft target. Every Charts API call, every WebSocket subscription, every Market Movers request, every Option Chain query must produce a useful response within the latency budget — even when the upstream is down, slow, or returning garbage. The mechanisms below describe how each request path enforces this contract.
+This is not a soft target. Every charts-service call, every WebSocket subscription, every Market Movers request, every Option Chain query must produce a useful response within the latency budget -- even when the upstream is down, slow, or returning garbage. The mechanisms below describe how each request path enforces this contract.
 
-#### 6.20.1 Layered Fallback Strategy
+#### 6.22.1 Layered Fallback Strategy
 
 For every user-facing data path, the response is produced by walking down a 4-layer fallback ladder. The first layer that returns data wins. The user always gets *something*.
 
@@ -270,46 +1022,46 @@ For every user-facing data path, the response is produced by walking down a 4-la
 | --- | --- | --- | --- |
 | **Layer 1 (primary)** | Live data from Kafka / Redis Cluster 1 (Feed) | Real-time (&lt;100ms old) | Normal operation |
 | **Layer 2 (cached)** | Last-known-good snapshot from Redis Cluster 2 (API) | Seconds-old | Layer 1 timeout, partial outage |
-| **Layer 3 (stale)** | Most recent snapshot from TimescaleDB | Minutes/hours-old, marked "Last updated: Xs ago" | Layer 2 unavailable, cluster outage |
-| **Layer 4 (final)** | Empty state with skeleton/loading UI | None | Total backend outage — no error popup, just placeholder |
+| **Layer 3 (stale)** | Most recent snapshot from ClickHouse | Minutes/hours-old, marked "Last updated: Xs ago" | Layer 2 unavailable, cluster outage |
+| **Layer 4 (final)** | Empty state with skeleton/loading UI | None | Total backend outage -- no error popup, just placeholder |
 
 **How it works in practice:**
 
 - Each API endpoint declares its fallback chain at startup.
-- The fallback runtime wraps every downstream call with a deadline (e.g., 30 ms for Layer 1).
+- The fallback runtime wraps every downstream call with a deadline (e.g., 30ms for Layer 1).
 - If Layer 1 misses the deadline OR throws, the runtime tries Layer 2 with a fresh deadline.
 - If Layer 2 fails, Layer 3 is consulted.
-- If Layer 3 also fails, Layer 4 returns an empty-but-structurally-valid response — never a 5xx, never an exception.
+- If Layer 3 also fails, Layer 4 returns an empty-but-structurally-valid response -- never a 5xx, never an exception.
 - Each downgrade is recorded in the response metadata (`source: "L2_CACHED"`, `staleAgeSec: 12`) so the frontend can render a freshness indicator.
 
-#### 6.20.2 Stale-While-Revalidate Pattern
+#### 6.22.2 Stale-While-Revalidate Pattern
 
 APIs always return SOMETHING useful within 50ms. They never block on a slow upstream.
 
 - **Synchronous path:** Serve the most recent cached value immediately. Tag the response with `stale: true` if the cache is older than the per-API freshness threshold.
 - **Background refresh:** A non-blocking background task fetches the latest from the upstream. When it arrives, the cache is updated. The next request gets fresh data.
-- **Result:** The user always sees data immediately. Staleness is exposed as metadata (e.g., "Updated 8s ago") — not as an error.
+- **Result:** The user always sees data immediately. Staleness is exposed as metadata (e.g., "Updated 8s ago") -- not as an error.
 
 ```
-Request arrives at Charts API
-    ↓
+Request arrives at charts-service
+    |
 Check Redis Cluster 2 cache (current-day candles)
-    ↓
-Cache hit (any age) → respond IMMEDIATELY with cached value
-                      ↓
-                      If cache age > 5s → kick off background refresh
-                                          (non-blocking — does not delay this response)
-    ↓
-Cache miss → try TimescaleDB synchronously (Layer 3)
-           → respond with TimescaleDB data + stale flag
-           → kick off background refresh to repopulate cache
+    |
+Cache hit (any age) -> respond IMMEDIATELY with cached value
+                      |
+                      If cache age > 5s -> kick off background refresh
+                                          (non-blocking -- does not delay this response)
+    |
+Cache miss -> try ClickHouse synchronously (Layer 3)
+           -> respond with ClickHouse data + stale flag
+           -> kick off background refresh to repopulate cache
 ```
 
 This pattern guarantees that **the response to the user never waits for an upstream that may be slow or down**. When upstream recovers, the next request silently gets fresh data.
 
-#### 6.20.3 Circuit Breakers (Resilience4j)
+#### 6.22.3 Circuit Breakers (Resilience4j)
 
-Every downstream call is wrapped with a Resilience4j circuit breaker. When too many calls fail or time out, the circuit opens and subsequent calls are short-circuited to the fallback path — protecting the failing service and the calling service alike.
+Every downstream call is wrapped with a Resilience4j circuit breaker. When too many calls fail or time out, the circuit opens and subsequent calls are short-circuited to the fallback path -- protecting the failing service and the calling service alike.
 
 **Circuit-breaker behavior:**
 
@@ -319,45 +1071,45 @@ Every downstream call is wrapped with a Resilience4j circuit breaker. When too m
 
 **Per-service thresholds:**
 
-- **Failure rate threshold:** 50% over a rolling window of 20 requests → trip OPEN
-- **Cooldown ladder (exponential):** First open → 10s, second open in same hour → 30s, third → 60s
+- **Failure rate threshold:** 50% over a rolling window of 20 requests -> trip OPEN
+- **Cooldown ladder (exponential):** First open -> 10s, second open in same hour -> 30s, third -> 60s
 - **Half-open probe count:** 3 requests allowed through during HALF-OPEN
 
 **Wrapped paths (examples):**
 
-- Charts API → Redis Cluster 2 (current-day candles)
-- Charts API → TimescaleDB (historical candles)
-- FNO Dashboard API → Redis Cluster 2 (option chain)
-- Market Movers API → Redis Cluster 2 (sorted sets)
-- Broadcast Service → Redis Cluster 1 (snapshot on connect)
-- Charts Data Writer → TimescaleDB (writes — circuit-breaker prevents WAL buildup if DB is slow)
-- FNO Data Writer → Redis Cluster 2 (writes)
+- charts-service -> Redis Cluster 2 (current-day candles)
+- charts-service -> ClickHouse (historical candles)
+- fno-data-writer -> Redis Cluster 2 (option chain)
+- market-movers-writer -> Redis Cluster 2 (sorted sets)
+- broadcast-service -> Redis Cluster 1 (snapshot on connect)
+- charts-service -> ClickHouse (writes -- circuit-breaker prevents WAL buildup if DB is slow)
+- fno-data-writer -> Redis Cluster 2 (writes)
 - Any cross-service HTTP call
 
-**Why this matters:** Without circuit breakers, a slow downstream creates a cascading failure — every caller blocks on it, threads exhaust, the calling service itself becomes unavailable. The breaker keeps the calling service responsive even when downstream is in trouble.
+**Why this matters:** Without circuit breakers, a slow downstream creates a cascading failure -- every caller blocks on it, threads exhaust, the calling service itself becomes unavailable. The breaker keeps the calling service responsive even when downstream is in trouble.
 
-#### 6.20.4 Silent Feature Flags
+#### 6.22.4 Silent Feature Flags
 
-When a backend component is degraded or down, the affected UI widgets are **hidden silently** — not replaced with an error banner, not greyed out with a sad face, just... gone. The user perceives a slightly simpler page, not a broken one.
+When a backend component is degraded or down, the affected UI widgets are **hidden silently** -- not replaced with an error banner, not greyed out with a sad face, just gone. The user perceives a slightly simpler page, not a broken one.
 
-**Feature-flag triggers (auto-managed by Incident Manager — §6.21):**
+**Feature-flag triggers (auto-managed by ops-service):**
 
 | Component Down | Flag Toggled | UI Effect |
 | --- | --- | --- |
-| FNO Data Writer down | `fno.dashboard.greeks.enabled = false` | Greeks columns hidden from option chain. Rest of chain still visible. |
-| Market Movers Writer down | `markets.movers.live.enabled = false` | Market Movers tab shows EOD list with "Updated at market close" caption. No error. |
-| Charts Data Writer behind on writes | `charts.intraday.enabled = false` | Today's candle hidden; historical chart still renders. |
+| fno-data-writer down | `fno.dashboard.greeks.enabled = false` | Greeks columns hidden from option chain. Rest of chain still visible. |
+| market-movers-writer down | `markets.movers.live.enabled = false` | Market Movers tab shows EOD list with "Updated at market close" caption. No error. |
+| charts-service writer thread behind on writes | `charts.intraday.enabled = false` | Today's candle hidden; historical chart still renders. |
 | Option Insights computation stalled | `fno.dashboard.insights.enabled = false` | PCR/Max Pain widgets hidden. Option chain unaffected. |
-| Alert Engine down | `alerts.creation.disabled = true` | "Create Alert" button hidden. Existing alerts unaffected. |
+| alert-engine down | `alerts.creation.disabled = true` | "Create Alert" button hidden. Existing alerts unaffected. |
 
 **Key properties:**
 
-- **Auto-triggered by Incident Manager** — when anomaly detection flags a component, the feature flag flips automatically. No human in the loop.
-- **Auto-restored** — when the component recovers, the flag flips back. No manual ops action.
-- **Silent at the UI layer** — frontend treats `flag = false` as "render nothing for this widget". No banner, no popup, no toast.
-- **Self-hosted feature-flag service** (Unleash) — no external dependency on critical path.
+- **Auto-triggered by ops-service** -- when anomaly detection flags a component, the feature flag flips automatically. No human in the loop.
+- **Auto-restored** -- when the component recovers, the flag flips back. No manual ops action.
+- **Silent at the UI layer** -- frontend treats `flag = false` as "render nothing for this widget". No banner, no popup, no toast.
+- **Self-hosted feature-flag service** (Unleash) -- no external dependency on critical path.
 
-#### 6.20.5 Request Hedging
+#### 6.22.5 Request Hedging
 
 For latency-critical reads (live price, option chain), the API sends parallel requests to two Redis replicas and returns whichever responds first. This eliminates long-tail latency caused by occasional GC pauses or replica hiccups.
 
@@ -366,307 +1118,84 @@ For latency-critical reads (live price, option chain), the API sends parallel re
 - The Redis client is configured with two read endpoints (replica A, replica B).
 - For each request, both replicas receive the call simultaneously.
 - The first valid response wins; the other is discarded.
-- Client-side latency is `min(latency_A, latency_B)` — almost always faster than waiting on a single replica.
+- Client-side latency is `min(latency_A, latency_B)` -- almost always faster than waiting on a single replica.
 - Outbound load is doubled, but reads are cheap and Redis is provisioned with headroom.
 
 **Where applied:**
 
-- WebSocket snapshot on connect (Broadcast Service → Redis Cluster 1)
-- Charts API current-day candle reads (Charts API → Redis Cluster 2)
-- Option Chain reads (FNO Dashboard API → Redis Cluster 2)
-- Market Movers reads (Market Movers API → Redis Cluster 2)
+- WebSocket snapshot on connect (broadcast-service -> Redis Cluster 1)
+- charts-service current-day candle reads (charts-service -> Redis Cluster 2)
+- Option Chain reads (fno-data-writer -> Redis Cluster 2)
+- Market Movers reads (market-movers-writer -> Redis Cluster 2)
 
 **Where NOT applied:**
 
 - Writes (would double-write and cause consistency problems)
 - Expensive aggregation reads (would double the work for marginal benefit)
 
-#### 6.20.6 Client-Side Resilience
+#### 6.22.6 Client-Side Resilience
 
 The frontend (mobile + web) is built to assume backend instability and recover transparently.
 
-- **WebSocket auto-reconnect** with exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (capped). On reconnect, fetch fresh snapshot from REST endpoint, then resume stream.
-- **Mobile app caches last known state on close** — when user reopens the app, the last-seen prices render instantly from local storage; live updates layer in as the WebSocket connects.
-- **Progressive data loading** — LTP first (smallest payload, most important), market depth second, Greeks last. If Greeks never arrive, the option chain still renders with LTP and depth.
-- **Skeleton loading states** — never a spinner that says "Loading..." indefinitely. After 3 seconds, render skeleton placeholder rows; data fills in as it arrives.
-- **No error modals on transient failures** — only on user-action errors (e.g., "Symbol not found"). Backend issues never produce modals.
+- **WebSocket auto-reconnect** with exponential backoff: 1s -> 2s -> 4s -> 8s -> 16s -> 30s (capped). On reconnect, fetch fresh snapshot from REST endpoint, then resume stream.
+- **Mobile app caches last known state on close** -- when user reopens the app, the last-seen prices render instantly from local storage; live updates layer in as the WebSocket connects.
+- **Progressive data loading** -- LTP first (smallest payload, most important), market depth second, Greeks last. If Greeks never arrive, the option chain still renders with LTP and depth.
+- **Skeleton loading states** -- never a spinner that says "Loading..." indefinitely. After 3 seconds, render skeleton placeholder rows; data fills in as it arrives.
+- **No error modals on transient failures** -- only on user-action errors (e.g., "Symbol not found"). Backend issues never produce modals.
 
-#### 6.20.7 Per-API Fallback Table
+#### 6.22.7 Per-API Fallback Table
 
 The mandatory fallback chain for each user-facing API:
 
 | API | Primary (Layer 1) | Layer 2 | Layer 3 | Final (Layer 4) |
 | --- | --- | --- | --- | --- |
-| **Charts API** | Redis Cluster 2 (current-day candles) | TimescaleDB (`candles_1m`) | Previous day's candles from TimescaleDB | Empty chart with "Data updating" message |
-| **FNO Dashboard API** | Redis Cluster 2 (live option chain) | Last successful snapshot (in-memory cache) | Previous close values + lot size from Instrument Master PG | Hide widget silently via feature flag |
-| **Market Movers API** | Redis Cluster 2 (sorted sets, refreshed every 5s) | Last 5-minute snapshot (in-memory cache) | Last 30-minute snapshot from TimescaleDB | Static "trending today" list from EOD |
-| **WebSocket LTP stream** | Kafka live tick (via Broadcast Service) | Redis Cluster 1 snapshot | TimescaleDB last tick (1m candle close) | Mark as stale, freeze price, show "Last updated: Xs ago" |
+| **charts-service** | Redis Cluster 2 (current-day candles) | ClickHouse (`candles_1m`) | Previous day's candles from ClickHouse | Empty chart with "Data updating" message |
+| **fno-data-writer** | Redis Cluster 2 (live option chain) | Last successful snapshot (in-memory cache) | Previous close values + lot size from Instrument Master PG | Hide widget silently via feature flag |
+| **market-movers-writer** | Redis Cluster 2 (sorted sets, refreshed every 60s) | Last snapshot (in-memory cache) | Last 30-minute snapshot from ClickHouse | Static "trending today" list from EOD |
+| **WebSocket LTP stream** | Kafka live tick (via broadcast-service) | Redis Cluster 1 snapshot | ClickHouse last tick (1m candle close) | Mark as stale, freeze price, show "Last updated: Xs ago" |
 | **Instrument Search** | PostgreSQL (instruments table) | Local ConcurrentHashMap (in-memory) | Stale list (last sync) | Common tickers from cache (e.g., NIFTY 50 + top 100) |
-| **Option Insights** | Redis Cluster 2 (PCR/Max Pain) | Last successful computation (in-memory) | EOD insights from TimescaleDB | Hide widget silently |
-| **Periscope live price** | Local in-process cache | Redis Cluster 1 | TimescaleDB last tick | Return previous close from Instrument Master PG |
+| **Option Insights** | Redis Cluster 2 (PCR/Max Pain/ATM Straddle) | Last successful computation (in-memory) | EOD insights from ClickHouse | Hide widget silently |
 
-#### 6.20.8 "Never Show Error" Enforcement
+#### 6.22.8 "Never Show Error" Enforcement
 
 This is the operational rule that makes the design real:
 
 - **All error responses converted to 200 OK.** A failed downstream lookup returns:
 
-```json { "data": null, "stale": true, "source": "FALLBACK_L4", "lastUpdatedMs": 1713168900000, "message": "Updating" } ``` Not a 5xx, not a 4xx for backend issues. The frontend treats `null` data as a loading state, never as an error.
+```json
+{
+  "data": null,
+  "stale": true,
+  "source": "FALLBACK_L4",
+  "lastUpdatedMs": 1713168900000,
+  "message": "Updating"
+}
+```
 
-- **HTTP 5xx errors are logged + sent to Incident Manager but NEVER surfaced to the client.** The API gateway has a global error handler that catches any uncaught exception and converts it to the structure above.
+Not a 5xx, not a 4xx for backend issues. The frontend treats `null` data as a loading state, never as an error.
+
+- **HTTP 5xx errors are logged + sent to ops-service but NEVER surfaced to the client.** The API gateway has a global error handler that catches any uncaught exception and converts it to the structure above.
 - **Frontend rules:**
-- `null` data → render skeleton or last-known-good
-- `stale: true` → render data with subtle freshness indicator (timestamp footer, no banner)
-- HTTP failure → silent retry with backoff, no UI change unless data has been missing for >10s, then show subtle "Reconnecting" footer
-- **No exceptions for "edge cases."** Even on cold-start, even during rolling deploys, even during a Redis Cluster failover — the contract holds.
+  - `null` data -> render skeleton or last-known-good
+  - `stale: true` -> render data with subtle freshness indicator (timestamp footer, no banner)
+  - HTTP failure -> silent retry with backoff, no UI change unless data has been missing for >10s, then show subtle "Reconnecting" footer
+- **No exceptions for "edge cases."** Even on cold-start, even during rolling deploys, even during a Redis Cluster failover -- the contract holds.
 
-**Audit:** Every Layer 2/3/4 hit is recorded in a `fallback_invocations` Prometheus counter, labeled by API + layer. If any API hits Layer 4 more than 0.1% of requests in a 5-minute window, an Incident Manager alert fires.
+**Audit:** Every Layer 2/3/4 hit is recorded in a `fallback_invocations` Prometheus counter, labeled by API + layer. If any API hits Layer 4 more than 0.1% of requests in a 5-minute window, an ops-service alert fires.
 
----
+#### 6.22.9 Monitoring: 8 Grafana Dashboards
 
-### 6.21 AI-Powered Incident Manager
-
-<Info>
-**New.** **Platform-wide capability — not just Market Data Engine internal tooling.** Detects incidents BEFORE users notice. Uses an LLM to root-cause and suggest fixes. Auto-remediates known patterns. Integrates with Slack, Jira, PagerDuty, and Kubernetes.
-</Info>
-
-**Purpose:** Today, most incidents are first reported by users — embarrassing and slow. With Incident Manager, the platform detects anomalies in seconds, gathers context-rich evidence, asks an LLM to root-cause it, and either auto-remediates (if the fix is reversible and high-confidence) or pages a human with a fully-prepared analysis. Mean time to recovery (MTTR) drops from hours to minutes.
-
-#### 6.21.1 Architecture
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│              INCIDENT MANAGER PLATFORM                        │
-│                                                              │
-│  SIGNAL COLLECTORS (continuous)                              │
-│  ├─ Prometheus metrics (all services)                        │
-│  ├─ Application logs (JSON, Logstash → Elasticsearch)        │
-│  ├─ Kafka consumer lag                                       │
-│  ├─ Redis / PostgreSQL slow query log                        │
-│  ├─ WebSocket disconnection rates                            │
-│  ├─ API error rates / latency                                │
-│  ├─ Synthetic probes (Pingdom-style health checks)           │
-│  └─ User-reported issues (Jira / Slack mentions)             │
-│                              │                               │
-│                              ▼                               │
-│  ANOMALY DETECTION                                           │
-│  ├─ Statistical baselines (EWMA, z-score per metric)         │
-│  ├─ Time-series forecasting (Prophet for seasonality)        │
-│  └─ Correlation engine (cross-service anomaly clustering)    │
-│                              │                               │
-│                              ▼                               │
-│  LLM DEBUGGER (Claude Sonnet 4.5 / configurable)             │
-│  ├─ Reads logs, metrics, traces from last 5–15 min            │
-│  ├─ Queries code (repo-aware RAG over service repos)         │
-│  ├─ Identifies root-cause hypothesis (ranked by confidence)  │
-│  ├─ Suggests fix steps with risk assessment                   │
-│  ├─ Generates runbook snippets                                │
-│  └─ (Future) opens draft PR with proposed fix                 │
-│                              │                               │
-│                              ▼                               │
-│  AUTO-REMEDIATION (rules-driven, reversible only)            │
-│  ├─ Circuit breaker manual override                           │
-│  ├─ Feature flag toggle (Unleash API)                         │
-│  ├─ Service restart (kubectl rollout restart / pod delete)    │
-│  ├─ Traffic reroute (failover trigger)                        │
-│  └─ Cache invalidation                                        │
-│                              │                               │
-│                              ▼                               │
-│  NOTIFICATION & TICKETING                                    │
-│  ├─ P0 → PagerDuty + Slack #incidents + LLM analysis         │
-│  ├─ P1 → Slack #incidents + auto-create Jira ticket          │
-│  ├─ P2 → Jira ticket only                                    │
-│  └─ Auto-close ticket when metrics return to baseline         │
-└──────────────────────────────────────────────────────────────┘
-```
-
-#### 6.21.2 Detection Signals
-
-The Incident Manager continuously ingests signals from every service in the platform. Detection is not based on a single metric crossing a threshold — it uses statistical baselines and cross-signal correlation to reduce false positives.
-
-| Signal Source | Examples | Threshold |
+| Dashboard | Purpose | Key Panels |
 | --- | --- | --- |
-| **Prometheus** | p99 latency, error rate, queue depth, GC pause frequency, JVM heap | Z-score > 3 sustained for 60 seconds |
-| **Application Logs** | ERROR-level log spike, new stack traces, OutOfMemoryError | >10x baseline frequency in 1 minute, OR appearance of any never-before-seen stack trace |
-| **Kafka** | Consumer lag growth | >5 seconds sustained for 30 seconds OR >2x normal lag for 2 minutes |
-| **Redis** | Slow query log entries, evicted keys, replica lag | >1 slow query per 10 seconds, OR any noeviction-induced write failure |
-| **Feed Health** | Heartbeat missing, sequence gaps | >3 seconds of silence on any UDP stream, OR sequence gap > 100 with no fill |
-| **Synthetic Probes** | Charts API health endpoint, Option Chain API health endpoint | 3 consecutive failures within 60 seconds |
-| **WebSocket** | Disconnect rate spike, snapshot fetch latency | Disconnect rate > 5x baseline OR snapshot fetch p99 > 200 ms |
-| **TimescaleDB** | Continuous aggregate refresh lag, write WAL bloat | cagg refresh lag > 10 minutes, OR WAL > 5 GB |
+| **MDE Overview** | Platform-wide health at a glance | All 10 services UP/DOWN, total TPS, total WebSocket connections, total Kafka lag |
+| **Feed Pipeline** | feed-handler -> publisher -> Redis C1 | Tick TPS per segment, dedup hit rate, source latency (NSE Direct vs Omnenest), market status |
+| **Candle Pipeline** | charts-service write path | Candle close rate, ClickHouse batch insert latency, Redis C2 write rate, in-memory bucket count |
+| **FNO Analytics** | fno-data-writer health | Greeks computation latency, Max Pain/PCR/ATM Straddle refresh rate, chain write rate |
+| **Market Movers** | market-movers-writer health | Candle consumption rate, ZADD rate, mover category counts per index bucket |
+| **WebSocket** | broadcast-service client connections | Active connections, subscribe/unsubscribe rate, fan-out latency, idle connection cleanup rate |
+| **Infra: Redis** | Both clusters (C1 + C2) | Memory usage, command latency p50/p99, eviction rate, connection count |
+| **Infra: ClickHouse** | Historical data store | Insert rate, merge rate, partition count, disk usage, query latency |
 
-**Correlation engine:** Anomalies that cluster in time and space (same service, same datacenter, same dependency chain) are merged into a single incident. Example: if Charts Data Writer's CPU spikes AND its Kafka consumer lag grows AND TimescaleDB ingest latency rises — that's ONE incident, not three. The correlation prevents alert fatigue.
-
-#### 6.21.3 LLM-Powered Debugging Workflow
-
-When an incident is detected and confirmed by the correlation engine, the LLM debugging workflow runs:
-
-```
-1. INCIDENT DETECTED (anomaly + correlation)
-       │
-       ▼
-2. SIGNAL COLLECTOR snapshots:
-       - Last 5 minutes of metrics from affected services
-       - Last 5 minutes of ERROR-level logs
-       - Distributed traces (Tempo/Jaeger) for failing requests
-       - Recent deploys (Argo CD / GitHub Actions history)
-       - Service topology (which services depend on which)
-       │
-       ▼
-3. CONTEXT ASSEMBLY:
-       - Known-good baselines for each metric
-       - Recent code changes (git diff for last 3 deploys)
-       - Runbook entries (from confluence) for similar past incidents
-       │
-       ▼
-4. LLM ANALYSIS (Claude Sonnet 4.5):
-       - Root-cause hypothesis (top 3, ranked by confidence)
-       - Evidence supporting each hypothesis
-       - Suggested fix steps for each hypothesis
-       - Risk assessment for each fix (reversible? data-impacting?)
-       - Relevant runbook references
-       │
-       ▼
-5. POST TO SLACK CHANNEL #incident-{id}:
-       - Summary (1-line)
-       - Top hypothesis with evidence
-       - Suggested fix
-       - "Approve & execute" / "Investigate further" buttons
-       │
-       ▼
-6. AUTO-EXECUTE OR HUMAN-IN-LOOP:
-       If LLM confidence > 90% AND fix is in the auto-remediation allowlist:
-           → Execute fix (e.g., kubectl rollout restart)
-           → Continue monitoring; if metrics recover within 5 min, close incident
-           → If metrics don't recover, escalate to human
-       Else:
-           → Wait for human approval in Slack
-           → Execute approved fix on click
-       │
-       ▼
-7. OUTCOME LOGGING:
-       - Whether the LLM's hypothesis was correct
-       - Whether the fix worked
-       - Time-to-detection, time-to-mitigation
-       - Feeds back into the model evaluation pipeline
-```
-
-#### 6.21.4 Example LLM Prompt and Response
-
-**Example incident — Charts Data Writer OOM:**
-
-```
-INCIDENT #1234
-Service: Charts Data Writer
-Symptoms: Consumer lag climbing (30s → 90s in 3 min)
-Metrics: CPU normal, memory climbing, GC pause frequency up
-Logs: "OutOfMemoryError: Java heap space" started 2 min ago
-Recent deploys: charts-data-writer v2.14.3 deployed 15 min ago
-
-Diff from v2.14.2:
-+ Added in-memory candle aggregation buffer
-+ Removed periodic flush trigger
-
-Topology: Consumes from pml-marketfeed-nse-equity-ticks (6 partitions),
-          writes to TimescaleDB candles_1m and Redis Cluster 2.
-
-Analyze and suggest fix.
-```
-
-**Example LLM response:**
-
-```
-ROOT CAUSE (95% confidence):
-The v2.14.3 deploy removed the periodic flush trigger from the
-candle aggregation buffer. The buffer now grows unboundedly,
-causing OOM as tick volume accumulates.
-
-EVIDENCE:
-- Memory growth correlates linearly with tick ingestion rate
-- OOM occurred precisely when JVM heap reached configured limit
-- v2.14.2 ran stable for 30+ days under identical load
-- Diff explicitly removes the @Scheduled flush method
-
-FIX:
-1. Immediate (reversible, low-risk): Rollback to v2.14.2
-   Command: kubectl rollout undo deployment/charts-data-writer -n market-data
-2. Permanent (requires PR review): Re-add periodic flush trigger
-   (every 30s) OR add size-based flush at 100K buffered entries.
-
-RISK ASSESSMENT:
-- Rollback: LOW. v2.14.2 known-good. Brief consumer-lag spike during rollout.
-- Permanent fix: requires code review + new deploy. Use rollback as immediate stop-gap.
-
-RECOMMENDED ACTION: Auto-execute rollback. Open Jira ticket for permanent fix.
-```
-
-If the LLM's confidence is above the auto-execute threshold AND the fix (`kubectl rollout undo`) is in the auto-remediation allowlist, the rollback is executed immediately; the incident channel is updated with execution result.
-
-#### 6.21.5 Auto-Remediation Rules
-
-Auto-remediation only fires for actions that are (a) reversible, (b) well-understood, and (c) inside an explicit allowlist. Anything destructive or ambiguous goes to humans.
-
-| Trigger | Auto-Remediation | Confirmation Required? |
-| --- | --- | --- |
-| Pod memory or CPU over threshold for 2 min | `kubectl rollout restart` (rolling restart) | No (reversible) |
-| Service container OOMKilled | `kubectl rollout undo` to previous version | No (reversible) |
-| Circuit breaker stuck OPEN > 5 min | Manual escalation only | Yes |
-| Feed silence > 5 seconds | Trigger source failover (NSE→Omnenest reroute logged) | No (already automatic at feed layer) |
-| Kafka consumer lag > 2x threshold for 5 min | Scale up consumer pods (`kubectl scale --replicas=+2`) | No (reversible) |
-| Redis slow queries detected | Log + alert, no auto-action | Yes (humans investigate) |
-| Component down → Affected widgets | Toggle feature flag to hide widget | No (reversible) |
-| Component recovered → Affected widgets | Toggle feature flag to re-enable | No (reversible) |
-| Continuous aggregate refresh lag > 10 min | Manually trigger refresh (`CALL refresh_continuous_aggregate(...)`) | No (idempotent) |
-
-**Safety rails:**
-
-- No remediation may be triggered for the same service more than 3 times in 30 minutes (prevents flap loops).
-- Every auto-remediation is logged to an immutable audit table (`incident_actions`).
-- All auto-remediations post to `#incidents-audit` Slack channel for human review post-hoc.
-- Database writes, deletes, schema changes are NEVER auto-remediated.
-
-#### 6.21.6 Integration Points
-
-The Incident Manager is glue. It depends on existing observability + ops infrastructure:
-
-| System | Direction | Purpose |
-| --- | --- | --- |
-| Prometheus AlertManager | Incident Manager subscribes | Receive metric-based alerts |
-| Loki / Elasticsearch | Incident Manager queries | Pull logs for context assembly |
-| Tempo / Jaeger | Incident Manager queries | Pull traces for failing requests |
-| Slack webhooks | Incident Manager posts | Per-severity channel routing (`#incidents-p0`, `#incidents-p1`) |
-| Jira API | Incident Manager creates tickets | Auto-create with LLM analysis as description; auto-close on metric recovery |
-| PagerDuty | Incident Manager pages | P0 only |
-| Kubernetes API | Incident Manager executes | Auto-restart, auto-scale, rollout undo |
-| GitHub / Bitbucket | Incident Manager reads | Recent commits + diffs for LLM context |
-| Unleash (feature flags) | Incident Manager toggles | Silent feature degradation per §6.20 |
-| Argo CD | Incident Manager reads | Recent deploy history for LLM context |
-
-#### 6.21.7 Severity Classification
-
-| Severity | Definition | Examples | Notification |
-| --- | --- | --- | --- |
-| **P0** | User-impacting now or imminently | Both feeds down; Charts API completely failing; WebSocket pods crashlooping | PagerDuty page + Slack `#incidents-p0` + LLM analysis |
-| **P1** | Single component degraded; no user impact yet (fallback active) | NSE Direct down (Omnenest sole source); Continuous aggregate refresh lag; FNO Writer slow | Slack `#incidents-p1` + auto-create Jira |
-| **P2** | Operational concern, no functional impact | Redis memory at 75%; Kafka topic close to retention boundary; Prometheus scrape latency rising | Jira ticket only |
-
-#### 6.21.8 Why Build This?
-
-**Today's reality (without Incident Manager):**
-
-- Issues are usually first reported by users → embarrassing, slow to respond
-- Operators page each other; spend 10–30 minutes gathering context (logs, metrics, traces, recent deploys)
-- The same incidents recur because runbook lookup is manual
-
-**With Incident Manager:**
-
-- Detected in seconds via correlation across signals
-- Context assembled automatically; LLM produces analysis before a human even opens Slack
-- Auto-remediation handles 80% of "obvious" incidents (OOMs, restart loops, feature-flag toggles for component failures) without human intervention
-- Humans focus only on novel, complex incidents
-- MTTR drops from hours to minutes
-- P0s that reach users drop dramatically — most are caught + remediated before user impact
-
-**Build this from Day 1, not as a post-launch addon.** A platform of this size and complexity cannot be operated at the required reliability without it.
+All dashboards provisioned as JSON in `infra/grafana/` and auto-deployed via ArgoCD.
 
 ---

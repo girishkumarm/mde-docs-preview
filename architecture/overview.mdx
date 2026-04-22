@@ -14,110 +14,106 @@ See the [Introduction](/introduction) for the full data scope and design philoso
 ```mermaid
 flowchart LR
   subgraph Feeds["Exchange Feeds"]
-    NSE[NSE Direct]
-    BSE[BSE Direct]
-    CMOTS[CMOTS REST]
-    Push[Push Feed]
+    NSE[NSE Direct<br/>UDP Multicast]
+    BSE[BSE Direct<br/>UDP Multicast]
+    OMN[Omnenest<br/>RS Protocol]
   end
 
-  subgraph Ingest["Ingest"]
-    FH[Feed Handler]
+  subgraph Ingest["Ingest Layer"]
+    FH[feed-handler<br/>8082]
+    PUB[publisher<br/>no HTTP]
   end
 
-  subgraph Bus["Streaming"]
-    K[(Kafka)]
-    RF[(Redis Feed Cluster)]
+  subgraph Bus["Streaming Bus"]
+    K[(Kafka<br/>8 topics)]
+    RC1[(Redis C1<br/>Snapshots)]
   end
 
-  subgraph Write["Write Path"]
-    CW[Candle Writer<br/>dual-sink]
-    CHW[Charts Historical Writer]
-    TW[Ticker Writer]
+  subgraph Core["Core Services"]
+    CS[charts-service<br/>8083]
+    FNO[fno-data-writer<br/>8085]
+    MMW[market-movers-writer<br/>8084]
+    BS[broadcast-service<br/>8087]
+    AE[alert-engine<br/>8091]
+    IM[instrument-master<br/>8081]
   end
 
   subgraph Store["Storage"]
-    RA[(Redis API Cluster)]
-    CH[(ClickHouse<br/>ReplacingMergeTree)]
-    PG[(PostgreSQL<br/>master data)]
-    S3[(S3<br/>scrip master, backups)]
-  end
-
-  subgraph Read["Read Path"]
-    CA[charts-api]
-    IM[instrument-master]
-    BS[broadcast-service]
-    MA[market-movers-api]
-    FA[FNO-api]
-    AL[alerts-engine]
+    RC2[(Redis C2<br/>Candles + Movers<br/>+ FNO + Alerts)]
+    CH[(ClickHouse<br/>ReplacingMergeTree<br/>+ 4 MVs)]
+    PG[(PostgreSQL<br/>Master data)]
+    S3[(S3<br/>Scrip master)]
   end
 
   subgraph Platform["Platform Services"]
+    SS[scheduler-service<br/>8094]
+    OPS[ops-service<br/>8088]
     TP[Temporal<br/>workflows]
-    IC[AI Incident Manager]
-    CB[Circuit Breakers /<br/>Feature Flags]
   end
 
-  Feeds --> FH --> K
-  FH --> RF
-  K --> CW --> CH
-  K --> CHW --> CH
-  K --> TW --> RA
-  RA --> CA
-  RA --> BS
-  RA --> MA
-  CH --> CA
+  Feeds --> FH
+  FH --> K
+  FH --> PUB --> RC1
+
+  K --> CS
+  CS --> RC2
+  CS --> CH
+  CS -- mde-candles-1m --> K
+
+  K -- mde-candles-1m --> MMW --> RC2
+  K --> FNO --> RC2
+  K --> BS
+  K --> AE --> RC2
+
+  RC1 --> BS
+  CH --> CS
   PG --> IM
   S3 --> IM
-  CH --> FA
-  RA --> AL
-  TP --> CW
-  TP --> CHW
-  IC -.observes.-> Write
-  IC -.observes.-> Read
-  CB -.protects.-> Read
+
+  TP --> SS
+  OPS -.observes.-> Core
+  OPS -.observes.-> Store
 ```
 
 See **[Architecture Diagrams](/architecture/diagrams)** for the full set (12 decision diagrams + end-to-end flows).
 
-## Core components
+## Core components (9 services)
 
-Verified against the `market-data-engine` monorepo (`main`). See **[Service Catalog](/architecture/service-catalog)** for Spring application classes, per-service endpoints, and storage details.
+Consolidated from the original 15 services. See **[Service Catalog](/architecture/service-catalog)** for Spring application classes, per-service endpoints, and storage details.
 
-| Layer | Service | Purpose |
-| --- | --- | --- |
-| Ingest | **feed-handler** *(8082)* | NSE/BSE multicast (6 UDP streams) → decode → cross-source dedup → Kafka |
-| Ingest | **publisher** *(8083)* | Tick consumer → Redis Feed snapshots + Lua atomic 52-wk H/L + OHLC |
-| Platform | **Kafka 3.8.0** | 6 tick topics + 5 control/audit topics ([Kafka topics](/data-apis/kafka-topics)) |
-| Platform | **Redis 7.4** (Feed + API) | Feed cluster 6380, API cluster 6381 ([Redis keys](/data-apis/redis-keys)) |
-| Write v2 | **candle-writer** *(8086)* ⭐ | **Dual-sink**: Redis running (5s/15s/30s/1m) + direct ClickHouse INSERT of closed 1m. **No Kafka produce.** Cascades higher intervals to Redis only; ClickHouse MVs roll up. |
-| Write v1 | **charts-writer** *(8086)* | **Legacy** — writes TimescaleDB, produces `mde-candles-1m`. Kept on `main` for rollback. |
-| Write v1 | **charts-historical-writer** *(8090)* | **Legacy** — consumes `mde-candles-1m`, batch-INSERT to ClickHouse. Kept for rollback. |
-| Write | **fno-data-writer** *(8085)* | Option chain + Greeks + PCR + Max Pain + CPR |
-| Write | **market-movers-writer** *(8084)* | Gainers/losers — Redis zsets |
-| Read | **charts-api** *(8086)* | `GET /v1/candles/{token}`, `/v1/running-candles/{token}`, `POST /v1/price-charts` (UDF), `GET /v1/index` |
-| Read | **instrument-master** *(8081)* | Scrip master, companies, search, CA webhook; produces `mde-instrument-master-events`, `mde-corporate-actions` |
-| Read | **broadcast-service** *(8087)* | WebSocket `/ws/feed` — unique Kafka group-id per pod |
-| Platform | **Temporal 1.26.2** | Workflows: scrip refresh, pre-market setup, reconciliation, CA propagation |
-| Platform | **premarket-scheduler** *(8086)* | Temporal worker + `TRD_DAY` flag gate |
-| Platform | **recon-service** *(8089)* | OHLCV reconciliation workflow → `mde-recon-reports`. Still reads TimescaleDB for legacy source comparison. |
-| Platform | **incident-manager** *(8092)* | AlertManager webhook → Jira + Slack + timeline; produces `mde-feed-anomalies` |
+| # | Service | Port (HTTP/Mgmt) | Purpose |
+| --- | --- | --- | --- |
+| 1 | **feed-handler** | 8082 / 9082 | NSE/BSE multicast (6 UDP streams) → LZO decode → OI injection → cross-source dedup → zero-LTP fallback → Kafka |
+| 2 | **publisher** | — / 9082 | Tick consumer → Redis C1 snapshots (FEED_PP, OHLC, 52WK) + Lua atomics. Market status key, BSE circuit limits from MBP. No HTTP port. |
+| 3 | **instrument-master** | 8081 / 9081 | Scrip master, company info (absorbs company-fundamentals), search, CA webhook; produces `mde-instrument-master-events`, `mde-corporate-actions` |
+| 4 | **broadcast-service** | 8087 / 9087 | WebSocket `/ws/feed` — unique Kafka group-id per pod, market status broadcasting, heartbeat, per-pod connection limit, inverted subscription index |
+| 5 | **charts-service** | 8083 / 9083 | Merged from charts-writer + charts-historical-writer + charts-api. Kafka ticks → Redis C2 (1m hot candles, Hash + ZSET, 2-3d TTL with AOF) + ClickHouse batch insert (historical). Produces `mde-candles-1m`. Serves `GET /v1/candles`, `/v1/running-candles`, `POST /v1/price-charts` (UDF). Partition-based horizontal scaling. |
+| 6 | **market-movers-writer** | 8084 / 9084 | Consumes `mde-candles-1m` topic (not raw ticks) → Redis C2 sorted sets for gainers/losers/volume/value |
+| 7 | **fno-data-writer** | 8085 / 9085 | Option chain + Greeks + IV + Max Pain + ATM Straddle + PCR (OI + Volume) + Black-76 (index options) + day-over-day changes + BSE F&O → Redis C2 |
+| 8 | **alert-engine** | 8091 / 9091 | Price/volume alerts, 52W conditions using BOD reference data, Redis index reconciliation on restart → Redis C2 |
+| 9 | **scheduler-service** | 8094 / 9094 | Merged from premarket-scheduler + corporate-action-processor. Temporal worker + TRD_DAY gate. Direct exchange URL downloads, BSE bhavcopy, NSE F&O bhavcopy, F&O ban list, BSE circuit limits (DP file). Corporate action T-1 pre-computation with shadow tables and atomic partition swap. |
+| — | **ops-service** | 8088 / 9088 | Merged from incident-manager + recon-service. Autonomous operations hub with self-healing, market-hours awareness. LLM-driven RCA (Claude Sonnet 4.5), OHLCV reconciliation → `mde-recon-reports`, AlertManager webhook → Jira + Slack + timeline. |
 
-<Warning>
-**TimescaleDB is still live in 3 services**: `charts-writer` (primary candle store, legacy v1), `recon-service` (reads legacy 1m for reconciliation), `instrument-master` (read-only chart proxy). v2 cut-over completes after the bake-off + retention-window pass.
-</Warning>
+<Info>
+**Platform infrastructure:** Kafka 3.8.0 (8 topics — see [Kafka topics](/data-apis/kafka-topics)), Redis 7.4 C1 (snapshots, port 6380) + C2 (candles/movers/FNO/alerts, port 6381) — see [Redis keys](/data-apis/redis-keys), ClickHouse (ReplacingMergeTree + 4 materialized view rollups), PostgreSQL 16, Temporal 1.26.2.
+</Info>
 
-Detail: **[Service Catalog](/architecture/service-catalog)** (source-of-truth), **[Components Part 1](/components/part1-feed-to-charts)**, **[Components Part 2](/components/part2-fno-movers-alerts)**. Candles v2 is at **[Candles v2](/components/candles-v2)**.
+Detail: **[Service Catalog](/architecture/service-catalog)** (source-of-truth), **[Components Part 1](/components/part1-feed-to-charts)**, **[Components Part 2](/components/part2-fno-movers-alerts)**.
 
 ## Storage decisions at a glance
 
-| Concern | Choice | Why |
+| Store | What Lives Here | Why |
 | --- | --- | --- |
-| Running candle state | Redis (hash per symbol/tf) | Sub-ms reads; rebuildable from closed bars + ticks on cold start |
-| Closed bars (1m…1M) | ClickHouse ReplacingMergeTree + 4 MVs | Column-store scan speed; MV rollups remove the old Charts Data Collector |
-| Time-series long-term | **TimescaleDB removed** — consolidated onto ClickHouse | Single TSDB; fewer moving parts (storage unification) |
-| Master data | PostgreSQL 16 | Scrip master, user alerts, incident registry |
-| Scrip master distribution | S3 (versioned) | Downstream services pull nightly snapshots |
-| Cache / leaderboards | Redis API Cluster | Movers zsets, LTP LKG, session state |
+| **Redis Cluster 1 (C1)** | Real-time snapshots — FEED_PP, OHLC, 52WK, circuit limits, market status | Sub-ms reads for live data; Lua scripts for atomic updates |
+| **Redis Cluster 2 (C2)** | 1-minute candles (Hash per candle + ZSET index per instrument, 2-3 day TTL with AOF persistence), market movers ZSETs, FNO chains, alert indices | Hot candle store; sub-ms reads for running/recent candles; AOF for durability |
+| **ClickHouse** | Historical candles (all intervals), recon data, corporate action audit. ReplacingMergeTree for dedup + 4 materialized view rollups (5m, 15m, 1h, 1d) | Column-store scan speed; MV rollups replace manual aggregation; 10-year retention |
+| **PostgreSQL 16** | Instrument master data, user alerts, corporate actions metadata, ops incidents | Relational master data, transactional writes |
+| **S3** | Scrip master snapshots (versioned), backups | Downstream services pull nightly |
+| **Kafka** | 8 topics for inter-service messaging (ticks, candles, instruments, corporate actions, recon, anomalies, alerts, control) | Durable stream; replay as ultimate fallback in three-layer durability model |
+
+<Tip>
+**Three-layer durability for candles:** Redis AOF (hot) → ClickHouse batch insert (durable) → Kafka replay as ultimate fallback. No data loss even if Redis restarts.
+</Tip>
 
 The rationale for Redis + Kafka (and not one-or-the-other) is in **[Kafka vs Redis Defense](/decisions/kafka-vs-redis)**.
 
@@ -125,43 +121,54 @@ The rationale for Redis + Kafka (and not one-or-the-other) is in **[Kafka vs Red
 
 <CardGroup cols={2}>
   <Card title="Live LTP / Snapshot" icon="bolt">
-    UI → broadcast-service (WS) → Redis API. Fallback: charts-api `/v1/price-charts`.
+    UI → broadcast-service (WS) → Redis C1. Fallback: charts-service `/v1/price-charts`.
   </Card>
   <Card title="Charts — Running Candle" icon="chart-line">
-    UI → charts-api `/v1/running-candles` → Redis API (hash read). Sub-10ms typical.
+    UI → charts-service `/v1/running-candles` → Redis C2 (hash read). Sub-10ms typical.
   </Card>
   <Card title="Charts — Historical" icon="clock-rotate-left">
-    UI → charts-api `/v1/candles?source={redis|clickhouse}` → ClickHouse MV rollup for the requested timeframe.
+    UI → charts-service `/v1/candles` → Redis C2 (recent 2-3 days) or ClickHouse MV rollup (older).
   </Card>
   <Card title="Option Chain / Greeks" icon="table">
-    UI → FNO-api → Redis API (hot chain) + ClickHouse (settles, OI time-series).
+    UI → fno-data-writer → Redis C2 (hot chain + Max Pain + ATM Straddle + PCR).
   </Card>
 </CardGroup>
 
 ## Reliability & resilience
 
 - **Zero-Error UX**: Users never see errors. Layered fallback, stale-while-revalidate, circuit breakers (Resilience4j), silent feature flags (Unleash), request hedging.
-- **AI-Powered Incident Manager**: Proactive detection + LLM-driven RCA from Day 1. Catches anomalies before users feel them.
-- **Self-healing**: Feed Handler auto-reconnects, candle writer auto-rebuilds running state from Kafka + ClickHouse on cold start.
-- **Temporal-first migrations**: Historical backfill and scrip master refresh run as Temporal workflows — resumable, idempotent, observable.
+- **Autonomous ops-service**: Proactive anomaly detection + LLM-driven RCA (Claude Sonnet 4.5) with market-hours awareness. Self-healing actions before users notice.
+- **Self-healing**: Feed Handler auto-reconnects, charts-service auto-rebuilds running candle state from Kafka + ClickHouse on cold start. Alert-engine reconciles Redis indices on restart.
+- **Three-layer durability**: Redis AOF → ClickHouse batch insert → Kafka replay. No single point of failure for candle data.
+- **Temporal-first migrations**: Historical backfill, scrip master refresh, corporate action pre-computation all run as Temporal workflows — resumable, idempotent, observable.
+- **Production observability**: Prometheus metrics on every service (port 9xxx), distributed tracing, 8 Grafana dashboards.
 
 Full details: **[Components Part 2 §6.20–6.21](/components/part2-fno-movers-alerts)**.
 
 ## What's new
 
 <Tabs>
-  <Tab title="(current)">
-    - **AI-Powered Incident Manager** — proactive anomaly detection + LLM RCA (Claude Sonnet 4.5)
-    - **Zero-Error UX** — graceful degradation, stale-while-revalidate, Resilience4j + Unleash
-    - Decisions 11 & 12 added to [Architecture Diagrams](/architecture/diagrams)
+  <Tab title="Current (v4.0)">
+    - **9 consolidated services** (down from 15) — charts-service (3-in-1), scheduler-service (2-in-1), ops-service (2-in-1), instrument-master absorbs company-fundamentals
+    - **ClickHouse + Redis replaces TimescaleDB** — 1m candles in Redis C2 (hot, AOF), historical in ClickHouse (ReplacingMergeTree + 4 MV rollups), three-layer durability
+    - **FNO analytics suite** — Max Pain, ATM Straddle, PCR (OI + Volume), day-over-day changes, BSE F&O, Black-76 for index options
+    - **Corporate action pre-computation** — T-1 shadow tables with atomic partition swap
+    - **Autonomous ops-service** — self-healing, market-hours awareness, LLM-driven RCA (Claude Sonnet 4.5)
+    - **Production observability** — Prometheus metrics on all services, distributed tracing, 8 Grafana dashboards
+    - **Feed handler enhancements** — LZO decompression, OI injection, zero-LTP fallback, cross-minute re-send, prev-close enrichment for indices
+    - **38 gap-closure tasks** completed across all services
   </Tab>
   <Tab title="Earlier design iterations">
-    - **TimescaleDB removed** — unified time-series on ClickHouse
-    - **Candles v2** shipped: dual-sink writer, Redis running + ClickHouse closed, charts-api `source=` switch, UDF-compat `/v1/price-charts`
+    - **Zero-Error UX** — graceful degradation, stale-while-revalidate, Resilience4j + Unleash
+    - **AI-Powered Incident Manager** — proactive anomaly detection + LLM RCA (now part of ops-service)
     - Charts Data Collector service eliminated — ClickHouse MVs replace manual rollups
   </Tab>
-  <Tab title="Legacy paths (deprecated)">
-    - Candle storage on TimescaleDB — removed. See [Migration Overview](/migration/overview).
+  <Tab title="Legacy paths (removed)">
+    - TimescaleDB candle storage — fully removed, replaced by Redis C2 + ClickHouse. See [Migration Overview](/migration/overview).
+    - charts-writer, charts-historical-writer, charts-api — consolidated into charts-service.
+    - premarket-scheduler, corporate-action-processor — consolidated into scheduler-service.
+    - incident-manager, recon-service — consolidated into ops-service.
+    - company-fundamentals — absorbed into instrument-master.
     - Redis-only architecture (pre-Kafka) — superseded; see [Kafka vs Redis](/decisions/kafka-vs-redis).
   </Tab>
 </Tabs>

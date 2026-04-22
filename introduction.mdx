@@ -3,7 +3,7 @@ title: "Market Data Engine — Technical Design Document"
 ---
 
 <Info>
-**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+**April 2026 — pre-production draft.** Platform consolidated from 15 to 9 services. TimescaleDB fully removed — candles now stored in Redis (hot) + ClickHouse (historical). FNO analytics suite (Max Pain, ATM Straddle, PCR). Corporate action pre-computation with atomic partition swap. Autonomous ops-service with self-healing and LLM-driven RCA. Zero-Error UX with graceful degradation, circuit breakers (Resilience4j + Unleash). Production observability with Prometheus metrics and 8 Grafana dashboards.
 </Info>
 
 # Market Data Engine — Technical Design Document
@@ -13,12 +13,13 @@ title: "Market Data Engine — Technical Design Document"
 
 **Highlights:**
 
-- **Added AI-Powered Incident Manager** (proactive detection + LLM debugging) — platform-wide capability that detects incidents before users notice and uses an LLM to root-cause + suggest fixes (§6.21).
-- **Added Zero-Error UX** — users should NEVER see an error. Layered fallback strategy, stale-while-revalidate, circuit breakers, silent feature flags, request hedging (§6.20).
-- **Added Decision 11** (AI-Powered Incident Manager from Day 1) and **Decision 12** (Zero-Error User Experience via Graceful Degradation) in §10.1.
-- Tech stack, deployment, monitoring, and business-rules sections updated accordingly.
-
-**Earlier evolution:** Unified time-series storage on **TimescaleDB** (replacing QuestDB + MongoDB + Elasticsearch). Charts Data Collector service eliminated — continuous aggregates take over manual rollups. Historical data migration framed as a Temporal workflow.
+- **Service consolidation 15 to 9** — charts-writer + charts-historical-writer + charts-api merged into **charts-service**; premarket-scheduler + corporate-action-processor merged into **scheduler-service**; incident-manager + recon-service merged into **ops-service**; company-fundamentals absorbed into **instrument-master**.
+- **TimescaleDB fully removed** — 1-minute candles stored in **Redis** (hot, 2-3 day TTL with AOF), historical candles in **ClickHouse** (ReplacingMergeTree + 4 materialized view rollups). Three-layer durability: Redis AOF, ClickHouse batch insert, Kafka replay fallback.
+- **FNO analytics suite** — Max Pain, ATM Straddle, PCR (OI + Volume), day-over-day changes, BSE F&O support, Black-76 for index options.
+- **Corporate action pre-computation** — T-1 pre-computation with shadow tables and atomic partition swap.
+- **Autonomous operations hub** — ops-service with self-healing, market-hours awareness, LLM-driven RCA (Claude Sonnet 4.5).
+- **Zero-Error UX** — users should NEVER see an error. Layered fallback strategy, stale-while-revalidate, circuit breakers, silent feature flags, request hedging (§6.20).
+- **Production observability** — Prometheus metrics, distributed tracing, 8 Grafana dashboards.
 </Info>
 
 ---
@@ -132,81 +133,104 @@ The Market Data Engine is the **single, authoritative source of all market data*
                                   │ External circuit breaker (not our service)
                                   │
                     ┌─────────────▼────────────────────────┐
-                    │         FEED HANDLER                  │
+                    │     1. FEED HANDLER (8082)            │
                     │  Receive → Decode → Denormalize       │
+                    │  LZO decompression, OI injection      │
                     │  Cross-Source Dedup (instrument+ts)   │
-                    │  Sequence Gap Detection               │
+                    │  Zero-LTP fallback, cross-min resend  │
                     └─────────────┬────────────────────────┘
                                   │
                           ┌───────┴───────┐
                           │               │
               ┌───────────▼──────┐   ┌────▼──────────────┐
-              │    PUBLISHER     │   │    PRODUCER        │
-              │                  │   │                    │
-              │ Redis Hash       │   │ Kafka Topics       │
-              │ (live snapshot)  │   │ (durable stream)   │
-              └──────┬───────────┘   └────┬───────────────┘
-                     │                    │
-                     │              ┌─────┼─────────┬──────────────┐
-                     │              │     │         │              │
-              ┌──────┴───────┐  ┌──▼─────▼──┐  ┌──▼─────────┐ ┌──▼──────────┐
-              │  PERISCOPE   │  │  CHARTS   │  │  FNO DATA  │ │  MARKET     │
-              │  API         │  │  DATA     │  │  WRITER    │ │  MOVERS     │
-              │              │  │  WRITER   │  │            │ │  WRITER     │
-              │ Reads Redis  │  │           │  │ Option     │ │             │
-              │ + local      │  │ Timescale │  │ Chain +    │ │ Redis       │
-              │ cache        │  │ DB        │  │ Insights   │ │ Sorted Sets │
-              │              │  │ → Redis   │  │ Greeks     │ │             │
-              │              │  │ (current  │  │ → Redis    │ │             │
-              │              │  │ day)      │  │            │ │             │
-              └──────────────┘  └──────┬────┘  └─────┬──────┘ └──────┬──────┘
-                                       │             │              │
-              ┌──────────────┐  ┌──────▼────┐  ┌────▼────────┐ ┌──▼──────────┐
-              │  BROADCAST   │  │  CHARTS   │  │  FNO        │ │  MARKET     │
-              │  SERVICE     │  │  API      │  │  DASHBOARD  │ │  MOVERS     │
-              │              │  │           │  │  API        │ │  API        │
-              │ Kafka pull   │  └───────────┘  └─────────────┘ └─────────────┘
-              │ → Protobuf   │
-              │ → WebSocket  │
-              │ → Users      │
-              │              │
-              │ Redis Hash   │
-              │ for snapshot  │
-              │ on connect   │
-              └──────┬───────┘
-                     │
-              ┌──────▼───────┐
-              │  USER        │
-              │  PHONE/WEB   │
-              └──────────────┘
+              │  2. PUBLISHER    │   │    KAFKA            │
+              │                  │   │    8 topics          │
+              │ Redis C1 HSET   │   │    (durable stream)  │
+              │ (live snapshot)  │   │                      │
+              │ Market status    │   │  mde-ticks-*         │
+              │ BSE circuit lim  │   │  mde-candles-1m      │
+              └──────────────────┘   │  mde-instrument-*    │
+                                     │  mde-corporate-*     │
+                                     └────┬───────────────┘
+                                          │
+                    ┌─────────────────────┼──────────────────────┐
+                    │                     │                      │
+         ┌──────────▼─────────┐  ┌───────▼──────────┐  ┌───────▼──────────┐
+         │  5. CHARTS-SERVICE │  │  7. FNO-DATA-     │  │  6. MARKET-      │
+         │     (8083)         │  │     WRITER (8085)  │  │     MOVERS-      │
+         │                    │  │                    │  │     WRITER (8084)│
+         │  Kafka ticks →     │  │  Option Chain +    │  │                  │
+         │  Redis C2 (1m hot) │  │  Greeks, IV        │  │  Consumes        │
+         │  ClickHouse (hist) │  │  Max Pain, ATM     │  │  mde-candles-1m  │
+         │  Partition-based   │  │  Straddle, PCR     │  │  (not raw ticks) │
+         │  horizontal scale  │  │  Black-76 (idx)    │  │  → Redis C2      │
+         │                    │  │  → Redis C2        │  │  Sorted Sets     │
+         │  Produces          │  │                    │  │                  │
+         │  mde-candles-1m    │  │  BSE F&O support   │  │                  │
+         └────────────────────┘  └────────────────────┘  └──────────────────┘
 
-    TIME-SERIES STORE (separate PostgreSQL instance):
-    ┌─────────────────────────────────────────────────────┐
-    │  TimescaleDB                                         │
-    │  - ticks (hypertable, 7-day retention)              │
-    │  - candles_1m (hypertable, 10-year retention,       │
-    │    native compression after 7 days)                 │
-    │  - continuous aggregates: 5m, 15m, 1h, 1d, 1w, 1M  │
-    │    (auto-maintained from candles_1m)                │
-    └─────────────────────────────────────────────────────┘
+         ┌────────────────────┐  ┌────────────────────┐  ┌──────────────────┐
+         │  4. BROADCAST-     │  │  8. ALERT-ENGINE   │  │  3. INSTRUMENT-  │
+         │     SERVICE (8087) │  │     (8091)         │  │     MASTER (8081)│
+         │                    │  │                    │  │                  │
+         │  Kafka → Protobuf  │  │  Price/volume      │  │  Scrip master +  │
+         │  → WebSocket       │  │  alerts            │  │  company info    │
+         │  → Users           │  │  52W from BOD ref  │  │  (absorbs co-    │
+         │                    │  │  Redis index recon │  │  fundamentals)   │
+         │  Market status     │  │  on restart        │  │  → PostgreSQL    │
+         │  broadcast         │  │  → Redis C2        │  │                  │
+         │  Per-pod conn lim  │  │                    │  │                  │
+         │  Heartbeat         │  │                    │  │                  │
+         └──────┬─────────────┘  └────────────────────┘  └──────────────────┘
+                │
+         ┌──────▼─────────────┐
+         │  USER              │
+         │  PHONE / WEB       │
+         └────────────────────┘
 
-    TEMPORAL PLATFORM (generic job framework):
+    STORAGE LAYER:
+    ┌─────────────────────────────────────────────────────────────┐
+    │  Redis Cluster 1 (C1) — Real-time snapshots                 │
+    │    FEED_PP, OHLC, 52WK, circuit limits, market status       │
+    │                                                             │
+    │  Redis Cluster 2 (C2) — Hot candles + derived data          │
+    │    1m candles (Hash per candle + ZSET index, 2-3d TTL, AOF) │
+    │    Market movers ZSETs, FNO chains, alert indices           │
+    │                                                             │
+    │  ClickHouse — Historical candles + recon                    │
+    │    ReplacingMergeTree for dedup                              │
+    │    4 materialized view rollups: 5m, 15m, 1h, 1d             │
+    │    Corporate action audit                                   │
+    │                                                             │
+    │  PostgreSQL — Master data + metadata                        │
+    │    Instrument master, alerts, corporate actions, ops        │
+    │                                                             │
+    │  Three-layer durability: Redis AOF → ClickHouse batch →     │
+    │                          Kafka replay as ultimate fallback   │
+    └─────────────────────────────────────────────────────────────┘
+
+    SCHEDULER-SERVICE (9094) — consolidated from premarket-scheduler + corp-action-processor:
     ┌─────────────────────────────────────────────────────┐
-    │  Historical Data Migration (one-time, Phase 0)      │
     │  Instrument Master Sync (daily 6 PM)                │
-    │  Corporate Action Processor (event + daily 8 PM)    │
+    │  Corporate Action Pre-computation (T-1, shadow      │
+    │    tables, atomic partition swap)                    │
     │  Pre-Market Data Loading (daily 7:35 AM)            │
     │  EOD Reconciliation (daily post-close)              │
-    │  Candle Archival (scheduled)                        │
+    │  BSE Bhavcopy / NSE F&O Bhavcopy / F&O Ban List    │
+    │  BSE Circuit Limits (DP file download)              │
     │  NAV Update (daily 11 PM)                           │
     │  Expiry Day Cleanup (weekly/monthly expiry days)    │
     │  + Any custom job via Temporal Dashboard            │
     └─────────────────────────────────────────────────────┘
 
-    AI-POWERED INCIDENT MANAGER (platform-wide, new in v3.2):
+    OPS-SERVICE (8088) — consolidated from incident-manager + recon-service:
     ┌─────────────────────────────────────────────────────┐
+    │  Autonomous operations hub with self-healing        │
+    │  Market-hours awareness                             │
     │  Signal collectors → Anomaly detection → LLM        │
-    │  debugger → Auto-remediation + Notification         │
+    │  RCA (Claude Sonnet 4.5) → Auto-remediation         │
+    │  OHLCV reconciliation → mde-recon-reports           │
+    │  AlertManager webhook → Jira + Slack + timeline     │
     └─────────────────────────────────────────────────────┘
 ```
 

@@ -1,6 +1,6 @@
 ---
 title: "Data Models, APIs & Scheduled Jobs"
-description: "Design-level view of data models and scheduled jobs. For actual HTTP endpoints, Kafka topics, and Redis keys, see the catalog pages."
+description: "REST APIs, Temporal workflows, domain enums, and architectural decisions for the consolidated 9-service MDE."
 ---
 
 <Info>
@@ -9,141 +9,46 @@ description: "Design-level view of data models and scheduled jobs. For actual HT
 - [Kafka topics](/data-apis/kafka-topics) — verified against `@KafkaListener` and `KafkaTemplate.send()` in the repo
 - [Redis keys](/data-apis/redis-keys) — verified against Lettuce / Spring Data Redis usage in the repo
 
-The page below is the **design-level** view for scheduled jobs and data models. Where it conflicts with the catalog pages above, trust the catalog pages (they're code-verified).
+The page below is the **design-level** view for REST APIs, Temporal workflows, enums, and architectural decisions. Where it conflicts with the catalog pages above, trust the catalog pages (they are code-verified).
 </Info>
 
-## Verified API snapshot (April 2026)
+## REST APIs (consolidated 9 services)
 
-Quick reference — see [Service Catalog](/architecture/service-catalog) for the full list with purpose + storage per service.
-
-| Service | Verified endpoints |
-| --- | --- |
-| charts-api | `GET /v1/candles/{instrumentToken}`, `GET /v1/running-candles/{token}`, `POST /v1/price-charts` (UDF-compat), `GET /v1/index` |
-| instrument-master | `GET /v1/instruments`, `GET /v1/instruments/{instrumentToken}`, `GET /v1/companies`, `GET /v1/search`, `POST /internal/ca-sync` |
-| broadcast-service | `WebSocket /ws/feed` |
-| fno-data-writer | `GET /v1/fno-chain`, `GET /v1/oi-buildup`, `GET /v1/expiry-calendar` |
-| market-movers-writer | `GET /v1/movers` |
-| recon-service | `GET /v1/recon` |
-| incident-manager | `GET /v1/incidents`, `GET /v1/incidents/{id}`, `POST /v1/incidents/{id}/acknowledge`, `POST /internal/alert-webhook` |
-
-Every service also exposes `/actuator/health`, `/actuator/prometheus`, `/v3/api-docs`, `/swagger-ui.html`.
-
-## 7. Scheduled Jobs (Pre-Market Data Loading)
-
-All jobs annotated `@TradeDay` — execute only on trading days (checked against `TRD_DAY` Redis key). A `ConditionalSchedulingAspect` AOP intercept enforces this.
-
-### Data Cache Schedulers
-
-| Job | Cron (IST) | Purpose |
+| Service | Port | Endpoints |
 | --- | --- | --- |
-| `dataCleanUp()` | `0 35 7 * * *` (7:35 AM) | Clear Redis keys + local cache |
-| `updateScripMasterData()` | `0 35 7 * * *` (7:35 AM) | Load security master from S3 (all segments) |
-| `updateCktLimitData()` | `0 40 7 * * *` (7:40 AM) | Load circuit limit data |
-| `update52WkHiLowData()` | `0 40 7 * * *` (7:40 AM) | Load 52-week high/low |
-| `updateOhlcData()` | `0 40 7 * * *` (7:40 AM) | Initialize OHLC cache |
-| `updateEqPCloseData()` | `0 40 7 * * *` (7:40 AM) | Equity previous close |
-| `updateDrvPCloseData()` | `0 40 7 * * *` (7:40 AM) | Derivative previous close |
-| `updateTradeData()` | `0 45 7 * * *` (7:45 AM) | Initialize trade structure |
-| `updateIndexData()` | `0 45 7 * * *` (7:45 AM) | Initialize index structure |
+| instrument-master | 8081 | `GET /v1/instruments/search?q={query}`, `GET /v1/instruments/{token}`, `GET /v1/instruments/isin/{isin}`, `GET /v1/indices/{index}/constituents`, `GET /v1/companies/{isin}` (fundamentals), `GET /v1/companies/{isin}/shareholding`, `GET /v1/companies/{isin}/analysts` |
+| charts-service | 8083 | `GET /v1/candles?token={t}&interval={i}&from={f}&to={t}&limit={n}` (intervals: 1m, 5m, 15m, 1h, 1d, 1w, 1M) |
+| market-movers-writer | 8084 | `GET /v1/movers/{index}?categories={cats}&limit={n}`, `GET /v1/depth/{token}` |
+| fno-data-writer | 8085 | `GET /v1/option-chain/{underlying}?expiry={date}`, `GET /v1/oi-ranking/{underlying}?expiry={date}`, `GET /v1/expiries/{underlying}`, `GET /v1/max-pain/{underlying}?expiry={date}`, `GET /v1/atm-straddle/{underlying}?expiry={date}`, `GET /v1/pcr/{underlying}?expiry={date}` |
+| broadcast-service | 8087 | `WS /ws/market-feed` (WebSocket for live ticks), `GET /v1/status` (connection info) |
+| ops-service | 8088 | `GET /v1/incidents` (list), `GET /v1/recon/runs` (recon history), `POST /v1/recon/trigger` (manual recon), `GET /v1/health/summary` (all-services health) |
+| alert-engine | 8091 | `POST /v1/alerts` (create), `GET /v1/alerts` (list), `DELETE /v1/alerts/{id}` (cancel), `GET /v1/alerts/{id}` (get) |
+| scheduler-service | 8094 | Temporal workflows only (no REST API — triggered by Temporal schedules) |
 
-**Execution order matters:** dataCleanUp → scripMaster → ckt/OHLC/pclose/52wk → trade/index.
-
-### Scheduler Status Monitor
-
-Runs on two cron schedules, checks each job against its completion deadline:
-
-| Job Name | Must Complete By (IST) |
-| --- | --- |
-| `SM` (Scrip Master) | 06:57 |
-| `CKT_INFO` | 07:07 |
-| `YEARLY_HIGH_LOW` | 07:07 |
-| `OHLC` | 07:07 |
-| `TRD_DATA` | 07:12 |
-| `INDEX_STRUCT` | 07:12 |
-| `PCLOSE` | 09:02 |
-
-If any job is overdue → P0 Slack alert (`SCHEDULER_STATUS_OVERDUE_ALERT`). If all pass → INFO Slack alert (`SCHEDULER_STATUS_DONE_ALERT`). If `TRD_DAY` Redis key is absent → P0 alert (`TRD_DAY_STATUS_UNAVAILABLE`).
+<Note>
+Every service also exposes `/actuator/health`, `/actuator/prometheus`, `/v3/api-docs`, `/swagger-ui.html`. The `feed-handler` and `publisher` services have no user-facing REST APIs — they are pure Kafka producers/consumers + Redis writers.
+</Note>
 
 ---
 
-## 8. Reconciliation System
+## Temporal Workflows (scheduler-service)
 
-### What Is Reconciled
+All workflows run inside `scheduler-service`. The Temporal worker connects to the self-hosted Temporal server and polls the task queues below.
 
-**Only previous close** is reconciled. The service compares its Redis-stored values against the official exchange bhav copy.
-
-### Flow
-
-```
-pcloseRecon() — triggered by PC_RECON_PRE_MKT_CRON
-    ↓
-reconProcessor.publishMismatchPclose()
-    ↓
-1. Read all securityId → PcloseDto from Redis (all MGR_{exchSeg}_PC keys)
-2. Download bhav copies from S3:
-     - nse-cm-bhavcopy-{date}
-     - bse-cm-bhavcopy-{date}
-     - nse-fo-bhavcopy-{date}
-     - bse-fo-bhavcopy-{date}
-3. Parse bhav copy CSVs → extract previousClose per securityId
-4. Compare field by field
-    ↓
-Generate CSV mismatch report
-Upload to S3: post-processing-recon-report/{date}/PCLOSE/pre_{timestamp}.csv
-    ↓
-If critical mismatches → P0 Slack alert (RECON_CRITICAL_ALERT)
-```
-
-**Recon CSV format:** `scripId, symbol, exchange, segment, field, ourValue, targetValue, timestamp`
-
-**Feature flags:**
-
-- `enable.recon.with.exchange=true` — validate against exchange bhav copy
-- `enable.recon.write.to.local=false` — write CSV locally for debugging
-
----
-
-## 9. Temporal Platform (Generic Job Framework)
-
-<Info>
-**This is a platform capability, not just Market Data Engine internal tooling.** Any team should be able to create, schedule, and monitor jobs through a Temporal dashboard.
-</Info>
-
-### What We're Building
-
-A generic Temporal-based job execution framework with:
-
-1. **Temporal Server** — self-hosted or Temporal Cloud
-2. **Worker Pool** — Java 21 workers that execute workflows and activities
-3. **Admin Dashboard** — Temporal Web UI for:
-
-- Viewing all workflows (running, completed, failed, timed out)
-- Searching workflows by type, status, date range
-- Inspecting workflow history (every activity, input, output, retry)
-- Manually triggering, pausing, resuming, terminating workflows
-- Viewing worker health and task queue depth
-
-1. **SDK + Templates** — reusable patterns for creating new jobs:
-
-- Scheduled workflows (cron)
-- Event-driven workflows (Kafka trigger)
-- One-time workflows (ad-hoc)
-- Parent-child workflow composition
-
-### Market Data Engine Workflows
-
-| Workflow | Schedule | Task Queue | Timeout |
+| Workflow | Task Queue | Schedule | Description |
 | --- | --- | --- | --- |
-| `HistoricalDataMigrationWorkflow` | **One-time (Phase 0)** | `market-data-migration` | 24 hours |
-| `InstrumentMasterSyncWorkflow` | Daily 6:00 PM | `market-data-sync` | 1 hour |
-| `CorporateActionWorkflow` | Daily 8:00 PM + event-driven | `market-data-sync` | 30 min |
-| `PreMarketDataLoadWorkflow` | Daily 7:35 AM | `market-data-ops` | 30 min |
-| `EODReconciliationWorkflow` | Daily post-close | `market-data-recon` | 1 hour |
-| `CandleArchivalWorkflow` | Weekly | `market-data-archival` | 4 hours |
-| `NAVUpdateWorkflow` | Daily 11:00 PM | `market-data-sync` | 30 min |
-| `ExpiryCleanupWorkflow` | Expiry days (Thu) post-close | `market-data-ops` | 5 min |
+| `BodPreloadWorkflow` | `premarket-scheduler-jobs` | 06:00 IST | 5 activities: prevClose, OHLC seed, 52-week calc, circuit limits, stamp trading day |
+| `FnoBodWorkflow` | `premarket-scheduler-jobs` | 06:30 IST | F&O bhavcopy parse, OI reference data, ban list |
+| `PreComputeAdjustmentWorkflow` | `corporate-action-jobs` | 19:30 IST | T-1 corporate action pre-computation: read history, compute adjusted prices, write shadow tables |
+| `ApplyAdjustmentWorkflow` | `corporate-action-jobs` | 00:01 IST (on ex-date) | Atomic partition swap: shadow to main in ClickHouse, update Redis BOD keys |
+| `VerifyAdjustmentWorkflow` | `corporate-action-jobs` | 06:00 IST (on ex-date) | Post-flip verification: sample candles, validate adjustment, auto-rollback if bad |
+| `ReconWorkflow` | `ops-jobs` | 16:00 IST | Cross-validate Redis vs ClickHouse vs Kafka offsets |
 
-### Creating a New Job (any team)
+### Idempotency
+
+Every BOD workflow uses the `BOD:GUARD:{activity}:{date}` Redis key (TTL 2 days) to prevent duplicate execution. If the guard key exists, the activity short-circuits with a logged skip.
+
+### Creating a new workflow
 
 ```java
 // 1. Define the workflow interface
@@ -172,25 +77,16 @@ public class MyCustomWorkflowImpl implements MyCustomWorkflow {
 worker.registerWorkflowImplementationTypes(MyCustomWorkflowImpl.class);
 worker.registerActivitiesImplementations(new MyActivityImpl());
 
-// 4. Schedule via cron (or trigger ad-hoc via dashboard)
+// 4. Schedule via cron (or trigger ad-hoc via Temporal dashboard)
 WorkflowOptions options = WorkflowOptions.newBuilder()
     .setTaskQueue("my-team-queue")
     .setCronSchedule("0 9 * * *")  // daily 9 AM
     .build();
 ```
 
-### Dashboard Features
-
-- **Workflow list:** Filter by namespace, type, status, date range
-- **Workflow detail:** Full event history — every activity execution, retries, failures
-- **Search:** By workflow ID, run ID, or custom search attributes
-- **Bulk operations:** Terminate/cancel/signal multiple workflows
-- **Metrics:** Workflow latency, failure rate, retry rate per workflow type
-- **Alerts:** Webhook integration for workflow failures → Slack
-
 ---
 
-## 10. Domain Model — Enums
+## Domain Model — Enums
 
 ### Exchange
 
@@ -198,7 +94,97 @@ WorkflowOptions options = WorkflowOptions.newBuilder()
 NSE, BSE
 ```
 
-### ExchangeSegment
+### Segment
+
+```java
+CASH, FO, INDEX
+```
+
+### MarketStatus
+
+```java
+PRE_OPEN,    // Pre-open session (09:00–09:15 IST)
+OPEN,        // Continuous trading (09:15–15:30 IST)
+POST_CLOSE,  // Grace window (15:30–15:35 IST)
+CLOSED       // Market closed
+```
+
+### AlertCondition
+
+```java
+PRICE_ABOVE,     // LTP crosses above threshold
+PRICE_BELOW,     // LTP crosses below threshold
+PERCENT_CHANGE,  // Absolute % change exceeds threshold
+VOLUME_SPIKE,    // Volume exceeds N× average
+CIRCUIT_HIT,     // Upper or lower circuit triggered
+52W_HIGH,        // New 52-week high
+52W_LOW          // New 52-week low
+```
+
+### MoverCategory
+
+```java
+TOP_GAINERS,     // Highest positive % change
+TOP_LOSERS,      // Highest negative % change
+MOST_ACTIVE,     // Highest traded value
+VOLUME_SPIKE,    // Highest volume vs average
+BREAKOUT_HIGH,   // Broke above recent resistance
+BREAKOUT_LOW,    // Broke below recent support
+UPPER_CIRCUIT,   // Hit upper circuit limit
+LOWER_CIRCUIT    // Hit lower circuit limit
+```
+
+### CandleInterval
+
+```java
+1m, 5m, 15m, 1h, 1d, 1w, 1M
+```
+
+<Note>
+`1m` through `1h` are intraday intervals served from Redis C2 (hot) or ClickHouse (historical). `1d`, `1w`, `1M` are daily+ intervals served exclusively from ClickHouse.
+</Note>
+
+### CorporateActionType
+
+```java
+SPLIT,          // Stock split (e.g., 1:5)
+BONUS,          // Bonus issue (e.g., 1:1)
+CONSOLIDATION,  // Reverse split
+RIGHTS,         // Rights issue
+DIVIDEND        // Cash dividend (adjusts options only)
+```
+
+### CorporateActionStatus
+
+```java
+PENDING,        // Detected from exchange data, not yet processed
+PRE_COMPUTED,   // T-1 shadow tables written (PreComputeAdjustmentWorkflow)
+APPLIED,        // Partition swap done (ApplyAdjustmentWorkflow)
+VERIFIED,       // Post-flip verification passed (VerifyAdjustmentWorkflow)
+ROLLBACK,       // Verification failed, rolled back to pre-adjustment
+FAILED          // Workflow failed, manual intervention needed
+```
+
+### IncidentSeverity
+
+```java
+CRITICAL,  // Market-hours data loss or complete feed outage
+HIGH,      // Partial feed loss or significant latency spike
+MEDIUM,    // Non-critical anomaly (e.g., single instrument stale)
+LOW        // Informational (e.g., planned maintenance window)
+```
+
+### RemediationAction
+
+```java
+RESTART_POD,              // Kill and restart a degraded pod
+REBUILD_CACHE,            // Flush and reload Redis keys from source
+BACKFILL_CANDLES,         // Replay Kafka to fill gaps in ClickHouse
+SCALE_UP,                 // Increase replica count for a consumer group
+CLEAR_DEAD_CONNECTIONS    // Purge stale WebSocket connections
+```
+
+### ExchangeSegment (wire protocol)
 
 | Enum | Code | Exchange | Segment |
 | --- | --- | --- | --- |
@@ -209,7 +195,7 @@ NSE, BSE
 | `BSE_E` | 4 | BSE | EQUITY |
 | `BSE_D` | 8 | BSE | DERIVATIVE |
 
-### PacketType
+### PacketType (wire protocol)
 
 | Enum | Code |
 | --- | --- |
@@ -225,17 +211,6 @@ NSE, BSE
 | `YEARLY_HIGH_LOW` | 36 |
 | `HEARTBEAT` | 99 |
 
-### MarketStatus
-
-| Enum | Float Value |
-| --- | --- |
-| `PRE_OPEN_START` | 1.0 |
-| `PRE_OPEN_END` | 2.0 |
-| `OPEN` | 3.0 |
-| `CLOSE` | 4.0 |
-| `POST_CLOSE_START` | 5.0 |
-| `POST_CLOSE_END` | 6.0 |
-
 ### ScripType
 
 | Enum | Segment |
@@ -249,53 +224,85 @@ NSE, BSE
 | `FUTURE` | DERIVATIVE |
 | `OPTION` | DERIVATIVE |
 
-### AlertType
-
-| Enum | Priority | Meaning |
-| --- | --- | --- |
-| `TRD_DAY_STATUS_UNAVAILABLE` | P0 | Trading day status missing |
-| `RECON_CRITICAL_ALERT` | P0 | Critical pclose mismatch |
-| `SCHEDULER_STATUS_OVERDUE_ALERT` | P0 | Scheduler job not completed by deadline |
-| `SCHEDULER_STATUS_DONE_ALERT` | INFO | All scheduler jobs completed |
-
 ---
 
-## 10.1 Key Architectural Decisions
+## Architectural Decisions
 
-This section tracks the defining decisions behind the current design. Decisions 1–8 were captured first. Decisions 9 and 10 came with the ClickHouse consolidation. Decisions 11 and 12 are the newest.
+This section tracks the defining decisions behind the current design.
 
-### Decision 9 — TimescaleDB for all time-series (replaces MongoDB + Elasticsearch + Charts Data Collector)
+### Decision 1 — Protobuf for tick serialization
 
-- **Single DB for ticks + candles at all intervals.** Raw ticks, 1-minute candles, and all higher-interval candles live in one database, one schema, one backup domain.
-- **Continuous aggregates eliminate a manual rollup service.** The earlier Charts Data Collector — which aggregated 1m into 5m/15m/1h in application code — is gone. TimescaleDB auto-refreshes every interval from `candles_1m`.
-- **PostgreSQL-based — team already knows SQL.** No new query language, no bespoke operational playbook, standard Postgres tooling for backup/PITR/monitoring.
-- **Used by Robinhood, Coinbase for similar workloads.** Proven at tick-rate scale in retail brokerage and crypto.
-- **Separate instance from Instrument Master PG (workload isolation).** Time-series ingest and large scans do not compete with instrument-master OLTP traffic. Independent sizing, upgrade, and backup policies.
+- Raw tick data uses **Protocol Buffers** (`Tick.proto`) for bandwidth efficiency at 50K+ ticks/sec.
+- Compact binary format reduces Kafka partition sizes and network bandwidth by ~60% vs JSON.
+- Schema evolution via proto field numbering — new fields are backward-compatible.
 
-### Decision 10 — Historical data migration via Temporal workflow
+### Decision 2 — Two Redis clusters for workload isolation
 
-- **One-time Temporal workflow reads MongoDB historical candles → writes TimescaleDB.** Executed in Phase 0 of the migration (see §13).
-- **Reads Elasticsearch historical data → writes TimescaleDB.** Same workflow, separate activity per source.
-- **Validates row counts and spot-checks sample instruments.** Per-day row counts must match source; sample OHLCV rows across liquid and illiquid instruments are byte-compared.
-- **Keep MongoDB + ES in read-only mode for 30 days as safety net.** Charts API can temporarily fall back to the old stores if TimescaleDB reads reveal a data bug.
-- **Cut over after validation passes.** Charts API begins serving historical intervals from TimescaleDB only after validation activities complete successfully.
-- **Flyway-style versioned migrations with idempotent design.** Each activity can be re-run safely — `ON CONFLICT (instrument_token, bucket) DO UPDATE` on candle writes; retention and compression policies are declared once and are idempotent.
+- **Cluster 1 (C1)**: Real-time snapshots — hot-path writes from publisher, reads by broadcast-service and feed-handler.
+- **Cluster 2 (C2)**: Candles, movers, FNO derivatives, alerts — read-heavy, write-on-rollover pattern.
+- Isolation prevents API query bursts (option chain, 30-day charts) from impacting tick ingestion latency.
 
-### Decision 11 — AI-Powered Incident Manager from Day 1 (platform-wide, not post-launch)
+### Decision 3 — Kafka for inter-service messaging
 
-- **Build it before launch, not after.** A platform with this many services, this much real-time data, and this latency budget cannot be operated reliably without proactive incident detection. Adding it post-launch means months of preventable user-visible incidents.
-- **Platform-wide capability, not MDE-only.** All Pro services (Trade Engine, Portfolio Engine, Ledger Engine, Market Data Engine) emit signals into the same Incident Manager; correlation engine works across services. One source of truth for "is the platform healthy?"
-- **Use an LLM as the debugger.** Rule-based alerting produces noise; LLMs read logs/metrics/traces holistically and produce root-cause hypotheses with evidence. Models good enough for this exist today (Claude Sonnet 4.5 used in production at multiple companies for similar use cases).
-- **Auto-remediate the obvious; escalate the novel.** Reversible, well-understood actions (rollout undo, pod restart, feature-flag toggle, scale up consumers) execute automatically when LLM confidence is high. Anything destructive or ambiguous goes to humans with full context preassembled.
-- **Reduce MTTR from hours to minutes.** Today: incidents reported by users → operator scrambles to gather context → fix slowly. With Incident Manager: detected in seconds, context assembled, LLM analysis pre-staged, fix proposed before a human is on the call.
+- All inter-service data flow goes through Kafka topics (ticks, candles, alerts, market status).
+- `acks=all` + idempotent producer guarantees at-least-once delivery end-to-end.
+- Partition-by-token ensures strict per-instrument ordering.
 
-### Decision 12 — Zero-Error User Experience via Graceful Degradation
+### Decision 4 — Temporal for workflow orchestration
 
-- **Users should NEVER see an error.** This is a hard product rule, not a goal. Error popups and "Something went wrong" screens damage trust irreversibly. The system must always render *something* useful.
-- **Layered fallback for every user-facing data path.** Primary (live) → Cached (Redis Cluster 2) → Stale (TimescaleDB) → Final (skeleton/empty UI). Each downgrade is silent at the UI; staleness is shown as a subtle freshness indicator, never as an error.
-- **Stale-while-revalidate by default.** APIs always return within 50 ms with whatever they have; background tasks refresh upstream. The user never blocks on a slow service.
-- **Circuit breakers on every downstream call.** Resilience4j-wrapped, per-service thresholds. Open circuits short-circuit to fallback instead of cascading failure.
-- **Silent feature flags, auto-managed by Incident Manager.** When a backend component is degraded, the affected widgets are HIDDEN from the UI — not error-banner'd, not greyed out. The page renders normally with one fewer widget.
-- **Convert all 5xx to 200 OK with `data: null, stale: true`.** The frontend treats null data as a loading state, never as an error. HTTP failure surface area at the client is reduced to "use last known good".
+- All scheduled jobs (BOD preload, corporate actions, recon) run as Temporal workflows.
+- Built-in retry, timeout, visibility, and manual intervention via Temporal dashboard.
+- Idempotent activities with Redis guard keys prevent duplicate execution.
 
----
+### Decision 5 — Virtual threads for all services
+
+- Java 21+ virtual threads (`-Djdk.virtualThreadScheduler`) for all 9 services.
+- Eliminates thread-pool tuning — each Kafka consumer, Redis call, and HTTP handler gets a lightweight virtual thread.
+- Measured 3x throughput improvement on publisher service under load testing.
+
+### Decision 6 — ClickHouse for historical candles
+
+- **Replaces TimescaleDB.** ClickHouse with `ReplacingMergeTree` engine and 4 materialized views for interval rollups (5m, 15m, 1h, 1d).
+- Continuous aggregation from `candles_1m` base table eliminates manual rollup services.
+- Column-oriented storage gives 10x compression ratio on OHLCV data and sub-second query performance on multi-year ranges.
+- `1w` and `1M` intervals computed from `candles_1d` materialized view.
+
+### Decision 7 — Redis for hot 1m candles (three-layer durability)
+
+- Hot 1m candles live in **Redis C2 with AOF persistence** and 2–3 day TTL.
+- Three durability layers: Redis C2 (hot reads) -> ClickHouse (historical writer flushes within minutes) -> Kafka `mde-candles-1m` topic (retention-based backup, replay to rebuild).
+- Intraday chart queries hit Redis first (sub-ms), falling back to ClickHouse only for data older than TTL.
+
+### Decision 8 — Black-76 for index options
+
+- Index options use **Black-76** pricing model (futures-settled), separate from **Black-Scholes-Merton (BSM)** for equity options (spot-settled).
+- IV calculation in `fno-data-writer` selects model based on underlying type at runtime.
+- Prevents systematic IV errors that occur when applying BSM to cash-settled index options.
+
+### Decision 9 — Market movers from 1m candles, not raw ticks
+
+- `market-movers-writer` consumes `mde-candles-1m` (~120 events/min) instead of raw tick topics (~50K events/sec).
+- Reduces CPU and memory by ~400x while providing the same end-user experience (movers update every minute).
+- Leaderboard ZSETs in Redis C2 are updated on each candle close, not on every tick.
+
+### Decision 10 — Corporate action pre-computation at T-1
+
+- Corporate actions (splits, bonus, consolidation) are pre-computed at T-1 evening via `PreComputeAdjustmentWorkflow`.
+- Shadow tables in ClickHouse hold adjusted candle data; `ApplyAdjustmentWorkflow` performs atomic partition swap at 00:01 IST on ex-date.
+- `VerifyAdjustmentWorkflow` at 06:00 IST samples candles and auto-rolls back if verification fails.
+- Eliminates real-time adjustment complexity during market hours.
+
+### Decision 11 — Autonomous ops hub with market-hours awareness
+
+- `ops-service` provides centralized incident management, recon orchestration, and health monitoring.
+- **Auto-remediation only outside market hours** (POST_CLOSE, CLOSED) — during OPEN and PRE_OPEN, ops-service escalates to humans with pre-assembled context.
+- Remediation actions: `RESTART_POD`, `REBUILD_CACHE`, `BACKFILL_CANDLES`, `SCALE_UP`, `CLEAR_DEAD_CONNECTIONS`.
+- Market-hours awareness prevents automated actions from causing data disruption during live trading.
+
+### Decision 12 — Zero-error user experience via graceful degradation
+
+- **Users should NEVER see an error.** This is a hard product rule, not a goal.
+- **Layered fallback for every user-facing data path:** Primary (live) -> Cached (Redis C2) -> Stale (ClickHouse) -> Final (skeleton/empty UI). Each downgrade is silent; staleness shown as a subtle freshness indicator, never as an error.
+- **Stale-while-revalidate by default.** APIs return within 50 ms with whatever they have; background tasks refresh upstream.
+- **Circuit breakers on every downstream call.** Resilience4j-wrapped, per-service thresholds. Open circuits short-circuit to fallback.
+- **Convert all 5xx to 200 OK with `data: null, stale: true`.** Frontend treats null data as a loading state, never as an error.

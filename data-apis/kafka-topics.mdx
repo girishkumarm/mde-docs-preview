@@ -4,44 +4,39 @@ description: "Every topic in market-data-engine — producers, consumers, schema
 ---
 
 <Info>
-Sourced directly from `/Users/girishkumar/Documents/risk/market-data-engine`: `@KafkaListener` annotations, `KafkaTemplate.send()` call sites, and `application.yml` defaults. All topic names are environment-configurable via `mde.kafka.*` and `mde.<service>.*-topic` properties; values below are the defaults shipped on `main`.
+Sourced directly from the consolidated MDE codebase (9 services). All topic names are environment-configurable via `mde.kafka.*` and `mde.<service>.*-topic` properties; values below are the defaults shipped on `main`.
 </Info>
 
 ## Tick topics (from exchange feeds)
 
-**Producer**: `feed-handler` (`services/feed-handler/src/main/resources/application.yml`). Ticks are partitioned by `instrumentToken` hash so all ticks for a symbol land on the same partition (strict per-symbol ordering).
+**Producer**: `feed-handler`. Ticks are partitioned by `instrumentToken` hash so all ticks for a symbol land on the same partition (strict per-symbol ordering). Serialization: **Protobuf** (`Tick.proto`).
 
-| Topic | Producer | Consumers | Notes |
-| --- | --- | --- | --- |
-| `pml-marketfeed-nse-equity-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | NSE cash |
-| `pml-marketfeed-bse-equity-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | BSE cash |
-| `pml-marketfeed-nse-derivative-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer, fno-data-writer | NSE F&O |
-| `pml-marketfeed-bse-derivative-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | BSE F&O |
-| `pml-marketfeed-nse-index-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | NSE indices |
-| `pml-marketfeed-bse-index-ticks` | feed-handler | publisher, broadcast-service, charts-writer *(legacy)*, candle-writer | BSE indices |
+| Topic | Partitions | Producer | Consumers | Notes |
+| --- | --- | --- | --- | --- |
+| `mde-ticks-nse-cash` | 12 | feed-handler | publisher, charts-service, alert-engine, broadcast-service | NSE cash segment |
+| `mde-ticks-bse-cash` | 6 | feed-handler | publisher, charts-service, alert-engine, broadcast-service | BSE cash segment |
+| `mde-ticks-nse-fo` | 24 | feed-handler | publisher, charts-service, fno-data-writer, alert-engine, broadcast-service | NSE F&O — highest partition count for options volume |
+| `mde-ticks-bse-fo` | 6 | feed-handler | publisher, charts-service, fno-data-writer, broadcast-service | BSE F&O |
+| `mde-ticks-nse-index` | 3 | feed-handler | publisher, charts-service, broadcast-service | NSE indices |
 
-Most consumers use pattern subscription `pml-marketfeed-.*-ticks` (publisher, broadcast-service, charts-writer, candle-writer). `fno-data-writer` subscribes to a single topic (`pml-marketfeed-nse-derivative-ticks`). `market-movers-writer` defaults to `pml-marketfeed-NSE_CASH-ticks` — this is overridden via env var in deployed environments to match feed-handler's output name.
+## Candle topics
 
-## Control + derived topics
+**Producer**: `charts-service`. Serialization: **JSON** (`CandleEvent`).
 
-| Topic | Producer | Consumers | Purpose |
-| --- | --- | --- | --- |
-| `mde-candles-1m` | **charts-writer** *(legacy v1)* | **charts-historical-writer** *(legacy v1)* | Closed 1m candles emitted by the v1 pipeline. **candle-writer (v2) writes ClickHouse directly and does NOT publish here.** Kept live for rollback. |
-| `mde-instrument-master-events` | instrument-master | feed-handler (`InstrumentInvalidationListener`) | Scrip add / update / retire → invalidate feed-handler local cache |
-| `mde-corporate-actions` | **instrument-master** (`CorporateActionsEventPublisher`) | publisher | Split, bonus, dividend, rights |
-| `mde-feed-anomalies` | **incident-manager** (`IncidentManagerProperties.anomaliesTopic`) | — (dashboards / paging sink) | Incident state transitions |
-| `mde-recon-reports` | recon-service | — (audit sink) | End-of-day reconciliation summaries |
+| Topic | Partitions | Producer | Consumers | Notes |
+| --- | --- | --- | --- | --- |
+| `mde-candles-1m` | 12 | charts-service | market-movers-writer, charts-service (historical writer thread) | Closed 1m candles. market-movers-writer consumes candles NOT raw ticks (~120/min vs 50K/sec — see Decision 9). |
 
-<Warning>
-Two claims from earlier revisions of this page were wrong and have been corrected against the code:
-1. `candle-writer` does NOT produce `mde-candles-1m` — that topic is the v1 pipeline (charts-writer → charts-historical-writer).
-2. `mde-corporate-actions` is produced by **instrument-master**, not publisher. Publisher consumes it.
-3. `mde-feed-anomalies` is produced by **incident-manager**, not feed-handler.
-</Warning>
+## Control topics
+
+| Topic | Partitions | Producer | Consumers | Purpose |
+| --- | --- | --- | --- | --- |
+| `mde-alerts-triggered` | 6 | alert-engine | broadcast-service, ops-service | Triggered alert notifications for delivery + incident tracking |
+| `mde-market-status` | 1 | feed-handler | publisher, broadcast-service, ops-service | Market status transitions (PRE_OPEN, OPEN, POST_CLOSE, CLOSED) |
 
 ## Delivery guarantees
 
-Per architecture Decision 4 (`acks=all` + Idempotent Producer):
+Per architecture Decision 3 (`acks=all` + Idempotent Producer):
 
 ```yaml
 spring.kafka.producer:
@@ -58,19 +53,26 @@ Consumers use `enable.auto.commit: false` and manual offset commit after success
 
 One group per service, with pod identity when required:
 
-| Service | Group id | Scope |
+| Service | Group ID | Scope |
 | --- | --- | --- |
-| broadcast-service | `broadcast-service-${HOSTNAME}` | **Unique per pod** — every pod gets every tick (Decision 1) |
-| candle-writer | `mde-candle-writer` | Shared across candle-writer pods |
-| charts-writer *(legacy)* | `mde-charts-writer` | Shared |
-| charts-historical-writer *(legacy)* | `mde-charts-historical-writer` | Shared |
-| publisher | `mde-publisher` | Shared |
+| broadcast-service | `broadcast-service-${POD_NAME}` | **Unique per pod** — every pod gets every tick for WebSocket fan-out |
+| publisher | `mde-publisher` | Shared across publisher pods |
+| charts-service | `mde-charts-service` | Shared |
+| alert-engine | `mde-alert-engine` | Shared |
 | fno-data-writer | `mde-fno-data-writer` | Shared |
 | market-movers-writer | `mde-market-movers-writer` | Shared |
-| recon-service | `mde-recon-service` | Shared |
-| feed-handler | `mde-feed-handler-${HOSTNAME}` | Per-pod for invalidation listener |
+| ops-service | `mde-ops-service` | Shared |
 
-Unique-per-pod group IDs for broadcast-service are essential — a shared group would starve pods and break WebSocket fan-out. See **[Kafka vs Redis](/decisions/kafka-vs-redis)** for the full reasoning.
+<Warning>
+**broadcast-service uses UNIQUE consumer group per pod** (`broadcast-service-${POD_NAME}`) so each pod receives ALL messages. A shared group would starve pods and break WebSocket fan-out. All other services use standard consumer groups where partitions are distributed across pods.
+</Warning>
+
+## Key design notes
+
+- **Tick topics use Protobuf serialization** (`Tick.proto`) for bandwidth efficiency at 50K+ ticks/sec
+- **Candle topics use JSON serialization** (`CandleEvent`) — lower throughput, easier debugging
+- **market-movers-writer consumes `mde-candles-1m`** NOT raw tick topics (Decision 9 — ~120 events/min vs 50K/sec)
+- **alert-engine does NOT consume BSE F&O ticks** — alerts currently limited to NSE cash, BSE cash, and NSE F&O
 
 ## Local development
 

@@ -4,42 +4,57 @@ description: "All Redis key patterns in market-data-engine — cluster assignmen
 ---
 
 <Info>
-**Two Redis clusters** (Decision 2). **Feed (Cluster 1)** = port **6380** — hot-path writes from the tick pipeline. **API (Cluster 2)** = port **6381** — read-heavy cache for REST APIs. Both are Redis 7.4 in local compose; ElastiCache in staging/prod. Patterns below were re-verified against the code.
+**Two Redis clusters** (Decision 2). **Cluster 1 (C1)** = port **6380** — real-time snapshots, hot-path writes from the tick pipeline. **Cluster 2 (C2)** = port **6381** — candles, movers, FNO, alerts. Both are Redis 7.4 in local compose; ElastiCache in staging/prod.
 </Info>
 
-## Cluster 1 — Feed (port 6380)
+## Cluster 1 (C1) — Real-time Snapshots (port 6380)
 
-Hot-path writes. Most writes come from `publisher` and `candle-writer`; reads come from `broadcast-service`, `fno-data-writer`, `charts-api`, and the movers/api services (for cold-start snapshots).
+Written primarily by `publisher` and `scheduler-service`; read by `broadcast-service`, `feed-handler`, `charts-service`, `alert-engine`, and `market-movers-writer`.
 
-| Key pattern | Type | Writers | Readers | TTL | Notes |
+| Key pattern | Type | Writer | Readers | TTL | Description |
 | --- | --- | --- | --- | --- | --- |
-| `FEED_PP_{segment}:{pmlId}` | STRING (Protobuf bytes) | publisher | broadcast-service, fno-data-writer, charts-api (cold-start snapshot) | — | Serialized tick snapshot per exchange segment + PML ID |
-| `MGR_{exchange}_{segment}_OHLC:{pmlId}` | HASH | publisher | — | — | Day OHLC snapshot maintained via Lua compare-and-set |
-| `MGR_{exchange}_{segment}_52_WK_HL:{pmlId}` | HASH | publisher, premarket-scheduler | market-movers-writer | — | 52-week high/low, Lua atomic replace |
-| `MGR_{exchange}_{segment}_PC:{pmlId}` | STRING | premarket-scheduler | market-movers-writer | — | Previous close (loaded at pre-market) |
-| `MGR_{exchange}_{segment}_LC_UC:{pmlId}` | HASH | instrument-master | market-movers-writer | — | Circuit limits (lower / upper) |
-| `CANDLE:{interval}:{token}` | HASH | candle-writer (v2), charts-writer *(legacy)* | charts-api (`source=redis`), broadcast-service | — | Closed interval candle state |
-| `CANDLE:RUN:{interval}:{token}` | HASH | candle-writer | charts-api `/v1/running-candles` | **120 s** | Running (in-progress) 5s/15s/30s/current-1m bucket |
-| `TRD_DAY` | STRING (boolean flag) | publisher, premarket-scheduler | all services (via `@TradeDay` / `ConditionalSchedulingAspect`) | — | Is today a trading day? Gates every pre-market scheduled job |
+| `FEED_PP:{token}` | Hash | publisher | broadcast-service, feed-handler (zero-LTP fallback) | None | Last tick snapshot: ltp, open, high, low, close, volume, oi, chg, chgPct, bid/ask depth |
+| `OHLC:{token}` | Hash | publisher | charts-service (seed), broadcast-service | None | Intraday OHLC: open, high, low, close, volume |
+| `PC:{token}` | Hash | scheduler-service (BOD) | publisher, alert-engine, market-movers-writer | None | Previous close: pc, prevOpen, prevHigh, prevLow, prevVol |
+| `LC_UC:{token}` | Hash | scheduler-service (BOD) + publisher (BSE intraday) | alert-engine, broadcast-service | None | Circuit limits: uc (upper), lc (lower) |
+| `52WK:{token}` | Hash | scheduler-service (BOD) + publisher (Lua CAS) | alert-engine | None | 52-week range: high, low, highDate, lowDate |
+| `DEPTH:{token}` | Hash | publisher | broadcast-service | None | Market depth: 5 bid/ask levels with price, qty, orders |
+| `MKT_STATUS:{exchange}` | String/Hash | publisher | broadcast-service, ops-service | None | Market status: status, session, updatedAt |
 
-## Cluster 2 — API (port 6381)
+### Atomic operations (Lua)
 
-Read-heavy. Written by writers in bulk on rollover; read by REST APIs.
-
-| Key pattern | Type | Writers | Readers | TTL | Notes |
-| --- | --- | --- | --- | --- | --- |
-| `candle:1m:{token}` | STRING (JSON) | charts-api *(cache-aside)* | charts-api query path | **60 s** intraday, **30 d** historical | Cache of ClickHouse query results |
-| `fno:chain:{underlying}:{expiry}:{strike}:{CE\|PE}` | HASH | fno-data-writer | fno-data-writer `/v1/fno-chain` | — | Aggregated Greeks, IV, OI, volume |
-| `movers:{segment}:{window}` | ZSET | market-movers-writer | market-movers-writer `/v1/movers` | — | Leaderboard zsets per segment + window (1m / 5m / 1h / day) |
-
-## Atomic operations (Lua)
-
-`publisher` uses Lua scripts for compare-and-set on two hot-path updates. Scripts live in `services/publisher/src/main/resources/lua/`.
+`publisher` uses Lua scripts for compare-and-set on hot-path updates. Scripts live in `services/publisher/src/main/resources/lua/`.
 
 - **52-week H/L**: `SCRIPT.EVAL` with `token`, `price`, current hi/lo — atomic check + replace
 - **OHLC compare-and-set**: maintains O/H/L/C consistency under concurrent ticks
 
 Server-side execution guarantees single-roundtrip atomicity.
+
+## Cluster 2 (C2) — Candles, Movers, FNO, Alerts (port 6381)
+
+Written by `charts-service`, `market-movers-writer`, `fno-data-writer`, `alert-engine`, and `scheduler-service`. C2 has AOF enabled for durability.
+
+| Key pattern | Type | Writer | Readers | TTL | Description |
+| --- | --- | --- | --- | --- | --- |
+| `candle:1m:{token}:{epochMinute}` | Hash | charts-service | charts-service (API) | 2–3 days | 1m candle: open, high, low, close, volume, oi, trades |
+| `candle:idx:{token}` | ZSET | charts-service | charts-service (API) | 2–3 days | Candle time index: member=epochMinute, score=epochMinute |
+| `MOVERS:{category}:{index}` | ZSET | market-movers-writer | market-movers-writer (API) | 1 day | Top movers: member=token, score=pctChange/volume |
+| `FNO:CHAIN:{underlying}:{expiry}` | Hash | fno-data-writer | fno-data-writer (API) | 1 day | Option chain: field=strikeType (e.g., "22500CE"), value=JSON |
+| `FNO:OI_RANK:{underlying}:{expiry}` | ZSET | fno-data-writer | fno-data-writer (API) | 1 day | OI ranking: member=strike, score=OI |
+| `FNO:MAX_PAIN:{underlying}:{expiry}` | Hash | fno-data-writer | fno-data-writer (API) | 1 day | Max pain: strike, totalPain, updatedAt |
+| `FNO:ATM_STRADDLE:{underlying}:{expiry}` | Hash | fno-data-writer | fno-data-writer (API) | 1 day | ATM straddle: strike, cePrice, pePrice, premium, ceIV, peIV |
+| `FNO:PCR:{underlying}:{expiry}` | Hash | fno-data-writer | fno-data-writer (API) | 1 day | Put-call ratio: pcrOI, pcrVol, totalCallOI, totalPutOI |
+| `FNO:BAN:{token}` | Hash | scheduler-service | fno-data-writer, broadcast-service | 1 day | Ban list: banned, reason, date |
+| `ALERT:IDX:{token}` | Set | alert-engine | alert-engine | None | Alert index: set of alertIds for token |
+| `BOD:GUARD:{activity}:{date}` | String | scheduler-service | scheduler-service | 2 days | Idempotency guard: prevents re-running BOD activity |
+
+### Three-layer candle durability (Decision 7)
+
+Hot 1m candles live in Redis C2 with AOF persistence and 2–3 day TTL. The three durability layers are:
+
+1. **Redis C2** — hot path, sub-ms reads for live chart queries
+2. **ClickHouse** — charts-service historical writer thread flushes closed candles to ClickHouse within minutes
+3. **Kafka `mde-candles-1m` topic** — retention-based backup; can replay to rebuild both Redis and ClickHouse
 
 ## Connection pools
 
@@ -49,10 +64,10 @@ Server-side execution guarantees single-roundtrip atomicity.
 
 ## Why two clusters?
 
-One bad query from an API consumer shouldn't slow down tick ingestion. The clusters isolate:
+One bad query from an API consumer should not slow down tick ingestion. The clusters isolate:
 
-- **Write amplification** on Feed — every tick fans out to multiple hash updates.
-- **Query bursts** on API — e.g., a user loading a big option chain or 30-day chart.
+- **Write amplification** on C1 — every tick fans out to multiple hash updates from publisher.
+- **Query bursts** on C2 — e.g., a user loading a big option chain, 30-day chart, or movers leaderboard.
 
 See **[Decision 2](/architecture/diagrams#d2-redis-split)** for the full rationale.
 
@@ -61,10 +76,10 @@ See **[Decision 2](/architecture/diagrams#d2-redis-split)** for the full rationa
 ```bash
 make up
 
-# Feed cluster
+# C1 — Real-time Snapshots
 redis-cli -h localhost -p 6380
 
-# API cluster
+# C2 — Candles, Movers, FNO, Alerts
 redis-cli -h localhost -p 6381
 
 # full reset
@@ -76,5 +91,5 @@ make wipe && make up
 - Prometheus + `redis_exporter` scrapes both clusters; Grafana dashboard `infra/grafana/redis.json` shows memory, eviction rate, command latency.
 - Per Decision 12, any Redis timeout falls back to:
   1. Stale cache value if present
-  2. Synchronous ClickHouse read (charts-api only)
+  2. Synchronous ClickHouse read (charts-service only)
   3. Empty response with `X-Fallback-Layer` header for observability

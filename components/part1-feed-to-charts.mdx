@@ -3,10 +3,10 @@ title: "Market Data Engine — Components Part 1 (Feed Handler to Charts)"
 ---
 
 <Info>
-**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in §10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
+**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New 6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New 6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide). Two new architectural decisions (11 & 12) in 10.1. Tech Stack, Deployment, Monitoring, and Business Rules updated accordingly.
 </Info>
 
-## 6. Component Deep Dives — Part 1 (Instrument Master → Charts)
+## 6. Component Deep Dives — Part 1 (Instrument Master to Charts)
 
 ### 6.1 Instrument Master Service (Scrip Master)
 
@@ -16,7 +16,7 @@ title: "Market Data Engine — Components Part 1 (Feed Handler to Charts)"
 
 **Data sources:**
 
-- **NSE/BSE CSV files** (7–8 files per day): security master CSVs per segment
+- **NSE/BSE CSV files** (7-8 files per day): security master CSVs per segment
 - NSE CM bhavcopy (equity master)
 - NSE FO contract file (futures + options)
 - NSE CDS contract file (currency derivatives)
@@ -26,7 +26,7 @@ title: "Market Data Engine — Components Part 1 (Feed Handler to Charts)"
 - ETF/REIT/InvIT/Bond master
 - **CMOTS API** (`paytmapi.cmots.com/api`): company-level information for each listing
 
-**Database: PostgreSQL (dedicated instance — separate from the TimescaleDB time-series instance)**
+**Database: PostgreSQL (dedicated instance — separate from the ClickHouse time-series instance)**
 
 Two tables:
 
@@ -107,7 +107,7 @@ Scrip master data lives in PostgreSQL only. Services load instrument map from Po
 Trigger: Daily at 6:00 PM IST (after market close)
 Timeout: 1 hour
 
-Step 1: Download CSV files from NSE + BSE (7–8 files from S3)
+Step 1: Download CSV files from NSE + BSE (7-8 files from S3)
     S3 buckets: stg-scrip-master, nse-cm-bhavcopy-{date}, bse-cm-bhavcopy-{date},
                 nse-fo-bhavcopy-{date}, bse-fo-bhavcopy-{date},
                 nse-cm-security-{date}, bse-cm-dp-{date},
@@ -151,16 +151,170 @@ GET /v1/instruments/{token}/company                → company for instrument
 
 ### 6.2 Feed Handler
 
-**What it does:** Receives raw binary market data from both NSE Direct UDP multicast and Omnenest RS protocol simultaneously, decodes the proprietary PML binary format into structured objects, deduplicates across sources, and routes to the correct processor.
+**What it does:** Receives raw binary market data from both NSE Direct UDP multicast and Omnenest RS protocol simultaneously, decodes the proprietary PML binary format into structured objects, deduplicates across sources, and routes to the correct processor. Handles LZO-compressed packets, OI injection for F&O trade ticks, pre-open LTP fallback, cross-minute dedup re-sends, index previous-close enrichment, and post-close grace windows.
 
 **Implementation:**
 
 - One Java 21 virtual thread per UDP stream (6 streams for NSE Direct + 6 streams for Omnenest = 12 threads)
 - `MulticastSocket.receive()` → `DatagramPacket` (8192 byte buffer)
+- LZO decompression layer (detects and decompresses NSE compressed packets before parsing)
 - Parse `BCastHeaderBroadcast` (64 bytes) first from every datagram
 - Cross-source dedup: `ConcurrentHashMap<(instrumentId, timestamp), sourceId>` — first arrival wins
 - Route by `packetCode` to the correct processor
 - Set `uniqueSequenceId` as MDC `traceId` for every packet
+
+<AccordionGroup>
+
+<Accordion title="LZO Decompression Layer (TASK-08 — P0 Blocker)">
+
+NSE sends LZO-compressed packets for large MBP updates (multi-level depth snapshots that exceed the standard UDP MTU). Without LZO decompression, approximately 15% of NSE packets are silently dropped, causing missing ticks for actively traded instruments.
+
+**Detection and flow:**
+
+```
+DatagramPacket received (8192 byte buffer)
+    │
+    ├─ Check first 4 bytes for LZO magic header: 0x894C5A4F
+    │
+    ├─ If magic matches → LzoDecompressor.decompress(payload)
+    │     └─ Uses lzo-java library (pure Java, no native dependencies)
+    │     └─ Output: raw binary bytes (same format as uncompressed packets)
+    │
+    └─ If no magic → pass through unchanged (already uncompressed)
+    │
+    ▼
+Parse BCastHeaderBroadcast (64 bytes) from decompressed bytes
+```
+
+**Key implementation details:**
+
+- `LzoDecompressor` sits in the decoder layer, before protobuf deserialization and before header parsing
+- Uses the `lzo-java` library (pure Java, zero native deps — important for containerized deployment)
+- Magic header check is a single 4-byte integer comparison — zero overhead for uncompressed packets
+- Decompressed output is identical in format to uncompressed packets — no downstream changes required
+
+**Metric:**
+
+```
+mde_feed_lzo_decompress_duration_seconds (histogram)
+    labels: exchange={NSE,BSE}
+```
+
+</Accordion>
+
+<Accordion title="OI Injection into MBP Trade Emit (TASK-09)">
+
+When an MBP packet has `tradePrice > 0` AND comes from an F&O segment (NSE_D or BSE_D), the Feed Handler injects the current Open Interest value from `OpenInterestProcessor`'s in-memory map into the tick before publishing.
+
+**Flow:**
+
+```
+MbpProcessor receives MBP packet
+    │
+    ├─ Check: tradePrice > 0 AND segment is F&O?
+    │
+    ├─ YES → Look up latest OI for same token from OpenInterestProcessor's
+    │        in-memory ConcurrentHashMap<Integer, Long> (keyed by securityId)
+    │     └─ Set openInterest field on Tick proto before publishing
+    │
+    └─ NO → Leave openInterest as-is (0 for equity, or whatever packet contains)
+    │
+    ▼
+Publish tick with OI populated
+```
+
+**Why this matters:** This is how legacy PML populates OI on trade ticks. Without this injection, fno-data-writer receives trade ticks with zero OI, breaking option chain displays and OI change calculations.
+
+</Accordion>
+
+<Accordion title="Zero-LTP Fallback for Pre-Open Session (TASK-10)">
+
+During pre-open session (07:00-09:15 IST), the LTP field in MBP packets is 0 because no trades have occurred yet. This causes downstream services to see LTP=0 and compute -100% change values.
+
+**Fallback logic:**
+
+```
+if (tick.ltp == 0 AND marketStatus == PRE_OPEN):
+    previousClose = redis.hget("FEED_PP:{token}", "pc")  // Redis C1
+    tick.ltp = previousClose
+    tick.isPreOpenFallback = true  // metadata flag
+```
+
+**Source of previous close:** Redis Cluster 1, key `FEED_PP:{token}`, field `pc` (previous close) — written by the scheduler-service during BOD (Beginning of Day) data load.
+
+</Accordion>
+
+<Accordion title="Cross-Minute Re-send for Deduplicated Ticks (TASK-11)">
+
+The `SourceDeduper` drops duplicate sequence numbers within the same minute. Problem: at a minute boundary, a tick deduped at 09:15:59 needs to be re-sent at 09:16:00 so the charts-service can open a new 1-minute candle.
+
+**Solution:**
+
+```
+Per-token last-seen tick tracking:
+    lastSeenTick: ConcurrentHashMap<Integer, TickSnapshot>  // securityId → last tick
+
+On every tick after dedup:
+    lastSeenTick.put(securityId, currentTick)
+
+Minute rollover detection (wall clock):
+    currentMinute = System.currentTimeMillis() / 60_000
+    if (currentMinute != previousMinute):
+        for each (securityId, tick) in lastSeenTick:
+            re-emit tick with timestamp = minuteBoundary
+        previousMinute = currentMinute
+```
+
+This ensures charts-service always has at least one tick per minute per active instrument, preventing gaps in the candle timeline.
+
+</Accordion>
+
+<Accordion title="Previous-Close Enrichment for Index Ticks (TASK-12)">
+
+Index ticks from NSE do not carry previous close in the packet. Without enrichment, percentage change calculations for indices (NIFTY 50, BANK NIFTY, FINNIFTY, etc.) are impossible.
+
+```
+IndexProcessor receives index tick:
+    │
+    ├─ Look up previous close from Redis C1:
+    │     key: FEED_PP:{indexToken}
+    │     field: pc (previous close)
+    │
+    ├─ Set tick.previousClose = redisValue
+    │
+    └─ Publish enriched index tick
+```
+
+**Dependency:** Scheduler-service must write index previous close to Redis during BOD. If Redis lookup fails, the tick is published without previous close (graceful degradation — % change shows as N/A on frontend).
+
+</Accordion>
+
+<Accordion title="Post-Close Timing Window for Trade Capture (TASK-13)">
+
+After market close at 15:30 IST, closing auction trades arrive for approximately 5 minutes. If `MarketStatusState` transitions to CLOSED immediately at 15:30, these closing auction trades are lost.
+
+**Grace window:**
+
+```
+Market status state machine:
+    OPEN (09:15 - 15:30)
+        │
+        ├─ 15:30 IST → transition to OPEN_GRACE (NOT CLOSED)
+        │   └─ Grace window: 5 minutes (configurable via mde.market.close-grace-minutes)
+        │   └─ Continue accepting and processing all ticks normally
+        │
+        ├─ 15:35 IST → transition to POST_CLOSE
+        │   └─ Only volume/trade updates accepted, no new price levels
+        │
+        └─ 15:40 IST → transition to CLOSED
+            └─ All tick processing stops
+```
+
+This prevents missing closing auction trades which are critical for accurate closing prices and EOD candle calculations.
+
+</Accordion>
+
+</AccordionGroup>
 
 **Binary Protocol — Outer Header (BCastHeaderBroadcast, 64 bytes):**
 
@@ -188,15 +342,15 @@ GET /v1/instruments/{token}/company                → company for instrument
 
 | Processor | Transaction Codes | What it handles |
 | --- | --- | --- |
-| MbpProcessor | 111002, 112002, 211002, 212002 | Market depth + trade (equity + derivatives) |
+| MbpProcessor | 111002, 112002, 211002, 212002 | Market depth + trade (equity + derivatives). Also handles BSE circuit limits at byte offsets 264/268. Injects OI for F&O trade ticks (TASK-09). |
 | CircuitLimitProcessor | 111006, 112006 | NSE circuit limits |
-| MarketStatusProcessor | 111001, 112001, 211001, 212001 | Market open/close/halt |
-| IndexProcessor | 111003, 211003 | Index values |
-| OpenInterestProcessor | 112004, 212004 | Derivative open interest |
+| MarketStatusProcessor | 111001, 112001, 211001, 212001 | Market open/close/halt. Implements post-close grace window (TASK-13). |
+| IndexProcessor | 111003, 211003 | Index values. Enriches with previous close from Redis (TASK-12). |
+| OpenInterestProcessor | 112004, 212004 | Derivative open interest. Maintains in-memory OI map consumed by MbpProcessor (TASK-09). |
 | HeartbeatProcessor | 111007, 112007, 211007, 212007 | Keep-alive (no Redis write, no publish) |
 
 <Note>
-**Note:** BSE circuit limits (211006, 212006) are embedded in MBP packets at byte offsets 264/268 — handled by MbpProcessor, not CircuitLimitProcessor.
+**Note:** BSE circuit limits (211006, 212006) are embedded in MBP packets at byte offsets 264/268 — handled by MbpProcessor, not CircuitLimitProcessor. See TASK-15 for how BSE circuit limits are written to Redis.
 </Note>
 
 **Packet Models (incoming binary):**
@@ -204,7 +358,7 @@ GET /v1/instruments/{token}/company                → company for instrument
 | Model | Bytes | MSG_CODE | Key Fields |
 | --- | --- | --- | --- |
 | TradeStruct | 37 | 1 | LastTradePrice (float), LastTradeQuantity (short), volume (int), AvgTradePrice (float), OpenInterest (int), LastTradeTime (int) |
-| MBPPacket | 111 | 2 | 5 price levels × MBPRowPacket (buyQty, sellQty, buyOrdNo, sellOrdNo, buyPrice, sellPrice — 20 bytes each) |
+| MBPPacket | 111 | 2 | 5 price levels x MBPRowPacket (buyQty, sellQty, buyOrdNo, sellOrdNo, buyPrice, sellPrice — 20 bytes each) |
 | OHLCPacket | 27 | 3 | fOpen (float), fClose (float), fHigh (float), fLow (float) |
 | IndexStruct | 35 | 5 | LTP (float), fOpen, fClose, fHigh, fLow (float), LUT (int) |
 | TopBidAsk | 35 | 6 | totalSellQty, totalBuyQty, buyQty, sellQty (int), buyPrice, sellPrice (float) |
@@ -221,7 +375,7 @@ GET /v1/instruments/{token}/company                → company for instrument
 
 ### 6.3 Duplicate Detector
 
-**What it does:** Filters out unchanged/redundant ticks. Exchanges send periodic MBP refreshes even when nothing changed. Also deduplicates across NSE Direct and Omnenest sources (cross-source dedup).
+**What it does:** Filters out unchanged/redundant ticks. Exchanges send periodic MBP refreshes even when nothing changed. Also deduplicates across NSE Direct and Omnenest sources (cross-source dedup). Handles cross-minute re-sends (TASK-11) to ensure downstream candle services always have at least one tick per minute.
 
 ```
 Cross-source dedup (first stage — in Feed Handler):
@@ -241,14 +395,22 @@ Per-source dedup (second stage — per processor):
             → metric: duplicate_ticks_skipped++
         else:
             → Update localCache
+            → Track as lastSeenTick for cross-minute re-send (TASK-11)
             → Pass to Publisher + Producer
+
+Cross-minute re-send (TASK-11):
+    On minute boundary rollover (wall clock check):
+        For each token in lastSeenTick map:
+            → Re-emit the last tick with updated timestamp
+            → Ensures charts-service always has >= 1 tick per minute per instrument
+            → metric: cross_minute_resend_count++
 
 Additional dedup rules:
     Index packets: Skip if new LTP == cached LTP
     OI packets: Skip if OI unchanged, or if volume/OHLC are all zero (stale)
 ```
 
-Impact: Cross-source dedup eliminates ~50% of incoming ticks (duplicates from second source). Per-source dedup eliminates ~30–40% of remaining ticks. Combined: ~65–70% reduction.
+Impact: Cross-source dedup eliminates ~50% of incoming ticks (duplicates from second source). Per-source dedup eliminates ~30-40% of remaining ticks. Combined: ~65-70% reduction.
 
 ---
 
@@ -271,7 +433,7 @@ Impact: Cross-source dedup eliminates ~50% of incoming ticks (duplicates from se
 
 ### 6.5 Publisher
 
-**What it does:** After ticks pass through the processing pipeline, the Publisher writes to Redis Cluster 1 (Feed) as the live snapshot store.
+**What it does:** After ticks pass through the processing pipeline, the Publisher writes to Redis Cluster 1 (Feed) as the live snapshot store. Also writes market status keys (TASK-14) and BSE circuit limits extracted from MBP packets (TASK-15).
 
 **Processing pattern (every processor follows this):**
 
@@ -294,8 +456,67 @@ redisBatchFactory.getRedisQueueProcessor(cacheType)
 | `MGR_{exchSeg}_OHLC` | `securityId` | JSON byte[] | `OhlcDto {"o": float, "c": float, "h": float, "l": float}` |
 | `MGR_{exchSeg}_PC` | `securityId` | JSON byte[] | `PcloseDto {"pc": float, "poi": float}` |
 | `TRD_DAY` | varies | String | Trading day status |
+| `MKT_STATUS:{exchange}` | — | JSON String | Market status (TASK-14) |
+| `LC_UC:{bseToken}` | `uc`, `lc` | String | BSE circuit limits from MBP (TASK-15) |
 
 Exchange segment codes: `NSE_E` (1), `NSE_D` (2), `NSE_I` (0), `BSE_E` (4), `BSE_D` (8), `BSE_I` (0).
+
+<AccordionGroup>
+
+<Accordion title="Market Status Redis Key (TASK-14)">
+
+On every market status change event from the feed-handler's `MarketStatusProcessor`, the Publisher writes market status to Redis Cluster 1:
+
+```
+Key:   MKT_STATUS:{exchange}
+       e.g., MKT_STATUS:NSE, MKT_STATUS:BSE
+
+Value: JSON
+{
+    "status": "OPEN",
+    "session": "NORMAL",
+    "updatedAt": "2024-01-15T09:15:00"
+}
+```
+
+**Status values:** `PRE_OPEN`, `OPEN`, `OPEN_GRACE`, `POST_CLOSE`, `CLOSED`
+
+**Session values:** `PRE_OPEN`, `NORMAL`, `POST_CLOSE`, `CLOSING_AUCTION`
+
+**Consumers:**
+- **Broadcast service** — reads on change events and broadcasts `MARKET_STATUS` frames to all connected WebSocket clients (TASK-18)
+- **Ops-service** — reads for market-hours-aware auto-healing decisions (e.g., don't restart feed-handler during market hours)
+
+</Accordion>
+
+<Accordion title="BSE Circuit Limits from MBP Packet (TASK-15)">
+
+BSE does not have a separate DP file for intraday circuit limit updates (unlike NSE which sends dedicated circuit limit packets). Instead, BSE embeds circuit limits in MBP packets at byte offsets 264 (upper) and 268 (lower).
+
+**Write to Redis C1:**
+
+```
+Key:    LC_UC:{bseToken}
+Fields: uc (upper circuit limit), lc (lower circuit limit)
+
+Example:
+    HSET LC_UC:532540 uc 1550.00 lc 1250.00
+```
+
+**Optimization:** Only write to Redis if the circuit limit values have actually changed compared to the in-memory cache. This avoids unnecessary Redis writes for every BSE MBP packet (which arrive at high frequency).
+
+```java
+CktLimitDto cached = localCache.getBseCircuitLimit(securityId);
+if (cached == null || cached.uc != newUc || cached.lc != newLc) {
+    localCache.putBseCircuitLimit(securityId, new CktLimitDto(newUc, newLc));
+    redisDao.hset("LC_UC:" + bseToken, Map.of("uc", newUc, "lc", newLc));
+    metrics.counter("mde_bse_circuit_limit_updates_total").increment();
+}
+```
+
+</Accordion>
+
+</AccordionGroup>
 
 **Batched Redis writes (RedisBatchProcessor):**
 
@@ -320,7 +541,7 @@ For 52-week H/L and OHLC, we need conditional updates (only write if new value b
 
 **MBP Processing — Valid Trade Gate:**
 
-- Volume > 0 AND market status is `OPEN` (3.0) or `POST_CLOSE_START` (5.0)
+- Volume > 0 AND market status is `OPEN` (3.0), `OPEN_GRACE`, or `POST_CLOSE_START` (5.0)
 - After `CLOSE` (4.0): stop all price updates
 - After-market-close (status 6): trade volume cache updates skipped entirely
 
@@ -389,12 +610,15 @@ Two separate Redis clusters, each dedicated to a specific access pattern:
 | `MGR_{exchSeg}_LC_UC` | Publisher | Periscope API, Broadcast Service (snapshot on connect) |
 | `MGR_{exchSeg}_52_WK_HL` | Publisher | Periscope API, Broadcast Service (snapshot on connect) |
 | `TRD_DAY` | Publisher | Periscope API, Temporal jobs, all services |
+| `MKT_STATUS:{exchange}` | Publisher | Broadcast Service (TASK-18), Ops-Service |
+| `LC_UC:{bseToken}` | Publisher (TASK-15) | Broadcast Service, Charts API |
 
 **Redis Cluster 2 — API (derived data, higher-volume reads)**
 
 | Key Pattern | Writers | Readers |
 | --- | --- | --- |
-| `{pmlId}_{date}` (charts candles) | Charts Data Writer | Charts API |
+| `candle:1m:{token}:{epochMinute}` (1m candle hash) | Charts Service | Charts Service (REST API) |
+| `candle:idx:{token}` (candle index sorted set) | Charts Service | Charts Service (REST API) |
 | FNO option chain hashes | FNO Data Writer | FNO Dashboard API |
 | FNO option insights hashes | FNO Data Writer | FNO Dashboard API |
 | `mkt_mvs_{category}_{exchange}_{index_id}` (sorted sets) | Market Movers Writer | Market Movers API |
@@ -410,18 +634,19 @@ Two separate Redis clusters, each dedicated to a specific access pattern:
 
 ### 6.6 Producer
 
-**What it does:** Publishes processed tick data to Kafka topics for durable, replayable consumption by downstream services (Charts Writer, FNO Writer, Market Movers Writer, Broadcast Service).
+**What it does:** Publishes processed tick data to Kafka topics for durable, replayable consumption by downstream services (Charts Service, FNO Writer, Market Movers Writer, Broadcast Service).
 
 **Kafka Topics (matching current system):**
 
 | Topic | Partitions | Retention | Consumers |
 | --- | --- | --- | --- |
-| `pml-marketfeed-nse-equity-ticks` | 6 | 3 days | Charts Writer, Market Movers Writer, Broadcast Service |
-| `pml-marketfeed-bse-equity-ticks` | 6 | 3 days | Charts Writer, Market Movers Writer, Broadcast Service |
-| `pml-marketfeed-nse-derivative-ticks` | 9 | 3 days | Charts Writer, FNO Writer, Market Movers Writer, Broadcast Service |
-| `pml-marketfeed-bse-derivative-ticks` | 9 | 3 days | Charts Writer, FNO Writer, Market Movers Writer, Broadcast Service |
-| `pml-marketfeed-nse-index-ticks` | 3 | 3 days | Charts Writer, Broadcast Service |
-| `pml-marketfeed-bse-index-ticks` | 3 | 3 days | Charts Writer, Broadcast Service |
+| `pml-marketfeed-nse-equity-ticks` | 6 | 3 days | Charts Service, Market Movers Writer, Broadcast Service |
+| `pml-marketfeed-bse-equity-ticks` | 6 | 3 days | Charts Service, Market Movers Writer, Broadcast Service |
+| `pml-marketfeed-nse-derivative-ticks` | 9 | 3 days | Charts Service, FNO Writer, Market Movers Writer, Broadcast Service |
+| `pml-marketfeed-bse-derivative-ticks` | 9 | 3 days | Charts Service, FNO Writer, Market Movers Writer, Broadcast Service |
+| `pml-marketfeed-nse-index-ticks` | 3 | 3 days | Charts Service, Broadcast Service |
+| `pml-marketfeed-bse-index-ticks` | 3 | 3 days | Charts Service, Broadcast Service |
+| `mde-candles-1m` | 12 | 3 days | Charts Service (ClickHouse writer thread), Market Movers Writer |
 
 **Kafka Producer Configuration:**
 
@@ -443,20 +668,24 @@ value.serializer=io.confluent.kafka.serializers.KafkaAvroSerializer
 
 ---
 
-### 6.7 Broadcast Service (WebSocket → Users)
+### 6.7 Broadcast Service (WebSocket to Users)
 
-**What it does:** Delivers real-time market data to end users over WebSocket connections. Reads from Kafka topics (pull model) for streaming and Redis Cluster 1 (Feed) for instant snapshots on user connect.
+**What it does:** Delivers real-time market data to end users over WebSocket connections. Reads from Kafka topics (pull model) for streaming and Redis Cluster 1 (Feed) for instant snapshots on user connect. Broadcasts market status changes, maintains server-to-client heartbeats, and enforces per-pod connection limits.
 
 **Data source strategy:**
 
 ```
 Normal operation:
     → Each Broadcast Service pod consumes from Kafka topic partitions
+    → Consumer group = broadcast-service-${POD_NAME} (unique per pod — TASK-16)
+    → Each pod receives ALL ticks (full partition set)
     → Receive Avro-encoded tick messages
     → Decode Avro → encode as Protobuf
+    → Look up subscribers via inverted index (TASK-17)
     → Push Protobuf frames over WebSocket to subscribed users
 
 On user connect (instant backfill):
+    → Check per-pod connection limit (TASK-20) — reject with 503 if at capacity
     → Read current snapshot from Redis Cluster 1 (Feed) HGET for subscribed instruments
     → Send snapshot as initial Protobuf frame (user sees current price immediately)
     → Then stream incremental updates from Kafka
@@ -466,6 +695,151 @@ On restart / reconnection:
     → New pod picks up from last committed offset — no data loss
     → Users reconnect and get fresh snapshot from Redis + resume Kafka stream
 ```
+
+<AccordionGroup>
+
+<Accordion title="Unique Kafka Consumer Group Per Pod (TASK-16 — P2)">
+
+**Problem:** If all broadcast-service pods share one Kafka consumer group, each pod gets only a subset of partitions. But subscription-based fan-out means every pod needs ALL ticks — a client subscribed to RELIANCE could connect to any pod.
+
+**Solution:**
+
+```yaml
+# application.yml
+spring:
+  kafka:
+    consumer:
+      group-id: broadcast-service-${POD_NAME}
+```
+
+`POD_NAME` comes from the Kubernetes downward API:
+
+```yaml
+# K8s deployment spec
+env:
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+```
+
+**Effect:** Each pod has its own consumer group and therefore receives ALL Kafka partitions — the full tick stream. This is the correct pattern for fan-out services where every instance needs every message.
+
+</Accordion>
+
+<Accordion title="Inverted Subscription Index (TASK-17 — P2)">
+
+**Problem:** On tick arrival, iterating all connections to find subscribers is O(connections x instruments) — unacceptable at 10K+ connections.
+
+**Solution:** Maintain an inverted index: `Map<Integer, Set<WebSocketSession>>` keyed by instrument token.
+
+```java
+// On subscribe
+subscriptionIndex.computeIfAbsent(instrumentToken, k -> ConcurrentHashMap.newKeySet())
+    .add(session);
+
+// On unsubscribe
+Set<WebSocketSession> sessions = subscriptionIndex.get(instrumentToken);
+if (sessions != null) sessions.remove(session);
+
+// On disconnect — remove session from ALL token sets
+subscribedTokens.get(session).forEach(token -> {
+    Set<WebSocketSession> s = subscriptionIndex.get(token);
+    if (s != null) s.remove(session);
+});
+
+// On tick arrival — O(1) fan-out
+Set<WebSocketSession> subscribers = subscriptionIndex.get(instrumentToken);
+if (subscribers != null) {
+    for (WebSocketSession session : subscribers) {
+        session.getMessageQueue().offer(protobufBytes);
+    }
+}
+```
+
+**Scaling impact:** Reduces per-tick fan-out from O(N) to O(subscribers_for_this_token). Critical for scaling beyond 10K concurrent connections.
+
+</Accordion>
+
+<Accordion title="Market Status Broadcasting (TASK-18)">
+
+When market status changes (detected via `MarketStatusProcessor` events from Kafka or by polling the `MKT_STATUS:{exchange}` Redis key), broadcast to ALL connected clients regardless of their instrument subscriptions.
+
+**System message format:**
+
+```json
+{
+    "type": "MARKET_STATUS",
+    "exchange": "NSE",
+    "status": "OPEN",
+    "session": "NORMAL"
+}
+```
+
+**Delivery:** Sent as a special Protobuf frame with `message_type = 100` (reserved for system messages). Repeated `market.status.duplicate.count` times (default: 3) for delivery assurance — WebSocket is unreliable and clients may miss a single frame.
+
+**Client behavior:** Frontend uses this to show market open/close indicators, enable/disable order placement, and display "Market Closed" banners.
+
+</Accordion>
+
+<Accordion title="Server-to-Client Heartbeat (TASK-19)">
+
+Prevents zombie connections where the client has crashed but the TCP connection remains open (common on mobile devices that lose network silently).
+
+```
+Every 30 seconds per connected session:
+    1. Send WebSocket PING frame
+    2. Start 10-second timer
+    3. If PONG received → connection is alive, reset timer
+    4. If no PONG within 10s → mark connection as dead
+        → Close WebSocket with GOING_AWAY code
+        → Remove from subscription index (TASK-17)
+        → Decrement connection counter (TASK-20)
+        → metric: mde_broadcast_heartbeat_timeout_disconnections_total++
+```
+
+**Configuration:**
+
+```yaml
+mde:
+  broadcast:
+    heartbeat:
+      interval-seconds: 30
+      pong-timeout-seconds: 10
+```
+
+</Accordion>
+
+<Accordion title="Per-Pod Connection Limit (TASK-20)">
+
+Each broadcast-service pod has a maximum connection limit to prevent OOM from unbounded connection growth.
+
+```
+On new WebSocket connection:
+    currentConnections = connectionCounter.get()
+    if (currentConnections >= MAX_CONNECTIONS):
+        reject with HTTP 503
+        set Retry-After header = 5 (seconds)
+        metric: mde_broadcast_connection_rejected_total++
+        return
+
+    connectionCounter.incrementAndGet()
+    proceed with handshake
+```
+
+**Configuration:**
+
+```yaml
+mde:
+  broadcast:
+    max-connections-per-pod: 5000  # default, configurable
+```
+
+**HPA integration:** Kubernetes HPA scales broadcast-service pods based on the `mde_broadcast_active_connections` metric. When average connections per pod exceeds 80% of `max-connections-per-pod`, HPA adds a new pod.
+
+</Accordion>
+
+</AccordionGroup>
 
 **Why Kafka pull instead of Redis PubSub:**
 
@@ -479,30 +853,29 @@ On restart / reconnection:
 
 1. Consume Avro message from Kafka topic partition
 2. Decode Avro → extract securityId, exchangeSegmentCode, messageCode, payload
-3. Apply validation (reject trade with LTP=0)
-4. Apply business rules (market status checks)
+3. Apply validation (reject trade with LTP=0, unless pre-open fallback applied)
+4. Apply business rules (market status checks, including grace window)
 5. Check staleness flag — if feed is UNCERTAIN, attach staleness metadata
 6. Encode as Protobuf message
 7. Store in BroadcastCache under key `{securityId}_{exchSegCode}_{msgCode}`
-8. Look up all WebSocket sessions subscribed to this security+segment
+8. Look up subscribers via inverted subscription index (TASK-17) — O(1) per token
 9. Enqueue Protobuf bytes into each session's message queue
 10. Publisher threads drain queues and send frames over WebSocket
-
-**Market status broadcast:** Broadcast to ALL connected sessions regardless of subscriptions. Repeated `market.status.duplicate.count` times (default: 3) for delivery assurance.
 
 **Subscription limits:**
 
 | Limit | Value |
 | --- | --- |
 | Max scrips per subscribe message | 50 |
-| Max concurrent connections | 100,000+ (new target) |
+| Max concurrent connections per pod | 5,000 (configurable, TASK-20) |
+| Max concurrent connections total | 100,000+ (new target, across 20+ pods) |
 | Per-session subscription limit | No enforced cap |
 
 **WebSocket Protobuf contract:**
 
 ```text
 message FeedMessage {
-    int32 message_type = 1;      // PacketType code: 1=Trade, 2=MBP, 3=OHLC, 5=Index...
+    int32 message_type = 1;      // PacketType code: 1=Trade, 2=MBP, 3=OHLC, 5=Index, 100=System
     int32 exchange_segment = 2;  // 0=Index, 1=NSE_E, 2=NSE_D, 4=BSE_E, 8=BSE_D
     int32 security_id = 3;
     bytes payload = 5;           // typed message bytes
@@ -515,256 +888,520 @@ message FeedMessage {
 
 **Thread model:**
 
-- Kafka consumer threads: one per partition assignment (managed by consumer group)
-- Publisher thread pool: configurable 12–25 threads (`ThreadPoolExecutor`, queue size 1,000)
+- Kafka consumer threads: one per partition assignment (managed by consumer group). With per-pod consumer groups (TASK-16), each pod consumes all partitions.
+- Publisher thread pool: configurable 12-25 threads (`ThreadPoolExecutor`, queue size 1,000)
 - Distributor: Java 21 virtual threads via `Thread.ofVirtual()` for per-message distribution
 - Per-session queue: `ConcurrentLinkedQueue<byte[]>` (max 10,000 entries)
+- Heartbeat scheduler: `ScheduledExecutorService` with single thread for PING dispatch (TASK-19)
 
 **Graceful shutdown (rolling deployment):**
 
 1. Set shutdown flag (`AtomicBoolean`)
-2. Stop Kafka consumers (commit offsets, leave consumer group)
-3. Close all WebSocket sessions with `GOING_AWAY` close code
-4. `awaitTermination(30, TimeUnit.SECONDS)`
-5. Messages not delivered within 30s are lost (acceptable for real-time data)
+2. Stop accepting new connections (return 503 immediately)
+3. Stop Kafka consumers (commit offsets, leave consumer group)
+4. Close all WebSocket sessions with `GOING_AWAY` close code
+5. `awaitTermination(30, TimeUnit.SECONDS)`
+6. Messages not delivered within 30s are lost (acceptable for real-time data)
 
 ---
 
-### 6.8 Charts Data Writer
+### 6.8 Charts Service — Redis-First 1-Minute Candles (TASK-21)
 
-**What it does:** Consumes tick data from Kafka, writes raw ticks to TimescaleDB, performs minute-level aggregation, writes 1-minute candle data to both Redis (current-day) and TimescaleDB (durable storage).
+<Warning>
+**Architecture change:** The earlier design used TimescaleDB hypertables and continuous aggregates for candle storage. This has been **completely replaced** with a Redis-first + ClickHouse architecture. Redis handles hot intraday candles (2-3 day TTL), ClickHouse handles historical storage and multi-interval rollups via materialized views.
+</Warning>
 
-**Input:** All 6 Kafka tick topics **Output:** TimescaleDB (raw ticks + 1-minute candles), Redis Cluster 2 (current-day candles for Charts API hot reads)
+**What it does:** The charts-service is a single unified service that consumes ticks from Kafka, aggregates them into 1-minute candles using in-memory state, flushes completed candles to Redis C2 for hot reads, batch-inserts to ClickHouse for historical storage, and serves the Charts REST API — all in one process with three thread pools.
 
-```
-Kafka tick → TimescaleDB ticks hypertable (raw ticks)
-          → In-memory 1-minute candle aggregation (per instrument)
-          → On 1-minute boundary: finalize candle → write to:
-              a. Redis Hash (current-day candle, used by Charts API — hot path)
-              b. TimescaleDB candles_1m hypertable (durable, queryable)
-```
-
-<Info>
-**No manual rollups.** The writer only emits 1-minute candles. Higher intervals (5m, 15m, 1h, 1d, 1w, 1M) are maintained automatically by TimescaleDB continuous aggregates defined on `candles_1m`. See §6.9 for details.
-</Info>
-
-**Current-day candle Redis schema:**
+**Thread Pool 1 — Tick Aggregation (hot path):**
 
 ```
-Key: {pmlId}_{date}
-Example: 1000000118_20260407
-
-Value: JSON object:
-{
-    "security_id": 58661,
-    "query_date": 20260127,
-    "exchange": "NSE",
-    "segment": "D",
-    "id": 5002380566,
-    "aggr_unit": 1,
-    "data": [
-        [1713168900, 2450.00, 2458.50, 2438.00, 2450.50, 523400, 15000000, 1713168959],
-        ...
-    ]
-}
-
-Query params: pmlId, date, aggregation unit
+Kafka tick topics (mde-ticks-{exchange})
+    │
+    ▼
+charts-service consumer threads (one per assigned partition)
+    │
+    ├─ Decode Avro tick → extract token, ltp, volume, oi, timestamp
+    │
+    ├─ Aggregate into in-memory 1-minute candle:
+    │     ConcurrentHashMap<String, CandleAggregator> activeCandles
+    │     key = "{token}:{epochMinute}"
+    │
+    │     CandleAggregator:
+    │       open  = first tick's ltp (if new candle)
+    │       high  = max(high, ltp)
+    │       low   = min(low, ltp)
+    │       close = ltp (always latest)
+    │       volume = cumulative
+    │       oi    = latest OI value
+    │       trades = tick count
+    │
+    ├─ On minute boundary (epochMinute changes for this token):
+    │     1. Finalize previous candle
+    │     2. Write to Redis C2 (atomic MULTI/EXEC)
+    │     3. Publish completed candle to Kafka topic mde-candles-1m
+    │     4. Start new candle with current tick
+    │
+    └─ Start new CandleAggregator for next minute
 ```
 
-Each element in `data` array: `[start_time, open, high, low, close, volume, oi, end_time]`
+**Redis C2 candle schema:**
+
+<CodeGroup>
+
+```redis Hash Key (one per candle)
+# Key pattern: candle:1m:{token}:{epochMinute}
+# Example:     candle:1m:NSE:RELIANCE:EQ:28622415
+
+HSET candle:1m:NSE:RELIANCE:EQ:28622415
+    open    2450.00
+    high    2458.50
+    low     2438.00
+    close   2450.50
+    volume  523400
+    oi      0
+    trades  1847
+
+EXPIRE candle:1m:NSE:RELIANCE:EQ:28622415 259200  # 3-day TTL
+```
+
+```redis Sorted Set Index (one per token)
+# Key pattern: candle:idx:{token}
+# Example:     candle:idx:NSE:RELIANCE:EQ
+
+ZADD candle:idx:NSE:RELIANCE:EQ 28622415 28622415
+# member = epochMinute, score = epochMinute (for ZRANGEBYSCORE range queries)
+
+EXPIRE candle:idx:NSE:RELIANCE:EQ 259200  # 3-day TTL
+```
+
+</CodeGroup>
+
+**Redis write atomicity (per candle flush):**
+
+```
+MULTI
+    HSET candle:1m:{token}:{epochMinute} open {o} high {h} low {l} close {c} volume {v} oi {oi} trades {t}
+    EXPIRE candle:1m:{token}:{epochMinute} 259200
+    ZADD candle:idx:{token} {epochMinute} {epochMinute}
+    EXPIRE candle:idx:{token} 259200
+EXEC
+```
+
+**TTL:** 2-3 days on both Hash and ZSET keys (configurable via `mde.charts.redis.candle-ttl-seconds`). Redis AOF persistence enabled on C2 for crash recovery — if the pod restarts mid-day, completed candles survive in Redis.
 
 ---
 
-### 6.9 Multi-Interval Candle Aggregation (TimescaleDB Continuous Aggregates)
+### 6.9 Charts Service — ClickHouse Historical Storage (TASK-22)
+
+**Thread Pool 2 — ClickHouse Batch Writer:**
+
+The second thread pool in charts-service consumes completed 1-minute candles from the `mde-candles-1m` Kafka topic and batch-inserts them into ClickHouse for permanent historical storage.
+
+```
+Kafka topic: mde-candles-1m
+    │
+    ▼
+ClickHouse writer threads (configurable pool, default 4)
+    │
+    ├─ Accumulate candles in batch buffer
+    │     Flush trigger: 500 candles OR 5-second interval (whichever first)
+    │
+    ├─ Batch INSERT into ClickHouse candles_1m table
+    │
+    ├─ On success: commit Kafka offsets
+    │
+    └─ On failure:
+          ├─ Pause Kafka consumer for this partition
+          ├─ Retry with exponential backoff (1s, 2s, 4s, 8s... max 60s)
+          ├─ Alert ops-service after 3 consecutive failures
+          └─ Resume consumer after successful retry
+```
+
+**ClickHouse DDL:**
+
+```sql
+-- Base 1-minute candles table
+CREATE TABLE candles_1m (
+    token           String,
+    timestamp       DateTime64(3, 'Asia/Kolkata'),
+    open            Float64,
+    high            Float64,
+    low             Float64,
+    close           Float64,
+    volume          Int64,
+    oi              Int64,
+    trades          Int32,
+    insert_ts       DateTime64(3) DEFAULT now64(3)
+)
+ENGINE = ReplacingMergeTree(insert_ts)
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (token, timestamp)
+SETTINGS index_granularity = 8192;
+
+-- Dedup: ReplacingMergeTree keeps the row with the latest insert_ts
+-- for each unique (token, timestamp) pair. OPTIMIZE TABLE or
+-- query-time FINAL eliminates duplicates.
+```
+
+**Materialized Views for automatic multi-interval rollups:**
+
+<Tabs>
+
+<Tab title="5-Minute Candles">
+```sql
+CREATE TABLE candles_5m (
+    token           String,
+    timestamp       DateTime64(3, 'Asia/Kolkata'),
+    open            AggregateFunction(argMin, Float64, DateTime64(3)),
+    high            AggregateFunction(max, Float64),
+    low             AggregateFunction(min, Float64),
+    close           AggregateFunction(argMax, Float64, DateTime64(3)),
+    volume          AggregateFunction(sum, Int64),
+    oi              AggregateFunction(argMax, Int64, DateTime64(3)),
+    trades          AggregateFunction(sum, Int32)
+)
+ENGINE = AggregatingMergeTree()
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (token, timestamp);
+
+CREATE MATERIALIZED VIEW candles_5m_mv TO candles_5m AS
+SELECT
+    token,
+    toStartOfFiveMinutes(timestamp) AS timestamp,
+    argMinState(open, timestamp)    AS open,
+    maxState(high)                  AS high,
+    minState(low)                   AS low,
+    argMaxState(close, timestamp)   AS close,
+    sumState(volume)                AS volume,
+    argMaxState(oi, timestamp)      AS oi,
+    sumState(trades)                AS trades
+FROM candles_1m
+GROUP BY token, toStartOfFiveMinutes(timestamp);
+```
+</Tab>
+
+<Tab title="15-Minute Candles">
+```sql
+CREATE TABLE candles_15m (
+    token           String,
+    timestamp       DateTime64(3, 'Asia/Kolkata'),
+    open            AggregateFunction(argMin, Float64, DateTime64(3)),
+    high            AggregateFunction(max, Float64),
+    low             AggregateFunction(min, Float64),
+    close           AggregateFunction(argMax, Float64, DateTime64(3)),
+    volume          AggregateFunction(sum, Int64),
+    oi              AggregateFunction(argMax, Int64, DateTime64(3)),
+    trades          AggregateFunction(sum, Int32)
+)
+ENGINE = AggregatingMergeTree()
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (token, timestamp);
+
+CREATE MATERIALIZED VIEW candles_15m_mv TO candles_15m AS
+SELECT
+    token,
+    toStartOfFifteenMinutes(timestamp) AS timestamp,
+    argMinState(open, timestamp)       AS open,
+    maxState(high)                     AS high,
+    minState(low)                      AS low,
+    argMaxState(close, timestamp)      AS close,
+    sumState(volume)                   AS volume,
+    argMaxState(oi, timestamp)         AS oi,
+    sumState(trades)                   AS trades
+FROM candles_1m
+GROUP BY token, toStartOfFifteenMinutes(timestamp);
+```
+</Tab>
+
+<Tab title="1-Hour Candles">
+```sql
+CREATE TABLE candles_1h (
+    token           String,
+    timestamp       DateTime64(3, 'Asia/Kolkata'),
+    open            AggregateFunction(argMin, Float64, DateTime64(3)),
+    high            AggregateFunction(max, Float64),
+    low             AggregateFunction(min, Float64),
+    close           AggregateFunction(argMax, Float64, DateTime64(3)),
+    volume          AggregateFunction(sum, Int64),
+    oi              AggregateFunction(argMax, Int64, DateTime64(3)),
+    trades          AggregateFunction(sum, Int32)
+)
+ENGINE = AggregatingMergeTree()
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (token, timestamp);
+
+CREATE MATERIALIZED VIEW candles_1h_mv TO candles_1h AS
+SELECT
+    token,
+    toStartOfHour(timestamp)       AS timestamp,
+    argMinState(open, timestamp)   AS open,
+    maxState(high)                 AS high,
+    minState(low)                  AS low,
+    argMaxState(close, timestamp)  AS close,
+    sumState(volume)               AS volume,
+    argMaxState(oi, timestamp)     AS oi,
+    sumState(trades)               AS trades
+FROM candles_1m
+GROUP BY token, toStartOfHour(timestamp);
+```
+</Tab>
+
+<Tab title="1-Day Candles">
+```sql
+CREATE TABLE candles_1d (
+    token           String,
+    timestamp       DateTime64(3, 'Asia/Kolkata'),
+    open            AggregateFunction(argMin, Float64, DateTime64(3)),
+    high            AggregateFunction(max, Float64),
+    low             AggregateFunction(min, Float64),
+    close           AggregateFunction(argMax, Float64, DateTime64(3)),
+    volume          AggregateFunction(sum, Int64),
+    oi              AggregateFunction(argMax, Int64, DateTime64(3)),
+    trades          AggregateFunction(sum, Int32)
+)
+ENGINE = AggregatingMergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (token, timestamp);
+
+CREATE MATERIALIZED VIEW candles_1d_mv TO candles_1d AS
+SELECT
+    token,
+    toStartOfDay(timestamp)        AS timestamp,
+    argMinState(open, timestamp)   AS open,
+    maxState(high)                 AS high,
+    minState(low)                  AS low,
+    argMaxState(close, timestamp)  AS close,
+    sumState(volume)               AS volume,
+    argMaxState(oi, timestamp)     AS oi,
+    sumState(trades)               AS trades
+FROM candles_1m
+GROUP BY token, toStartOfDay(timestamp);
+```
+</Tab>
+
+</Tabs>
 
 <Info>
-**Removed — service eliminated.** An earlier design had a separate "Charts Data Collector" service that manually aggregated 1-minute candles into 5m/15m/1h. **This service is gone.**
+**How ClickHouse materialized views work:** Unlike TimescaleDB continuous aggregates that require background refresh policies, ClickHouse materialized views are triggered synchronously on INSERT. When a batch of 1-minute candles is inserted into `candles_1m`, all four materialized views (5m, 15m, 1h, 1d) are updated atomically as part of the same write. No background jobs, no refresh lag, no eventual consistency.
 </Info>
 
-**TimescaleDB continuous aggregates automatically maintain 5m/15m/1h/1d/1w/1M candles from the base `candles_1m` table. No separate service needed.**
+**Weekly and monthly candles** (1w, 1M) are computed at query time from `candles_1d` using ClickHouse date functions (`toStartOfWeek`, `toStartOfMonth`). The volume of daily candles is small enough that real-time aggregation adds negligible query latency.
 
-How it works:
+**Dedup strategy:** `ReplacingMergeTree` on the base `candles_1m` table uses `insert_ts` as the version column. If a candle is written twice (e.g., due to Kafka consumer restart), ClickHouse keeps only the row with the latest `insert_ts`. Dedup is applied during background merges automatically, and can be forced with `SELECT ... FINAL` at query time.
 
-- `candles_1m` is a TimescaleDB hypertable (physical storage).
-- Each higher interval (`candles_5m`, `candles_15m`, `candles_1h`, `candles_1d`, `candles_1w`, `candles_1M`) is defined as a **continuous aggregate** — a materialized view that TimescaleDB keeps up to date automatically via a background refresh policy.
-- Writes land only in `candles_1m`. TimescaleDB incrementally refreshes each aggregate on its own schedule, using the standard OHLCV rollup rules (`first(open)`, `max(high)`, `min(low)`, `last(close)`, `sum(volume)`, `last(open_interest)`).
-- Queries against `candles_5m` (and siblings) read pre-materialized rows — they do not re-aggregate per request.
-
-Operational impact:
-
-- **One less service to deploy, monitor, and recover.** The manual 1m → 5m → 15m → 1h fan-out from the earlier draft is replaced by declarative SQL.
-- **No chance of rollups diverging from base data.** Continuous aggregates are always consistent with `candles_1m` after refresh.
-- **Corporate action / backfill fixes propagate automatically** — rewrite `candles_1m`, refresh the aggregates, every interval is corrected.
-
-Refresh cadence (default policy):
-
-- `candles_5m`, `candles_15m`, `candles_1h`: refresh every 1 minute, lag = 2 minutes (ensures 1m candles are stable before rollup).
-- `candles_1d`: refresh every 5 minutes during market hours, once post-close for the final value.
-- `candles_1w`, `candles_1M`: refresh at EOD.
-
-See §6.10 for the full SQL definitions.
-
----
-
-### 6.10 Time-Series Storage — TimescaleDB
-
-<Info>
-**Replaces the v3 QuestDB + MongoDB + Elasticsearch combination.** All market data time series — raw ticks, 1-minute base candles, and every higher interval via continuous aggregates — live in a single TimescaleDB database.
-</Info>
-
-**Why TimescaleDB:**
-
-| Earlier (replaced) | an earlier iteration (TimescaleDB) | Benefit |
-| --- | --- | --- |
-| TSDB / QuestDB for raw ticks | TimescaleDB `ticks` hypertable (7-day retention) | Single DB |
-| Redis for current-day candles | Redis (unchanged) | Hot path unchanged |
-| MongoDB for historical candles | TimescaleDB `candles_1m` hypertable (10-year retention, compressed) | SQL, partition pruning, 10x compression |
-| Elasticsearch for EOD historical | Eliminated | TimescaleDB handles it |
-| Charts Data Collector service for 5m/15m/1h rollups | TimescaleDB continuous aggregates (5m, 15m, 1h, 1d, 1w, 1M) | Declarative, no code |
-| **3 databases + 1 service to maintain** | **1 database, 0 extra services** | Major ops simplification |
-
-**Deployment — SEPARATE PostgreSQL instance:**
-
-TimescaleDB is a PostgreSQL extension, but it is deployed as a **separate PostgreSQL instance** from the Instrument Master PG (§6.1). This is intentional:
-
-- **Workload isolation.** Instrument Master is OLTP — small reads, occasional writes, low QPS but latency-sensitive on the hot path (instrument lookup). TimescaleDB carries heavy ingest (thousands of rows/sec of ticks + 1m candles), large scans, and background continuous-aggregate refresh jobs. Mixing these workloads would cause vacuum, I/O, and cache contention.
-- **Independent scaling.** The time-series instance can be sized for SSD IOPS and memory (working set = recent hypertable chunks). The instrument master instance can be small.
-- **Independent upgrade cadence.** TimescaleDB extension upgrades should not put the instrument master at risk.
-- **Independent backup/restore policies.** Time-series can tolerate slightly older PITR; instrument master must be point-in-time accurate.
-
-**Retention & compression:**
+**Retention:**
 
 | Data | Table | Retention | Notes |
 | --- | --- | --- | --- |
-| Raw ticks | `ticks` | **7 days (hot retention)** | After 7 days, ticks are dropped. Only aggregated candles remain. |
-| 1-minute candles | `candles_1m` | 10 years | Native TimescaleDB compression kicks in after 7 days — **~10x size reduction**. |
-| 5m / 15m / 1h candles | Continuous aggregates on `candles_1m` | 10 years | Storage-cheap; compressed. |
-| 1d / 1w / 1M candles | Continuous aggregates | Indefinite | EOD-refreshed. |
-
-Why 7-day tick retention: operational debugging, tick-by-tick replay, dispute investigation, and intra-week reconciliation all happen within a week. Older ticks have negligible business value — the 1-minute candle is the permanent record.
-
-**Schema — hypertables:**
-
-```sql
--- Raw ticks (7-day retention)
-CREATE TABLE ticks (
-    instrument_token  TEXT        NOT NULL,
-    ts                TIMESTAMPTZ NOT NULL,
-    ltp               DOUBLE PRECISION,
-    volume            BIGINT,
-    open_interest     BIGINT,
-    last_trade_qty    INTEGER,
-    avg_trade_price   DOUBLE PRECISION,
-    source            TEXT                                -- NSE_DIRECT | OMNENEST
-);
-SELECT create_hypertable('ticks', 'ts', chunk_time_interval => INTERVAL '1 day');
-CREATE INDEX ON ticks (instrument_token, ts DESC);
-
--- Tick retention policy: keep 7 days, drop older chunks
-SELECT add_retention_policy('ticks', INTERVAL '7 days');
-
--- 1-minute base candles (10-year retention, compressed)
-CREATE TABLE candles_1m (
-    instrument_token  TEXT        NOT NULL,
-    bucket            TIMESTAMPTZ NOT NULL,
-    open              DOUBLE PRECISION,
-    high              DOUBLE PRECISION,
-    low               DOUBLE PRECISION,
-    close             DOUBLE PRECISION,
-    volume            BIGINT,
-    open_interest     BIGINT,
-    total_oi          BIGINT,
-    last_trade_time   TIMESTAMPTZ,
-    PRIMARY KEY (instrument_token, bucket)
-);
-SELECT create_hypertable('candles_1m', 'bucket', chunk_time_interval => INTERVAL '7 days');
-CREATE INDEX ON candles_1m (instrument_token, bucket DESC);
-
--- Native compression after 7 days (~10x size reduction)
-ALTER TABLE candles_1m SET (
-  timescaledb.compress,
-  timescaledb.compress_segmentby = 'instrument_token',
-  timescaledb.compress_orderby   = 'bucket DESC'
-);
-SELECT add_compression_policy('candles_1m', INTERVAL '7 days');
-```
-
-**Continuous aggregates (no application code required):**
-
-```sql
--- 5-minute candles (auto-maintained from candles_1m)
-CREATE MATERIALIZED VIEW candles_5m
-WITH (timescaledb.continuous) AS
-SELECT
-    instrument_token,
-    time_bucket('5 minutes', bucket) AS bucket,
-    first(open, bucket)              AS open,
-    max(high)                        AS high,
-    min(low)                         AS low,
-    last(close, bucket)              AS close,
-    sum(volume)                      AS volume,
-    last(open_interest, bucket)      AS open_interest
-FROM candles_1m
-GROUP BY instrument_token, time_bucket('5 minutes', bucket);
-
-SELECT add_continuous_aggregate_policy('candles_5m',
-    start_offset => INTERVAL '1 hour',
-    end_offset   => INTERVAL '2 minutes',
-    schedule_interval => INTERVAL '1 minute');
-
--- 15m, 1h, 1d, 1w, 1M follow the same pattern, each built FROM the next-smaller
--- aggregate or directly FROM candles_1m. All refresh policies are declarative —
--- there is no application code that performs rollups.
-```
-
-**Example read (Charts API historical path):**
-
-```sql
--- Any interval — just pick the right view
-SELECT bucket, open, high, low, close, volume
-FROM candles_5m
-WHERE instrument_token = 'NSE:RELIANCE:EQ'
-  AND bucket BETWEEN $1 AND $2
-ORDER BY bucket;
-```
-
-**Migration path:** See §13 Phase 0. A one-time Temporal workflow reads MongoDB historical candles and Elasticsearch historical data, writes into TimescaleDB, validates row counts + spot-checks sample instruments, and keeps the old stores in read-only mode for 30 days as a safety net.
+| 1-minute candles | `candles_1m` | 10 years | ClickHouse columnar compression (~10-15x). Partitioned by day. |
+| 5m / 15m / 1h candles | Materialized view tables | 10 years | AggregatingMergeTree, highly compressed |
+| 1d candles | `candles_1d` | Indefinite | Tiny data volume (~5K rows/day for all instruments) |
+| Redis intraday candles | `candle:1m:*` | 2-3 days TTL | Hot path only — ephemeral cache |
 
 ---
 
-### 6.11 Charts API
+### 6.10 Charts Service — Partition-Based Horizontal Scaling (TASK-23)
 
-**What it does:** Serves price chart data to end users. **API contract unchanged** — same request/response as current system.
+The charts-service scales horizontally via Kafka consumer groups. Each pod in the consumer group handles a subset of Kafka partitions (and therefore a subset of instrument tokens).
 
-**Data sources:**
-
-- Current-day candles: Redis Cluster 2 Hash (populated by Charts Data Writer)
-- Historical candles: TimescaleDB (`candles_1m` base table or the relevant continuous aggregate for 5m/15m/1h/1d/1w/1M)
-
-**API (matching current contract):**
+**Kafka topic configuration:**
 
 ```
-POST /v1/charts
+Topic: mde-ticks-{exchange} (e.g., mde-ticks-nse, mde-ticks-bse)
+Partitions: N (default 12 per exchange topic)
+Partitioning key: instrumentToken (consistent hashing)
+    → All ticks for a given instrument always go to the same partition
+    → Therefore always processed by the same charts-service pod
+```
 
-Request:
-{
-    "fromDate": "2024-06-01",
-    "toDate": "2024-06-10",
-    "interval": "DAY",      // 1MIN, 5MIN, 15MIN, 60MIN, DAY, WEEK, MONTH
-    "pmlId": 1000005486
+**ConsumerRebalanceListener — graceful partition handoff:**
+
+```java
+public class CandleRebalanceListener implements ConsumerRebalanceListener {
+
+    @Override
+    public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
+        // Flush all in-progress candles for tokens owned by revoked partitions
+        for (TopicPartition tp : partitions) {
+            Set<String> tokens = partitionToTokens.get(tp);
+            if (tokens != null) {
+                for (String token : tokens) {
+                    CandleAggregator candle = activeCandles.remove(token + ":" + currentMinute);
+                    if (candle != null) {
+                        flushCandleToRedis(token, currentMinute, candle);
+                        publishCandleToKafka(token, currentMinute, candle);
+                    }
+                }
+                partitionToTokens.remove(tp);
+            }
+        }
+    }
+
+    @Override
+    public void onPartitionsAssigned(Collection<TopicPartition> partitions) {
+        // Start fresh aggregation for newly assigned partitions
+        // No state to recover — Redis has completed candles, in-progress state starts clean
+        for (TopicPartition tp : partitions) {
+            partitionToTokens.put(tp, ConcurrentHashMap.newKeySet());
+        }
+    }
 }
-
-Response: Array of OHLCV candles (same format as current)
 ```
 
-Interval routing inside the Charts API:
+<Warning>
+**Critical:** On partition revocation, ALL in-progress candles for that partition's tokens MUST be flushed before the rebalance completes. Failure to do so causes missing candles (the new owner starts a fresh candle, losing partial aggregation from the old owner).
+</Warning>
 
-- `1MIN` → `candles_1m`
-- `5MIN` → `candles_5m` (continuous aggregate)
-- `15MIN` → `candles_15m`
-- `60MIN` → `candles_1h`
-- `DAY`   → `candles_1d`
-- `WEEK`  → `candles_1w`
-- `MONTH` → `candles_1M`
+**Scale characteristics:**
+
+| Pods | Ticks/sec capacity | Partitions per pod | Notes |
+| --- | --- | --- | --- |
+| 1 | ~20K | 12 | Development / low-traffic |
+| 3 | ~50K | 4 each | Production baseline |
+| 6 | ~100K | 2 each | Peak trading day (budget day, IPO listing) |
+
+**No cross-pod coordination required.** Because Kafka partitioning ensures all ticks for a given instrument go to the same pod, there is no need for distributed locks or shared state. Each pod independently manages its own `ConcurrentHashMap` of active candles.
+
+---
+
+### 6.11 Charts REST API
+
+**Thread Pool 3 — Undertow Worker Threads (REST API):**
+
+The charts-service also serves the Charts REST API for frontend chart rendering. The same JVM process handles tick aggregation, ClickHouse writes, and REST serving — eliminating inter-service latency for the hot Redis read path.
+
+**API Endpoint:**
+
+```
+GET /v1/candles?token={token}&interval={interval}&from={epoch}&to={epoch}&limit={n}
+```
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| `token` | String | Yes | Instrument token (e.g., `NSE:RELIANCE:EQ`) |
+| `interval` | Enum | Yes | `1m`, `5m`, `15m`, `1h`, `1d`, `1w`, `1M` |
+| `from` | Long | Yes | Start epoch seconds |
+| `to` | Long | Yes | End epoch seconds |
+| `limit` | Integer | No | Max candles to return (default: 500) |
+
+**Query routing logic:**
+
+<Steps>
+
+<Step title="Determine data source">
+
+```
+if interval == "1m" AND (now - from) < 3 days:
+    → Redis C2 (hot path)
+elif interval == "1m" AND (now - from) >= 3 days:
+    → ClickHouse candles_1m table
+elif interval in ("5m", "15m", "1h", "1d"):
+    → ClickHouse materialized view table
+elif interval in ("1w", "1M"):
+    → ClickHouse candles_1d with date function aggregation
+```
+
+</Step>
+
+<Step title="Execute query">
+
+**Redis path (intraday 1m):**
+
+```
+1. ZRANGEBYSCORE candle:idx:{token} {fromEpochMinute} {toEpochMinute}
+   → returns list of epochMinute values that have candles
+
+2. Pipeline HGETALL for each: candle:1m:{token}:{epochMinute}
+   → returns open, high, low, close, volume, oi, trades for each candle
+
+3. Assemble into response array
+```
+
+**ClickHouse path (historical):**
+
+```sql
+-- Example: 5-minute candles
+SELECT
+    timestamp,
+    argMinMerge(open)  AS open,
+    maxMerge(high)     AS high,
+    minMerge(low)      AS low,
+    argMaxMerge(close) AS close,
+    sumMerge(volume)   AS volume,
+    argMaxMerge(oi)    AS oi
+FROM candles_5m
+WHERE token = {token:String}
+  AND timestamp BETWEEN {from:DateTime64} AND {to:DateTime64}
+GROUP BY token, timestamp
+ORDER BY timestamp
+LIMIT {limit:UInt32};
+```
+
+</Step>
+
+<Step title="Apply caching">
+
+**Two-layer cache:**
+
+- **L1 — Caffeine (local, per-pod):**
+  - Intraday intervals (1m, 5m, 15m): 5-second TTL (data changes rapidly)
+  - Historical intervals (1h, 1d, 1w, 1M): 1-hour TTL (data is immutable after market close)
+  - Max entries: 10,000 per interval type
+
+- **L2 — Redis C2 (shared across pods):**
+  - Only for ClickHouse-sourced queries (historical)
+  - Key: `cache:candles:{token}:{interval}:{fromEpoch}:{toEpoch}`
+  - TTL: 5 minutes (intraday), 24 hours (historical)
+  - Prevents redundant ClickHouse queries from multiple pods
+
+</Step>
+
+</Steps>
+
+**Response format (matching legacy contract):**
+
+```json
+{
+    "token": "NSE:RELIANCE:EQ",
+    "interval": "5m",
+    "candles": [
+        {
+            "timestamp": 1713168900,
+            "open": 2450.00,
+            "high": 2458.50,
+            "low": 2438.00,
+            "close": 2450.50,
+            "volume": 523400,
+            "oi": 0,
+            "trades": 1847
+        }
+    ]
+}
+```
+
+**Three-layer durability guarantee:**
+
+<CardGroup cols={3}>
+
+<Card title="Layer 1 — Redis AOF" icon="bolt">
+Redis C2 with AOF persistence. Survives pod restarts. 2-3 day TTL covers all intraday needs. Sub-millisecond reads.
+</Card>
+
+<Card title="Layer 2 — ClickHouse" icon="database">
+Permanent columnar storage. ReplacingMergeTree with automatic dedup. Materialized views for all intervals. 10-year retention.
+</Card>
+
+<Card title="Layer 3 — Kafka Replay" icon="rotate">
+Ultimate fallback. `mde-candles-1m` topic with 3-day retention. If both Redis and ClickHouse fail, replay from Kafka to rebuild state.
+</Card>
+
+</CardGroup>
+
+<Tip>
+**Why not TimescaleDB?** The earlier design used TimescaleDB for both raw ticks and candle storage. ClickHouse was chosen instead because: (1) columnar storage provides 10-15x better compression for time-series data, (2) materialized views update synchronously on INSERT (no background refresh lag), (3) ClickHouse handles the append-heavy write pattern more efficiently than PostgreSQL-based TimescaleDB, and (4) Redis-first for intraday reads eliminates the need for a hot-path database query entirely.
+</Tip>
 
 ---

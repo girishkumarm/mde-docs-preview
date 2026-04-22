@@ -1,193 +1,178 @@
 ---
 title: "Operations, Deployment & Migration — Overview"
-description: "Cut-over plan from legacy services (5 deployment groups) with migration strategy and stack inventory"
+description: "Cut-over plan from legacy PML services to MDE: 10 consolidated services, ClickHouse time-series, 5-phase migration strategy, and full business rules checklist"
 ---
 
-<Warning>
-**Storage content on this page predates the ClickHouse consolidation.** The Technology Stack and Deployment Architecture sections below still reference **TimescaleDB** and the **Charts Data Collector**. These were removed when MDE consolidated onto **ClickHouse ReplacingMergeTree + materialized-view rollups**.
-
-**For the authoritative current state, see:**
-- [Candles v2](/components/candles-v2) — the shipped storage layout (Redis running + ClickHouse closed + 4 MV rollups)
-- [DevOps Operating Guide](/operations/devops-guide) — the v2 provisioning target
-- [Migration — Price Engine Sub-Doc](/migration/price-engine) — the detailed cut-over plan
-
-The sections below are retained for context on the **migration path** and **deployment groups**, which are still accurate.
-</Warning>
-
 <Info>
-**April 2026 — pre-production draft.** Adds platform-wide resilience and AI-powered incident management. New §6.20 Resilience & Zero-Error UX (graceful degradation, stale data serving, feature flags, circuit breakers via Resilience4j + Unleash). New §6.21 AI-Powered Incident Manager (LLM-driven RCA with Claude Sonnet 4.5, from Day 1, platform-wide).
+**April 2026 — v3 consolidated.** MDE consolidated from 15 to 10 deployable services. TimescaleDB completely removed. ClickHouse is the sole time-series store (ReplacingMergeTree + 4 MV rollups). Two Redis clusters: C1 (real-time snapshots) and C2 (candles + movers + FNO + alerts). 38 gap-closure tasks tracked for production readiness.
 </Info>
 
 ### Cut-over at a glance
 
 ```mermaid
 flowchart LR
-  subgraph Legacy["Legacy path"]
+  subgraph Legacy["Legacy PML (decommissioned)"]
     cw1[charts-writer]
     chw1[charts-historical-writer]
     ts[(TimescaleDB)]
     cdc[Charts Data Collector]
+    cf[company-fundamentals]
+    im_old[incident-manager]
+    rs_old[recon-service]
+    ps_old[premarket-scheduler]
   end
 
-  subgraph V2["Current path"]
-    cw2[candle-writer<br/>dual-sink]
-    ra[(Redis API<br/>running candles)]
+  subgraph V2["MDE Current (10 services)"]
+    cs[charts-service<br/>merged writer+historical+API]
+    ra[(Redis C2<br/>running candles + AOF)]
     ch[(ClickHouse<br/>ReplacingMergeTree + 4 MV)]
+    im_new[instrument-master<br/>absorbs fundamentals]
+    ops[ops-service<br/>recon + incidents]
+    sched[scheduler-service<br/>absorbs premarket]
   end
 
   cw1 -.removed.-> X1[ ]
   chw1 -.removed.-> X1
   ts -.dropped.-> X1
   cdc -.eliminated.-> X1
+  cf -.merged.-> im_new
+  im_old -.merged.-> ops
+  rs_old -.merged.-> ops
+  ps_old -.merged.-> sched
 
-  cw2 --> ra
-  cw2 --> ch
+  cs --> ra
+  cs --> ch
   ch -- MV rollups --> ch
 
   style Legacy stroke-dasharray: 5 5
   style V2 fill:#e7f7ee
 ```
 
+---
+
 ## 11. Technology Stack
 
-| Component | Technology | Why |
+| Component | Technology | Purpose |
 | --- | --- | --- |
-| Language | Java 21 | Virtual threads, ZGC |
-| Framework | Spring Boot 3.2+ | Undertow |
-| Instrument master DB | PostgreSQL (dedicated instance) | Instrument master, companies, audit |
-| **Time-series DB** | **TimescaleDB (separate PostgreSQL instance)** | **Unified store for raw ticks (7-day retention) + 1m base candles (10-year, compressed ~10x) + continuous aggregates for 5m/15m/1h/1d/1w/1M. Replaces the earlier QuestDB + MongoDB + Elasticsearch combination and eliminates the Charts Data Collector service. Proven at tick rate by Robinhood, Coinbase.** |
-| ~~QuestDB~~ | ~~Removed during ClickHouse consolidation~~ | Replaced by TimescaleDB |
-| ~~MongoDB (historical candles)~~ | Legacy — read-only 30-day safety net during migration, then decommissioned | Replaced by TimescaleDB |
-| ~~Elasticsearch (historical)~~ | Legacy — read-only 30-day safety net during migration, then decommissioned | Replaced by TimescaleDB |
-| Cache | Redis 7+ (ElastiCache) — 2 clusters | Cluster 1 (Feed): snapshots. Cluster 2 (API): FNO data, movers, current-day charts candles |
-| Message broker | Kafka | Durable tick stream, broadcast delivery |
-| WebSocket | Netty + Protobuf | 100K+ connections/pod |
-| Workflow engine | Temporal | All scheduled/batch jobs, one-time historical migration |
-| Metrics | Micrometer + Prometheus | All services |
-| Alerting | Slack webhooks (P0, INFO) | Critical + informational |
-| Atomic Redis | Lua scripts | 52-week H/L, OHLC compare-and-set |
-| Serialization (WS) | Protobuf | Backward compatible, cross-language |
-| Serialization (Kafka) | Avro (with schema registry) | Best Kafka ecosystem integration |
-| Serialization (Redis) | JSON byte[] (DTOs), raw binary (feed packets) | Matching current system |
-| **Incident Manager** | **Java 21 / Spring Boot 3.2+** | **Aligns with rest of platform stack; reactive consumer of Prometheus + log streams** |
-| **Anomaly Detection** | **Prometheus + custom z-score / EWMA analyzer; Prophet for seasonality** | **Statistical baselines per metric; cross-service correlation engine** |
-| **LLM (Incident Manager debugger)** | **Claude Sonnet 4.5 (configurable provider)** | **Production-grade reasoning over logs/metrics/traces; provider abstraction for future model swaps** |
-| **Circuit Breaker** | **Resilience4j** | **Mature JVM library; per-service thresholds; integrates with Spring Boot + Micrometer** |
-| **Feature Flags** | **Unleash (self-hosted) — LaunchDarkly as alternative** | **Self-hosted preferred to avoid external dependency on critical path; Unleash supports auto-toggling via API for Incident Manager integration** |
-| **Distributed Tracing (for LLM context)** | **Tempo / Jaeger** | **LLM debugger reads traces to root-cause failing requests** |
-| **Log aggregation (for LLM context)** | **Loki / Elasticsearch + Logstash** | **Source of context for LLM debugger; queryable by trace ID and time window** |
+| Language | Java 21 | All services, virtual threads |
+| Framework | Spring Boot 3.2 | Web, Kafka, Redis, actuator |
+| Message Broker | Apache Kafka (MSK) | Inter-service messaging, 8 topics |
+| Cache/State | Redis ElastiCache | Two clusters: C1 (snapshots), C2 (candles/movers/FNO/alerts) |
+| Time-Series DB | ClickHouse | Historical candles, ReplacingMergeTree + 4 MV rollups |
+| Relational DB | PostgreSQL (RDS) | Instruments, alerts, corporate actions, ops |
+| Workflow | Temporal | BOD preload, corporate action pre-computation, recon |
+| Serialization | Protocol Buffers | Tick data serialization (feed-handler to Kafka) |
+| Container | Docker (Jib) | All services, Temurin 21 base |
+| Orchestration | Kubernetes (EKS) | 10 services, HPA for broadcast-service |
+| Monitoring | Prometheus + Grafana | 8 dashboards, Micrometer metrics |
+| Tracing | Brave/Zipkin | Distributed tracing across services |
 
 ---
 
 ## 12. Deployment Architecture
 
+### 10 Consolidated Services
+
+MDE reduced from 15 services to 10 through four consolidation merges:
+
+| Merge | Before | After | Rationale |
+| --- | --- | --- | --- |
+| Charts consolidation | `charts-writer` + `charts-historical-writer` + `charts-api` | `charts-service` | Single service owns entire candle lifecycle: aggregation, ClickHouse storage, and API serving |
+| Ops consolidation | `recon-service` + `incident-manager` | `ops-service` | Recon and incident management share operational context |
+| Scheduler consolidation | `premarket-scheduler` (standalone) | `scheduler-service` | Temporal worker with two task queues replaces standalone scheduler |
+| Fundamentals consolidation | `company-fundamentals` (standalone) | `instrument-master` | Fundamentals are instrument metadata, not a separate domain |
+
+### Deployment Groups
+
 ```
-Core Processing (2–3 pods, latency-sensitive):
-    Feed Handler + Denormalizer + Cross-Source Dedup
-    Publisher (Redis Cluster 1 writes)
-    Producer (Kafka publishes)
-    Alert Engine
+Always-On (7 services, run during market hours + extended):
+    feed-handler          — binary packet decoder, LZO decompression
+    publisher             — headless Redis C1 writer, no HTTP API
+    broadcast-service     — WebSocket fan-out, HPA 3-10 pods (5000 conn/pod)
+    charts-service        — candle aggregation + ClickHouse writes + API
+    market-movers-writer  — consumes 1m candles, ZSET ranking writes
+    fno-data-writer       — Greeks computation, IV solver, option chain
+    alert-engine          — user alert evaluation, Redis index reconciliation
 
-Data Writers (scale independently, connect to Redis Cluster 2 + TimescaleDB):
-    Charts Data Writer (Kafka → TimescaleDB ticks + candles_1m, Redis Cluster 2 current-day)
-    FNO Data Writer (Kafka → Redis Cluster 2)
-    Market Movers Writer (Kafka → Redis Cluster 2)
-    [Charts Data Collector — ELIMINATED; TimescaleDB continuous aggregates replace it.]
+Scheduled (1 service, runs Temporal workflows):
+    scheduler-service     — BOD preload, corporate action pre-computation
+                            two task queues: scheduler-queue, premarket-queue
 
-APIs (20+ pods, scale on request rate):
-    Charts API (reads Redis Cluster 2 + TimescaleDB)
-    FNO Dashboard API (reads Redis Cluster 2)
-    Market Movers API (reads Redis Cluster 2)
-    Instrument Master API (reads Instrument Master PG, in-memory cache)
-    Periscope API (reads local cache + Redis Cluster 1, operational endpoints)
+Ops (1 service, always running):
+    ops-service           — recon + incidents + self-healing
+                            market-hours awareness, auto-heal only off-market
 
-Broadcast Service (20+ pods, scale on user count):
-    Kafka consumer → Protobuf → WebSocket → users
-    Redis Cluster 1 read for snapshot on user connect
+Infra (1 service, always running):
+    instrument-master     — instrument + fundamentals CRUD, bhavcopy parsing
+                            ConcurrentHashMap in-memory cache, Kafka reload
 
-Databases & Stores (managed, not a service "pod" — but part of deployment topology):
-    Instrument Master PostgreSQL (dedicated instance — OLTP, small footprint)
-    TimescaleDB (SEPARATE PostgreSQL instance — time-series ingest + aggregates,
-        sized for SSD IOPS and working-set memory, independent upgrade cadence)
-    Redis Cluster 1 (Feed)
-    Redis Cluster 2 (API)
-    Kafka cluster
+Databases & Stores (managed, not service pods):
+    PostgreSQL (RDS)      — instrument_master, alert_engine, scheduler_service,
+                            ops_service, temporal
+    Redis Cluster 1 (C1)  — real-time snapshots (FEED_PP, OHLC, PC, LC_UC,
+                            52WK, DEPTH, MKT_STATUS), RDB persistence
+    Redis Cluster 2 (C2)  — candles + movers + FNO + alerts, AOF persistence
+    ClickHouse (3-node)   — candles_1m ReplacingMergeTree + 4 MV rollups
+    Kafka (MSK 3-broker)  — 8 topics
 
 Temporal Workers (reliability over latency):
-    Historical Data Migration (one-time, Phase 0)
-    Instrument Master Sync
-    Corporate Action Processor
-    Pre-Market Data Loading
-    EOD Reconciliation
-    Candle Generation + Archival
-    NAV Update
-    Expiry Day Cleanup
-    + Any custom workflow (generic platform)
-
-Incident Manager (platform-wide deployment group):
-    Signal Collector pods (3+ pods, scale on signal volume)
-        - Prometheus scrape subscribers
-        - Log stream consumers (Loki / Elasticsearch)
-        - Kafka lag monitors
-        - Synthetic probe runners
-    Anomaly Detection pods (2+ pods, latency-sensitive)
-        - Z-score / EWMA evaluator
-        - Cross-service correlation engine
-    LLM Debugger pods (2+ pods, queue-driven)
-        - Context assembly
-        - LLM API client (Claude Sonnet 4.5 or configured provider)
-        - Response post-processing + Slack/Jira posting
-    Auto-Remediation pods (2 pods, hot-standby pair)
-        - Kubernetes API client
-        - Feature flag toggle client (Unleash)
-        - Audit log writer
-
-Resilience Sidecars / Libraries (in every service, not a separate deployment group):
-    Resilience4j circuit breaker around every downstream call
-    Stale-while-revalidate cache layer in front of every Redis/PG read
-    Feature flag client (Unleash SDK) for silent feature toggling
+    Instrument Master Sync (daily)
+    BOD Preload (pre-market)
+    Corporate Action Pre-Computation (T-1)
+    Post-Market Reconciliation (EOD)
 ```
 
 ---
 
 ## 13. Migration Strategy
 
-Strangler fig pattern — **Phase 0 + 4 phases**, roughly 8 weeks total. Phase 0 is the pre-v2 foundation and must complete before the rest of the migration can rely on TimescaleDB.
+Strangler fig pattern — **5 phases** from legacy PML to production MDE.
 
-### Phase 0 — Historical data migration via Temporal (prerequisite)
+### Phase 1 — Core Pipeline (DONE)
 
-Runs before any production traffic hits TimescaleDB.
+Feed-handler to publisher to Redis C1. Kafka tick topics. Basic broadcast-service. Instrument-master with PostgreSQL.
 
-1. Stand up the separate TimescaleDB PostgreSQL instance, create hypertables, compression policies, retention policy, and all continuous aggregates (see §6.10).
-2. Launch `HistoricalDataMigrationWorkflow` on Temporal:
+- All services built and tested locally.
+- Feed simulator producing realistic tick data.
+- Redis C1 snapshots verified against legacy PML output.
 
-- Activity A: read MongoDB `candles` collection in date-partitioned batches → write `candles_1m` with `ON CONFLICT ... DO UPDATE`.
-- Activity B: read Elasticsearch historical indices → write `candles_1m` (same upsert semantics).
-- Activity C: refresh all continuous aggregates for the full historical window.
-- Activity D: validate — per-day row counts TimescaleDB vs MongoDB/ES, spot-check sample instruments (liquid + illiquid) across sample dates.
+### Phase 2 — Gap Closure (38 tasks)
 
-1. Keep MongoDB + Elasticsearch in **read-only mode for 30 days** as a safety net. Charts API is configured to fall back to the old stores if a TimescaleDB data defect is found.
-2. Cut Charts API reads over to TimescaleDB after validation passes.
-3. After 30 days of clean operation, decommission MongoDB and Elasticsearch.
+Covers all legacy PML features that are not yet implemented in MDE. Tracked as TASK-01 through TASK-38 (see Business Rules Checklist below for full breakdown).
 
-### Services Being Replaced
+Key areas:
+- Feed handling: LZO decompression, OI injection, zero-LTP fallback, cross-minute resend, previous-close enrichment, post-close timing
+- Publishing & broadcast: market status, BSE circuit limits, unique consumer groups, inverted subscription index, heartbeat, connection limits
+- Charts: Redis-first candle writes with AOF, ClickHouse fallback, partition scaling
+- Market movers: switch from ticks to 1-minute candle consumption
+- FNO: max pain, ATM straddle, PCR, day-over-day changes, BSE F&O
+- Alerts: Redis index reconciliation, 52-week conditions
+- Premarket/BOD: direct exchange downloads, BSE bhavcopy, F&O bhavcopy, security ban list, BSE circuit limits from DP file
+- Corporate actions: T-1 pre-computation, atomic partition swap, verification workflow
 
-| Current Service | New Home |
-| --- | --- |
-| Streamer (pml-core-streamer) | Core → Feed Handler |
-| Market Feed Publisher | Core → Publisher |
-| Tick Producer (pml-core-tick-producer) | Core → Producer |
-| Charts Data Writer (charts-data-writer) | Data Writers → Charts Data Writer (now writes to TimescaleDB + Redis Cluster 2) |
-| **Charts Data Collector (charts-data-collector)** | **ELIMINATED — replaced by TimescaleDB continuous aggregates. No successor service.** |
-| FNO Data Writer (fno-data-writer) | Data Writers → FNO Data Writer |
-| Market Movers Data Writer | Data Writers → Market Movers Writer |
-| Feed Broadcast (pml-core-feed-broadcast) | Broadcast Service |
-| Charts API (data-price-charts-api) | APIs → Charts API (now reads TimescaleDB for history) |
-| FNO Dashboard API (fno-dashboard-app) | APIs → FNO Dashboard API |
-| Market Movers API (eq-marketmovers-app) | APIs → Market Movers API |
-| Job Manager (CMOTS loader) | Temporal Workers |
+### Phase 3 — Service Consolidation (15 to 10)
 
-**Result:** 12 current services → 4 deployment groups + Temporal workers + Incident Manager (Charts Data Collector is eliminated; not moved).
+Four consolidation merges (see Deployment Architecture above):
+1. Charts consolidation (writer + historical + API into charts-service)
+2. Ops consolidation (recon + incident-manager into ops-service)
+3. Scheduler consolidation (premarket-scheduler into scheduler-service)
+4. Fundamentals consolidation (company-fundamentals into instrument-master)
+
+### Phase 4 — Production Readiness
+
+- Comprehensive test suite (unit + integration + E2E)
+- Production observability (Prometheus metrics, structured logging, distributed tracing)
+- 8 Grafana dashboards (see DevOps Guide)
+- E2E Docker Compose validation
+- Load testing with k6
+
+### Phase 5 — Production Release
+
+- Merge to `main` branch
+- Bitbucket push
+- ArgoCD deployment to staging
+- Bake-off validation against legacy PML
+- Production cutover with canary at 1%
 
 ---
 
@@ -195,30 +180,46 @@ Runs before any production traffic hits TimescaleDB.
 
 ### Prometheus Metrics
 
+All 10 services expose metrics via Micrometer on management port (9xxx). Metric naming convention: `mde_{service}_{metric}`.
+
 | Metric | Type | Labels | Description |
 | --- | --- | --- | --- |
-| `udp.receiver.queue.size` | Gauge | exchange | Receive queue depth |
-| `udp.receiver.poll.delay` | Histogram | exchange | Queue poll delay ms |
-| `post.processor.latency` | Timer | packetCode, exchange | End-to-end processing latency |
-| `redis.operation.latency` | Timer | operation, key | Redis hash op latency |
-| `kafka.producer.latency` | Timer | topic | Kafka produce latency |
-| `kafka.consumer.lag` | Gauge | topic, partition, consumerGroup | Consumer lag (messages behind) — critical for Broadcast Service |
-| `cross.source.dedup.count` | Counter | source | Ticks dropped by cross-source dedup |
-| `feed.source.status` | Gauge | source | 1=ACTIVE, 0.5=UNCERTAIN, 0=DOWN |
-| `scheduler.execution.time` | Timer | jobName | Scheduler job duration |
-| `recon.mismatch.count` | Counter | exchange, segment | pclose mismatch count |
-| `broadcast.active.connections` | Gauge | platform | WebSocket connections |
-| `broadcast.message.latency` | Histogram | — | Kafka consume → WS send |
-| `timescaledb.ingest.latency` | Histogram | table | Insert latency for ticks / candles_1m |
-| `timescaledb.cagg.refresh.lag` | Gauge | view | How far a continuous aggregate is behind `candles_1m` |
-| `timescaledb.compression.ratio` | Gauge | table | Observed compression ratio on older chunks |
-| `fallback.invocations` | Counter | api, layer | Per-API count of fallback layer hits (Layer 2/3/4) |
-| `circuit.breaker.state` | Gauge | service, breaker | Circuit-breaker state (0=CLOSED, 1=HALF_OPEN, 2=OPEN) |
-| `feature.flag.state` | Gauge | flag | Current value of every silent feature flag |
-| `incidents.detected` | Counter | severity, service | Incidents detected by anomaly engine |
-| `incidents.mttr` | Timer | severity | Mean time to recovery per incident |
-| `incidents.llm.confidence` | Histogram | hypothesis_rank | LLM root-cause confidence distribution |
-| `incidents.auto_remediated` | Counter | action_type, success | Count of auto-remediation actions taken (and outcome) |
+| `mde_feed_handler_packets_received` | Counter | exchange, packetCode | Packets received per exchange |
+| `mde_feed_handler_decode_errors` | Counter | exchange, errorType | Packet decode failures |
+| `mde_feed_handler_lzo_latency` | Histogram | exchange | LZO decompression latency |
+| `mde_publisher_redis_write_latency` | Timer | operation, keyType | Redis C1 hash op latency |
+| `mde_publisher_kafka_produce_latency` | Timer | topic | Kafka produce latency |
+| `mde_publisher_dedup_count` | Counter | source | Ticks dropped by dedup |
+| `mde_broadcast_active_connections` | Gauge | platform | WebSocket connections |
+| `mde_broadcast_message_latency` | Histogram | -- | Kafka consume to WS send |
+| `mde_broadcast_slow_evictions` | Counter | -- | Slow consumer evictions |
+| `mde_broadcast_kafka_lag` | Gauge | topic, partition, group | Consumer lag |
+| `mde_charts_candles_per_min` | Counter | exchange, segment | 1m candles aggregated |
+| `mde_charts_clickhouse_insert_latency` | Histogram | table | ClickHouse batch insert latency |
+| `mde_charts_api_query_latency` | Histogram | endpoint, source | API query latency by source |
+| `mde_charts_cache_hit_ratio` | Gauge | endpoint | Cache hit ratio per endpoint |
+| `mde_movers_signals_per_sec` | Counter | category | Market mover signals processed |
+| `mde_movers_zset_writes` | Counter | category | Redis ZSET write operations |
+| `mde_fno_greeks_compute_duration` | Histogram | exchange | Greeks computation time |
+| `mde_fno_iv_solver_iterations` | Histogram | exchange | IV solver iteration count |
+| `mde_alert_active_count` | Gauge | conditionType | Active alerts by type |
+| `mde_alert_triggered_total` | Counter | conditionType | Alerts triggered |
+| `mde_ops_recon_mismatches` | Counter | exchange, segment | Recon mismatch count |
+| `mde_ops_auto_heal_actions` | Counter | actionType, success | Auto-heal actions taken |
+| `mde_scheduler_execution_time` | Timer | jobName | Scheduler job duration |
+
+### Grafana Dashboards (8 dashboards)
+
+| # | Dashboard | Key Panels |
+| --- | --- | --- |
+| 1 | **MDE Overview** | 10 service health, key TPS gauges, data flow, error rate |
+| 2 | **Feed Handler & Publisher** | Packets/sec, decode errors, LZO latency, Redis write latency |
+| 3 | **Charts Pipeline** | Candles/min, ClickHouse batch insert rate, API query latency, cache hit ratio |
+| 4 | **Market Movers & FNO** | Signals/sec, ZSET writes, Greeks compute duration, IV solver iterations |
+| 5 | **Broadcast Service** | WebSocket connections, messages/sec, slow consumer evictions, Kafka lag |
+| 6 | **Alerts & Operations** | Active alerts, triggered/min, recon mismatches, auto-heal actions |
+| 7 | **Infrastructure** | Kafka, Redis C1/C2, ClickHouse, PostgreSQL, JVM metrics |
+| 8 | **Business KPIs** | Live instrument count, data freshness, BOD completeness, market hours |
 
 ### Slack Alerting
 
@@ -233,176 +234,157 @@ Runs before any production traffic hits TimescaleDB.
 | Scheduler job overdue | P0 | `slack.p0.webhook` |
 | All scheduler jobs completed | INFO | `slack.info.webhook` |
 | Kafka consumer lag > threshold | P1 | `slack.p1.webhook` |
-| TimescaleDB continuous aggregate refresh lag > threshold | P1 | `slack.p1.webhook` |
-| Fallback Layer 4 invocation rate > 0.1% over 5 min | P1 | `slack.p1.webhook` (handled by Incident Manager) |
-| Circuit breaker stuck OPEN > 5 min | P1 | `slack.p1.webhook` (handled by Incident Manager) |
-| Incident Manager auto-remediation triggered | INFO | `slack.incidents-audit.webhook` |
-| Incident Manager auto-remediation failed | P1 | `slack.p1.webhook` |
+| ClickHouse merge queue backlog > threshold | P1 | `slack.p1.webhook` |
+| Auto-remediation triggered | INFO | `slack.incidents-audit.webhook` |
+| Auto-remediation failed | P1 | `slack.p1.webhook` |
 
 ### Logging
 
-- **Format:** JSON (Logstash encoder)
-- **MDC:** `traceId` = `BCastHeaderBroadcast.uniqueSequenceId`
+- **Format:** JSON (Logstash Logback encoder)
+- **MDC fields:** `service`, `traceId`, `spanId`, `instrumentToken`
+- **Distributed tracing:** Micrometer Tracing + Brave/Zipkin, Kafka message headers carry `traceId` for log correlation
 - **Marker-based appenders** (separate rolling log files per packet type):
 
-TRADE, INDEX, OHLC, MBP, TOP_BID_ASK, MKT_STATUS, PCLOSE, CKT, F52WK, USER_SESSION, HIGH_LATENCY, QSIZE, KAFKA_PRODUCE
-
-- **Incident Manager log marker:** `INCIDENT_MANAGER` — separate appender for all incident-related log lines (detection, LLM analysis, remediation actions). Used as input to Incident Manager's own self-monitoring.
+TRADE, INDEX, OHLC, MBP, TOP_BID_ASK, MKT_STATUS, PCLOSE, CKT, F52WK
 
 ---
 
 ## 15. Business Rules Checklist
 
-An engineer building this system must implement all of the following:
+An engineer building this system must implement all of the following. Items marked with `[x]` are complete (Phase 1). Items marked with `[ ]` are gap-closure tasks tracked as TASK-01 through TASK-38.
+
+### Premarket / BOD
+
+- [x] Temporal BOD workflows
+- [x] NSE bhavcopy parsing
+- [ ] Direct download from exchange URLs (TASK-01)
+- [ ] Fix pmlId placeholder (TASK-02)
+- [ ] BSE bhavcopy support (TASK-03)
+- [ ] NSE F&O bhavcopy support (TASK-04)
+- [ ] F&O security ban list (TASK-05)
+- [ ] BSE circuit limits from DP file (TASK-06)
+
+### Corporate Actions
+
+- [ ] T-1 pre-computation with shadow tables (TASK-07)
+- [ ] Atomic partition swap on ex-date
+- [ ] Verification workflow with auto-rollback
 
 ### Feed Handling
 
-- ☐ One virtual thread per UDP stream (12 total — 6 NSE Direct + 6 Omnenest)
-- ☐ Buffer size: 8192 bytes per datagram
-- ☐ Drop malformed packets silently (log warn), never crash receiver thread
-- ☐ Parse BCastHeaderBroadcast (64 bytes) first, route by packetCode
-- ☐ Set uniqueSequenceId as MDC traceId for every packet
+- [x] NSE/BSE binary packet decoding
+- [x] Protobuf serialization
+- [x] Source deduplication
+- [x] Market status state machine
+- [ ] LZO decompression for compressed NSE packets (TASK-08)
+- [ ] OI injection into MBP trade ticks (TASK-09)
+- [ ] Zero-LTP fallback for pre-open session (TASK-10)
+- [ ] Cross-minute re-send for deduplicated ticks (TASK-11)
+- [ ] Previous-close enrichment for index ticks (TASK-12)
+- [ ] Post-close timing window for closing auction (TASK-13)
 
-### Cross-Source Merge & Dedup
+### Publishing & Broadcast
 
-- ☐ Both NSE Direct and Omnenest feed into the same Feed Handler
-- ☐ Dedup by (instrumentId, timestamp) — first arrival wins
-- ☐ Track per-source tick counts for continuous validation
-- ☐ Alert on divergence: if sources disagree on LTP by > threshold for > 5 seconds
-- ☐ Metrics: cross_source_dedup_count per source
+- [x] Redis snapshot writes (6 key types)
+- [x] WebSocket fan-out
+- [ ] Market status Redis key (TASK-14)
+- [ ] BSE circuit limits from MBP packet (TASK-15)
+- [ ] Unique Kafka consumer group per pod (TASK-16)
+- [ ] Inverted subscription index (TASK-17)
+- [ ] Market status broadcasting (TASK-18)
+- [ ] Server-to-client heartbeat (TASK-19)
+- [ ] Per-pod connection limit (TASK-20)
 
-### Duplicate Detection (per-source)
+### Charts Pipeline
 
-- ☐ Skip if ltp + volume + avgTradePrice all unchanged from previous tick
-- ☐ Index: skip if LTP unchanged
-- ☐ OI: skip if OI unchanged, or if volume/OHLC are all zero
+- [x] 1-minute candle aggregation
+- [x] ClickHouse historical storage
+- [ ] Redis-first 1m candle writes with AOF (TASK-21)
+- [ ] Charts-API ClickHouse fallback (TASK-22)
+- [ ] Partition-based horizontal scaling (TASK-23)
 
-### MBP Processing
+### Market Movers
 
-- ☐ Valid trade gate: volume > 0 AND market OPEN or POST_CLOSE_START
-- ☐ OHLC: Lua atomic updates (3_O, 3_H, 3_L, 3_C)
-- ☐ 52-week: Lua atomic updates (36_H, 36_L)
+- [x] Signal computation (8 categories)
+- [x] ZSET ranking writes
+- [ ] Switch from ticks to 1-minute candles (TASK-24)
 
-### Redis Batching
+### FNO Analytics
 
-- ☐ One RedisBatchProcessor per CacheType
-- ☐ Flush on: queue > max batch size OR 10ms timeout
-- ☐ Single HSET per flush
-- ☐ @Retryable(maxAttempts=6, exponential 500ms→60s)
+- [x] Black-Scholes Greeks
+- [x] Option chain writes
+- [ ] Max Pain calculation (TASK-25)
+- [ ] ATM Straddle computation (TASK-26)
+- [ ] Put-Call Ratio (OI + Volume) (TASK-27)
+- [ ] Day-over-day change fields (TASK-28)
+- [ ] BSE F&O support (TASK-29)
 
-### Redis Topology
+### Alerts
 
-- ☐ Two separate Redis clusters: Cluster 1 (Feed) and Cluster 2 (API)
-- ☐ maxmemory-policy noeviction on both clusters
-- ☐ Alert at 80% memory usage
-- ☐ Key prefixes only, DB 0 only (no DB numbers) — required for future Cluster mode
-- ☐ Dedicated connection pools per service per cluster
+- [x] User alert management
+- [x] 7 condition types
+- [ ] Redis index reconciliation on restart (TASK-30)
+- [ ] 52-week conditions from BOD reference data (TASK-31)
 
-### Kafka Producer
+### Operations
 
-- ☐ enable.idempotence=true
-- ☐ acks=all
-- ☐ retries=2147483647 (infinite retries within delivery.timeout.ms)
-- ☐ max.in.flight.requests.per.connection=5
-- ☐ delivery.timeout.ms=120000
-- ☐ Avro serialization with schema registry
-- ☐ Partition key: instrumentToken (ensures ordering per instrument)
+- [ ] Autonomous operations hub (TASK-32)
+- [ ] Market-hours awareness (auto-heal only off-market)
+- [ ] Canary deployment at 1%
 
-### Market Status
+### Production Readiness
 
-- ☐ Track per (ExchangeSegment, marketType) pair, not globally
-- ☐ POST_CLOSE_START (5.0) is valid trading state
-- ☐ CLOSE (4.0) stops all price updates
+- [ ] Service consolidation 15 to 10 (TASK-33)
+- [ ] Comprehensive test suite (TASK-34)
+- [ ] Production observability (TASK-35)
+- [ ] Grafana dashboards (TASK-36)
+- [ ] E2E Docker Compose validation (TASK-37)
+- [ ] Production release (TASK-38)
 
-### Feed Failover
+### Cross-Cutting (implemented in Phase 1)
 
-- ☐ Heartbeat-based detection: 3 seconds timeout (confirm heartbeat interval with exchange team)
-- ☐ Staleness indicator: 1 second no heartbeat → UNCERTAIN flag → propagate to Broadcast Service
-- ☐ Both sources merged — no traffic routing needed
-- ☐ Both down: serve stale from Redis, mark as stale, CRITICAL alert
-- ☐ Staleness UI: amber (>3s), red (>10s) coloring on "Last updated: Xs ago"
+- [x] One virtual thread per UDP stream (12 total -- 6 NSE Direct + 6 Omnenest)
+- [x] Buffer size: 8192 bytes per datagram
+- [x] Drop malformed packets silently (log warn), never crash receiver thread
+- [x] Parse BCastHeaderBroadcast (64 bytes) first, route by packetCode
+- [x] Set uniqueSequenceId as MDC traceId for every packet
+- [x] Dedup by (instrumentId, timestamp) -- first arrival wins
+- [x] MBP valid trade gate: volume > 0 AND market OPEN or POST_CLOSE_START
+- [x] OHLC: Lua atomic updates
+- [x] 52-week: Lua atomic updates
+- [x] Redis batch flush on: queue > max batch size OR 10ms timeout
+- [x] Two separate Redis clusters: C1 (Feed) and C2 (API)
+- [x] maxmemory-policy noeviction on C2
+- [x] Kafka: enable.idempotence=true, acks=all, partition key = instrumentToken
+- [x] Market status tracked per (ExchangeSegment, marketType) pair
+- [x] POST_CLOSE_START (5.0) is valid trading state
+- [x] Heartbeat-based feed failover: 3 seconds timeout
+- [x] All schedulers skip non-trading days
+- [x] Instrument master in dedicated PostgreSQL instance
+- [x] Services load instrument map into ConcurrentHashMap on startup
+- [x] Pclose reconciliation: compare Redis vs exchange bhavcopy from S3
+- [x] Expiry day cleanup: mark expired contracts, clean Redis C2, stop Greeks, recalculate PCR/Max Pain
 
-### Pre-Market Loading
+---
 
-- ☐ All schedulers skip non-trading days (@TradeDay)
-- ☐ If TRD_DAY absent → P0 alert
-- ☐ Execution order: clean → scrip master → ckt/OHLC/pclose/52wk → trade/index
+## 16. Services Being Replaced
 
-### Instrument Master
+| Legacy PML Service | MDE Service | Notes |
+| --- | --- | --- |
+| Streamer (pml-core-streamer) | `feed-handler` | Binary packet decoder |
+| Market Feed Publisher | `publisher` | Redis C1 writes |
+| Tick Producer (pml-core-tick-producer) | `publisher` | Kafka publishes (merged into publisher) |
+| Charts Data Writer (charts-data-writer) | `charts-service` | Writes to ClickHouse + Redis C2 |
+| Charts Historical Writer | `charts-service` | Merged into charts-service |
+| Charts Data Collector | **ELIMINATED** | ClickHouse materialized views replace it |
+| Charts API (data-price-charts-api) | `charts-service` | Reads ClickHouse + Redis C2 |
+| FNO Data Writer (fno-data-writer) | `fno-data-writer` | Greeks, IV, option chain |
+| Market Movers Data Writer | `market-movers-writer` | ZSET ranking writes |
+| FNO Dashboard API | `fno-data-writer` | API merged into writer |
+| Market Movers API | `market-movers-writer` | API merged into writer |
+| Feed Broadcast (pml-core-feed-broadcast) | `broadcast-service` | WebSocket fan-out |
+| Company Fundamentals | `instrument-master` | Absorbed into instrument-master |
+| Job Manager (CMOTS loader) | `scheduler-service` | Temporal workflows |
+| Incident Manager (standalone) | `ops-service` | Merged with recon |
 
-- ☐ Scrip master in a dedicated PostgreSQL instance only — no Redis copy
-- ☐ Instrument master PG is **separate** from the TimescaleDB time-series instance
-- ☐ Services load instrument map into ConcurrentHashMap on startup
-- ☐ Reload on Kafka event (instrument-master-updated topic)
-
-### TimescaleDB (Time-Series Store)
-
-- ☐ Deployed as a SEPARATE PostgreSQL instance from Instrument Master (workload isolation)
-- ☐ `ticks` defined as a hypertable, chunk interval 1 day
-- ☐ `ticks` retention policy: drop chunks older than 7 days (hot retention)
-- ☐ `candles_1m` defined as a hypertable, chunk interval 7 days
-- ☐ `candles_1m` compression policy: compress chunks older than 7 days (~10x size reduction)
-- ☐ `candles_1m` retention: 10 years
-- ☐ Continuous aggregates defined for 5m, 15m, 1h, 1d, 1w, 1M on top of `candles_1m`
-- ☐ Continuous aggregate refresh policies: 5m/15m/1h refresh every minute with 2-minute lag; 1d refresh every 5 min intraday + once post-close; 1w/1M refresh at EOD
-- ☐ No application code performs rollups — all higher intervals are produced by continuous aggregates
-- ☐ Charts Data Writer writes ONLY `ticks` and `candles_1m`; no 5m/15m/1h writes
-- ☐ Charts API routes interval parameter to the correct view (candles_1m / 5m / 15m / 1h / 1d / 1w / 1M)
-- ☐ Monitor `timescaledb.cagg.refresh.lag` per view — alert at P1 if any view falls behind threshold
-- ☐ Separate backup/PITR policy from Instrument Master PG
-
-### Historical Data Migration (Phase 0, one-time)
-
-- ☐ Migration implemented as a Temporal workflow (`HistoricalDataMigrationWorkflow`)
-- ☐ Activity reads MongoDB historical candles and writes `candles_1m` idempotently (`ON CONFLICT ... DO UPDATE`)
-- ☐ Activity reads Elasticsearch historical data and writes `candles_1m` idempotently
-- ☐ Activity refreshes continuous aggregates for the full backfilled window
-- ☐ Validation activity verifies row counts per day TimescaleDB vs source
-- ☐ Validation activity spot-checks sample instruments (liquid + illiquid) across sample dates
-- ☐ MongoDB and Elasticsearch kept in **read-only mode for 30 days** as safety net
-- ☐ Charts API has a runtime-toggleable fallback to legacy stores during the safety window
-- ☐ Cutover to TimescaleDB only after validation passes
-- ☐ Flyway-style versioned migrations for schema changes; all migration activities are idempotent and safely re-runnable
-- ☐ Decommission MongoDB + Elasticsearch after 30-day clean-operation window
-
-### Reconciliation
-
-- ☐ Only pclose is reconciled
-- ☐ Compare Redis vs exchange bhav copy (from S3)
-- ☐ Upload CSV to S3 regardless of mismatch count
-- ☐ Critical mismatch → P0 Slack
-
-### Expiry Day Cleanup
-
-- ☐ Triggered by market close on expiry days (weekly Thu + monthly last Thu)
-- ☐ Mark expired contracts as EXPIRED in PostgreSQL
-- ☐ Clean expired data from Redis Cluster 2 (option chain, movers, insights)
-- ☐ Stop Greeks computation for expired contracts
-- ☐ Recalculate PCR/Max Pain using only live contracts
-- ☐ Propagate settlement prices to Portfolio/Ledger Engine via Kafka
-- ☐ Completion target: &lt; 30 seconds
-
-### Resilience
-
-- ☐ Every downstream call wrapped with a Resilience4j circuit breaker (50% failure threshold over 20 requests, exponential cooldown 10s/30s/60s)
-- ☐ Every user-facing API has a declared 4-layer fallback chain (live → cached → stale → empty); failover between layers is automatic
-- ☐ Stale-while-revalidate enabled on every cache read — synchronous response served from cache, background refresh kicks off if cache age exceeds threshold
-- ☐ Request hedging enabled for latency-critical reads (live price, option chain, snapshot-on-connect) — parallel reads to two Redis replicas, first response wins
-- ☐ Per-API fallback metrics emitted (`fallback.invocations`) — Layer 4 invocation rate > 0.1% over 5 min triggers P1 alert
-
-### AI-Powered Incident Manager
-
-- ☐ Signal Collectors subscribed to Prometheus, Loki/Elasticsearch logs, Kafka consumer lag, Redis/PG slow query log, synthetic probes
-- ☐ Anomaly detection uses statistical baselines (z-score > 3 sustained 60s; EWMA; Prophet for seasonality), not single-threshold alerting
-- ☐ Cross-service correlation engine merges related anomalies into a single incident
-- ☐ LLM debugger (Claude Sonnet 4.5 or configured provider) receives full context — last 5 min metrics + ERROR logs + traces + recent deploys + service topology + runbook references
-- ☐ Auto-remediation gated by an explicit allowlist (rollout undo, pod restart, scale up, feature-flag toggle, refresh continuous aggregate). Destructive actions NEVER auto-execute.
-- ☐ Auto-remediation rate-limited: same service may not be auto-remediated more than 3 times in 30 minutes (anti-flap)
-
-### Zero-Error UX
-
-- ☐ All HTTP 5xx errors converted to 200 OK with `{ "data": null, "stale": true, "source": "FALLBACK_L4", "lastUpdatedMs": ..., "message": "Updating" }` before returning to client
-- ☐ Frontend treats `null` data as a loading state — never as an error; renders skeleton or last-known-good
-- ☐ Silent feature flags hide widgets when their backing component is degraded — no error banners, no greyed-out states, just fewer widgets
-- ☐ WebSocket auto-reconnect with exponential backoff (1s/2s/4s/8s/16s/30s capped) — fetches fresh snapshot on reconnect, then resumes stream
-- ☐ Mobile + web cache last known state on close; render instantly from cache on next open while WebSocket reconnects in background
+**Result:** 15 legacy services consolidated into 10 MDE services. Charts Data Collector eliminated entirely (ClickHouse materialized views). 4 explicit merges, 1 elimination.
